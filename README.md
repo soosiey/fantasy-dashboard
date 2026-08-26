@@ -1,2 +1,2 @@
 # fantasy-dashboard
-Fantasy fooball dashboard for sleeper
+Fantasy fooball dashboard for sleeper. WIP
