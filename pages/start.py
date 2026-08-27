@@ -1,12 +1,6 @@
 import streamlit as st
 
-from fantasy_dashboard.clients.sleeper import SleeperClient
-
-# Reuse the authenticated client when returning to the login page.
-if "client" not in st.session_state:
-    client = SleeperClient()
-else:
-    client = st.session_state.get("client")
+from fantasy_dashboard.data import get_user
 
 st.title("Fantasy Football Dashboard")
 st.write("Enter your Sleeper username to start")
@@ -18,12 +12,11 @@ with st.form("sleeper username"):
 
 # Validate the account and establish the session used by later pages.
 if submit_button:
-    user = client.get_user(username.strip())
+    user = get_user(username.strip())
 
     if user is None:
         st.error("Sleeper username not found.")
         st.stop()
 
     st.session_state["sleeper_user"] = user
-    st.session_state["client"] = client
     st.rerun()

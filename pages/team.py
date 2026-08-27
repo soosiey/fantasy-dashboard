@@ -1,21 +1,19 @@
-import json
-
 import streamlit as st
 
-from fantasy_dashboard.clients.sleeper import SleeperClient
 from fantasy_dashboard.components.player_news import show_player_news
 from fantasy_dashboard.components.roster_table import render_roster_table
-from fantasy_dashboard.paths import NFL_PLAYERS_PATH
+from fantasy_dashboard.data import (
+    clear_league_data,
+    get_avatar,
+    get_league,
+    get_league_users,
+    get_nfl_players,
+    get_rosters,
+)
 from fantasy_dashboard.roster import (
     build_roster_rows,
     get_player_by_id,
 )
-
-# Restore the selected user and API client across page navigation.
-if "client" not in st.session_state:
-    client = SleeperClient()
-else:
-    client = st.session_state.get("client")
 
 user_id = st.query_params.get("user_id")
 
@@ -28,12 +26,26 @@ if user_id is None:
     st.warning("Select a user first.")
     st.switch_page("pages/leagues.py")
 
-st.title("Team Page")
+league_id = st.session_state.get("league_id")
+title_column, refresh_column = st.columns([8, 1], vertical_alignment="center")
+with title_column:
+    st.title("Team Page")
+with refresh_column:
+    force_refresh = st.button(
+        "↻",
+        key="refresh-team",
+        help="Reload this league's roster data from Sleeper",
+        width="content",
+    )
+
+if force_refresh:
+    clear_league_data(league_id)
+    st.rerun()
 
 # Load the selected team's league, member, and roster records.
-rosters = client.get_all_rosters(st.session_state.get("league_id"))
-teams = client.get_all_users(st.session_state.get("league_id"))
-league = client.get_single_league(st.session_state.get("league_id"))
+rosters = get_rosters(league_id)
+teams = get_league_users(league_id)
+league = get_league(league_id)
 team_roster = None
 team_selected = None
 
@@ -53,7 +65,7 @@ if league.status == "pre_draft" or team_roster is None or team_selected is None:
 # Present the team identity above its roster.
 team_icon, team_identity = st.columns([1, 5], vertical_alignment="center")
 with team_icon:
-    st.image(client.get_avatar(team_selected.avatar_id), width=112)
+    st.image(get_avatar(team_selected.avatar_id), width=112)
 with team_identity:
     st.subheader(team_selected.display_team_name)
     st.caption(f"Owner: {team_selected.display_name}")
@@ -61,8 +73,7 @@ with team_identity:
 st.subheader("Roster")
 
 # Resolve roster IDs through the cached player JSON and render the final table.
-with NFL_PLAYERS_PATH.open(encoding="utf-8") as f:
-    data = json.load(f)
+data = get_nfl_players()
 
 selected_news_player_id = render_roster_table(
     build_roster_rows(league, team_roster, data)

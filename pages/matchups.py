@@ -1,17 +1,15 @@
-import json
-
 import streamlit as st
 
-from fantasy_dashboard.clients.sleeper import SleeperClient
 from fantasy_dashboard.components.matchup_board import render_matchup_carousel
+from fantasy_dashboard.data import (
+    clear_matchup_data,
+    get_league,
+    get_league_users,
+    get_nfl_players,
+    get_rosters,
+    get_weekly_matchups,
+)
 from fantasy_dashboard.matchups import build_head_to_head_matchups
-from fantasy_dashboard.paths import NFL_PLAYERS_PATH
-
-# Restore the API client and selected league across page navigation.
-if "client" not in st.session_state:
-    client = SleeperClient()
-else:
-    client = st.session_state.get("client")
 
 league_id = st.query_params.get("league_id")
 if league_id is not None:
@@ -24,7 +22,9 @@ if league_id is None:
     st.switch_page("pages/leagues.py")
 
 # Keep the week selector aligned opposite the page title.
-title_column, week_column = st.columns([5, 2], vertical_alignment="center")
+title_column, week_column, refresh_column = st.columns(
+    [6, 2, 0.5], vertical_alignment="center"
+)
 with title_column:
     st.title("Matchups")
 with week_column:
@@ -33,14 +33,24 @@ with week_column:
         range(1, 19),
         format_func=lambda week: f"Week {week}",
     )
+with refresh_column:
+    force_refresh = st.button(
+        "↻",
+        key="refresh-matchups",
+        help="Reload this week's scores and lineups from Sleeper",
+        width="content",
+    )
+
+if force_refresh:
+    clear_matchup_data(league_id, selected_week)
+    st.rerun()
 
 # Load the selected week's lineups and resolve their team and player identities.
-league = client.get_single_league(league_id)
-weekly_matchups = client.get_matchups(league_id, selected_week)
-rosters = client.get_all_rosters(league_id)
-teams = client.get_all_users(league_id)
-with NFL_PLAYERS_PATH.open(encoding="utf-8") as player_file:
-    players = json.load(player_file)
+league = get_league(league_id)
+weekly_matchups = get_weekly_matchups(league_id, selected_week)
+rosters = get_rosters(league_id)
+teams = get_league_users(league_id)
+players = get_nfl_players()
 
 st.write(f"League: {league.name}")
 matchups = build_head_to_head_matchups(

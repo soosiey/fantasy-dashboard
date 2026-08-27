@@ -1,16 +1,17 @@
 import streamlit as st
 
-from fantasy_dashboard.clients.sleeper import SleeperClient
 from fantasy_dashboard.components.playoff_bracket import render_playoff_bracket
 from fantasy_dashboard.components.ranking_table import render_ranking_table
+from fantasy_dashboard.data import (
+    clear_ranking_data,
+    get_league,
+    get_league_users,
+    get_losers_bracket,
+    get_rosters,
+    get_winners_bracket,
+)
 from fantasy_dashboard.playoffs import build_playoff_rounds
 from fantasy_dashboard.standings import build_standings
-
-# Restore the API client and selected league across page navigation.
-if "client" not in st.session_state:
-    client = SleeperClient()
-else:
-    client = st.session_state.get("client")
 
 league_id = st.query_params.get("league_id")
 if league_id is not None:
@@ -22,13 +23,10 @@ if league_id is None:
     st.warning("Select a league first.")
     st.switch_page("pages/leagues.py")
 
-# Load league results and join each roster to its displayed team identity.
-league = client.get_single_league(league_id)
-rosters = client.get_all_rosters(league_id)
-teams = client.get_all_users(league_id)
-
 # Keep the regular-season/playoff switch aligned at the top right of the page.
-title_column, view_column = st.columns([5, 3], vertical_alignment="center")
+title_column, view_column, refresh_column = st.columns(
+    [6, 4, 0.5], vertical_alignment="center"
+)
 with title_column:
     st.title("User Rankings")
 with view_column:
@@ -39,13 +37,29 @@ with view_column:
         label_visibility="collapsed",
         width="stretch",
     )
+with refresh_column:
+    force_refresh = st.button(
+        "↻",
+        key="refresh-rankings",
+        help="Reload standings and playoff brackets from Sleeper",
+        width="content",
+    )
+
+if force_refresh:
+    clear_ranking_data(league_id)
+    st.rerun()
+
+# Load league results and join each roster to its displayed team identity.
+league = get_league(league_id)
+rosters = get_rosters(league_id)
+teams = get_league_users(league_id)
 
 st.write(f"League: {league.name}")
 
 # Render either the standings table or Sleeper's left-to-right playoff bracket.
 if ranking_view == "🏆 Playoffs":
     st.header("Winners Bracket")
-    bracket = client.get_winners_bracket(league_id)
+    bracket = get_winners_bracket(league_id)
     playoff_rounds = build_playoff_rounds(
         bracket.matchups,
         rosters.rosters,
@@ -53,7 +67,7 @@ if ranking_view == "🏆 Playoffs":
     )
     render_playoff_bracket(playoff_rounds)
     st.header("Losers Bracket")
-    bracket = client.get_losers_bracket(league_id)
+    bracket = get_losers_bracket(league_id)
     playoff_rounds = build_playoff_rounds(
         bracket.matchups,
         rosters.rosters,
