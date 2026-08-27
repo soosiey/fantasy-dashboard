@@ -16,7 +16,7 @@ class WeeklyMatchupModel:
     def __post_init__(self) -> None:
         object.__setattr__(self, "starters", [str(player) for player in self.starters])
         object.__setattr__(self, "players", [str(player) for player in self.players])
-        object.__setattr__(self, "roster_id", int(self.roster_id))
+        object.__setattr__(self, "roster_id", int(self.roster_id or 0))
         object.__setattr__(
             self,
             "matchup_id",
