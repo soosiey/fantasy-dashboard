@@ -33,23 +33,29 @@ st.write(f"League: {league.name}")
 teams_tab, settings_tab = st.tabs(["Teams", "Settings"])
 
 with teams_tab:
-    st.write("Players: ")
     teams = client.get_all_users(league_id)
-    players_list = []
-    images_list = []
-    for team in teams.users:
-        display_name = team.display_name
-        team_name = team.team_name
-        if team_name == "None":
-            continue
-        image = client.get_avatar(team.avatar_id)
-        st.write(team_name)
-        st.image(image, caption=display_name)
-        st.page_link(
-            "pages/team.py",
-            label="View Team",
-            query_params={"user_id": team.user_id},
-        )
+    rosters = client.get_all_rosters(league_id)
+    roster_owner_ids = {roster.user_id for roster in rosters.rosters}
+    visible_teams = [
+        team for team in teams.users if team.user_id in roster_owner_ids
+    ]
+
+    for row_start in range(0, len(visible_teams), 2):
+        team_columns = st.columns(2, gap="large")
+        for column, team in zip(
+            team_columns, visible_teams[row_start : row_start + 2]
+        ):
+            with column:
+                with st.container(border=True, height=280):
+                    image = client.get_avatar(team.avatar_id)
+                    st.image(image, width=96)
+                    st.subheader(team.display_team_name)
+                    st.caption(team.display_name)
+                    st.page_link(
+                        "pages/team.py",
+                        label="View Team",
+                        query_params={"user_id": team.user_id},
+                    )
 
 with settings_tab:
     league_settings_tab, scoring_settings_tab = st.tabs(

@@ -31,7 +31,7 @@ for roster in rosters.rosters:
 for team in teams.users:
     if team.user_id == user_id:
         team_selected = team
-st.write(f"Team: {team_selected.team_name}")
+st.write(f"Team: {team_selected.display_team_name}")
 st.write(f"Owner: {team_selected.display_name}")
 
 if league.status == "pre_draft":

@@ -29,21 +29,30 @@ class SleeperTeam:
     user_id: str
     display_name: str
     avatar_id: str
-    team_name: str
+    team_name: str | None
 
     def __post_init__(self):
         object.__setattr__(self, "user_id", str(self.user_id))
         object.__setattr__(self, "display_name", str(self.display_name))
         object.__setattr__(self, "avatar_id", str(self.avatar_id))
-        object.__setattr__(self, "team_name", str(self.team_name))
+        object.__setattr__(
+            self,
+            "team_name",
+            str(self.team_name).strip() if self.team_name is not None else None,
+        )
+
+    @property
+    def display_team_name(self) -> str:
+        return self.team_name or f"{self.display_name}'s team"
 
     @classmethod
     def from_json(cls, data: dict[str, str]) -> "SleeperTeam":
+        metadata = data.get("metadata") or {}
         return cls(
             user_id=data.get("user_id"),
             display_name=data.get("display_name"),
             avatar_id=data.get("avatar"),
-            team_name=data.get("metadata").get("team_name"),
+            team_name=metadata.get("team_name"),
         )
 
 
@@ -57,4 +66,3 @@ class UserContainer:
     @classmethod
     def from_api(cls, data: list[dict[str, str]]) -> "UserContainer":
         return cls(users=data)
-
