@@ -12,11 +12,7 @@ try:
 except (OSError, TypeError, ValueError, requests.RequestException) as error:
     st.warning(f"Unable to refresh NFL player data: {error}")
 
-start_page = st.Page(
-    "pages/start.py",
-    title="User Login",
-    default=True
-)
+start_page = st.Page("pages/start.py", title="User Login", default=True)
 
 
 if "sleeper_user" not in st.session_state:
@@ -31,19 +27,19 @@ else:
         "pages/leagues.py",
         title="Leagues",
         default=True,
-        visibility="hidden" if st.session_state.get("league_id") else "visible"
+        visibility="hidden" if st.session_state.get("league_id") else "visible",
     )
 
     overview_page = st.Page(
         "pages/overview.py",
         title="Overview",
-        visibility="visible" if st.session_state.get("league_id") else "hidden"
+        visibility="visible" if st.session_state.get("league_id") else "hidden",
     )
 
     team_page = st.Page(
         "pages/team.py",
         title="Team",
-        visibility="visible" if st.session_state.get("team_id") else "hidden"
+        visibility="visible" if st.session_state.get("team_id") else "hidden",
     )
 
     page_route = st.navigation([leagues_page, overview_page, team_page])

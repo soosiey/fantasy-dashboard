@@ -9,7 +9,6 @@ from fantasy_dashboard.scoring import (
     get_scoring_sort_key,
 )
 
-
 if "client" not in st.session_state:
     client = SleeperClient()
 else:
@@ -36,15 +35,11 @@ with teams_tab:
     teams = client.get_all_users(league_id)
     rosters = client.get_all_rosters(league_id)
     roster_owner_ids = {roster.user_id for roster in rosters.rosters}
-    visible_teams = [
-        team for team in teams.users if team.user_id in roster_owner_ids
-    ]
+    visible_teams = [team for team in teams.users if team.user_id in roster_owner_ids]
 
     for row_start in range(0, len(visible_teams), 2):
         team_columns = st.columns(2, gap="large")
-        for column, team in zip(
-            team_columns, visible_teams[row_start : row_start + 2]
-        ):
+        for column, team in zip(team_columns, visible_teams[row_start : row_start + 2]):
             with column:
                 with st.container(border=True, height=280):
                     image = client.get_avatar(team.avatar_id)

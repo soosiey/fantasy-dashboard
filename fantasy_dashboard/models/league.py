@@ -57,16 +57,18 @@ class LeagueModel:
         object.__setattr__(
             self,
             "settings",
-            self.settings
-            if isinstance(self.settings, Settings)
-            else Settings(
-                waiver_budget=self.settings.get("waiver_budget"),
-                playoff_teams=self.settings.get("playoff_teams"),
-                num_teams=self.settings.get("num_teams"),
-                playoff_start_week=self.settings.get("playoff_week_start"),
-                waiver_day=self.settings.get("waiver_day_of_week"),
-                trade_deadline=self.settings.get("trade_deadline"),
-                reserves=self.settings.get("reserve_slots"),
+            (
+                self.settings
+                if isinstance(self.settings, Settings)
+                else Settings(
+                    waiver_budget=self.settings.get("waiver_budget"),
+                    playoff_teams=self.settings.get("playoff_teams"),
+                    num_teams=self.settings.get("num_teams"),
+                    playoff_start_week=self.settings.get("playoff_week_start"),
+                    waiver_day=self.settings.get("waiver_day_of_week"),
+                    trade_deadline=self.settings.get("trade_deadline"),
+                    reserves=self.settings.get("reserve_slots"),
+                )
             ),
         )
         object.__setattr__(self, "roster_positions", list(self.roster_positions))
@@ -125,9 +127,11 @@ class LeagueContainer:
             self,
             "leagues",
             [
-                league
-                if isinstance(league, LeagueModel)
-                else LeagueModel.from_json(league)
+                (
+                    league
+                    if isinstance(league, LeagueModel)
+                    else LeagueModel.from_json(league)
+                )
                 for league in self.leagues
             ],
         )
@@ -184,7 +188,7 @@ class RosterModel:
             reserve=data.get("reserve"),
             players=data.get("players"),
             user_id=data.get("owner_id"),
-            league_id=data.get("league_id")
+            league_id=data.get("league_id"),
         )
 
 
@@ -197,11 +201,13 @@ class RosterContainer:
             self,
             "rosters",
             [
-                roster
-                if isinstance(roster, RosterModel)
-                else RosterModel.from_json(roster)
+                (
+                    roster
+                    if isinstance(roster, RosterModel)
+                    else RosterModel.from_json(roster)
+                )
                 for roster in self.rosters
-            ]
+            ],
         )
 
     @classmethod

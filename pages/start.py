@@ -2,7 +2,6 @@ import streamlit as st
 
 from fantasy_dashboard.clients.sleeper import SleeperClient
 
-
 if "client" not in st.session_state:
     client = SleeperClient()
 else:

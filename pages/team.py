@@ -40,7 +40,7 @@ if league.status == "pre_draft":
     st.query_params.pop("user_id")
     st.switch_page("pages/overview.py")
 
-with open("nfl_players.json", 'r') as f:
+with open("nfl_players.json", "r") as f:
     data = json.load(f)
 
 for starter in team_roster.starters:

@@ -61,7 +61,9 @@ class UserContainer:
     users: list
 
     def __post_init__(self):
-        object.__setattr__(self, "users", [SleeperTeam.from_json(team) for team in self.users])
+        object.__setattr__(
+            self, "users", [SleeperTeam.from_json(team) for team in self.users]
+        )
 
     @classmethod
     def from_api(cls, data: list[dict[str, str]]) -> "UserContainer":

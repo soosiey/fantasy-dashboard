@@ -79,7 +79,9 @@ class SleeperClient:
 
         return SleeperUser.from_api(data)
 
-    def get_leagues(self, user_id: str, season: str, sport: str = "nfl") -> LeagueContainer:
+    def get_leagues(
+        self, user_id: str, season: str, sport: str = "nfl"
+    ) -> LeagueContainer:
         response = requests.get(
             f"{self.BASE_URL}/user/{user_id}/leagues/{sport}/{season}",
             timeout=self.timeout,

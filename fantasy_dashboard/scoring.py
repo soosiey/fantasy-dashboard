@@ -229,9 +229,7 @@ def get_scoring_section(setting: str) -> ScoringSection:
     return ScoringSection.OTHER
 
 
-def get_scoring_sort_key(
-    section: ScoringSection, setting: str
-) -> tuple[int, str]:
+def get_scoring_sort_key(section: ScoringSection, setting: str) -> tuple[int, str]:
     priorities = _SCORING_SETTING_PRIORITY.get(section, ())
     try:
         return priorities.index(setting), setting
