@@ -77,6 +77,11 @@ with week_column:
         else None
     )
 
+player_search = st.text_input(
+    "Player name",
+    placeholder="Search by player name",
+)
+
 if force_refresh:
     clear_player_data(league_id, season, season_type, selected_week)
     st.rerun()
@@ -104,6 +109,13 @@ player_rows = build_player_stat_rows(
     selected_position=selected_position,
     available_only=available_only,
 )
+search_query = player_search.strip().casefold()
+if search_query:
+    player_rows = [
+        row
+        for row in player_rows
+        if search_query in str(row["Player"]).casefold()
+    ]
 
 st.caption(
     f"{len(player_rows):,} players · Availability reflects the league's current "
