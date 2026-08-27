@@ -2,6 +2,7 @@ import streamlit as st
 
 from fantasy_dashboard.clients.sleeper import SleeperClient
 
+# Restore the API client and authenticated user from session state.
 if "client" not in st.session_state:
     client = SleeperClient()
 else:
@@ -11,6 +12,7 @@ assert "sleeper_user" in st.session_state, "No user found for leagues to show"
 user = st.session_state["sleeper_user"]
 user_id = user.user_id
 
+# Render each available league as a full-width navigation target.
 st.title("Leagues")
 st.caption("Select a league to view.")
 leagues = client.get_leagues(user_id, "2026", "nfl")
@@ -23,6 +25,7 @@ for league in leagues.leagues:
         width="stretch",
     )
 
+# Keep account-level actions anchored at the bottom of the page.
 with st.bottom:
     reset = st.button("Log Out")
 

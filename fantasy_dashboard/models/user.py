@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 
+# Represent the authenticated Sleeper account used to find leagues.
 @dataclass(frozen=True, slots=True)
 class SleeperUser:
     user_id: str
@@ -24,6 +25,7 @@ class SleeperUser:
         )
 
 
+# Represent a league member and their optional custom team identity.
 @dataclass(frozen=True, slots=True)
 class SleeperTeam:
     user_id: str
@@ -32,6 +34,7 @@ class SleeperTeam:
     team_name: str | None
 
     def __post_init__(self):
+        # Normalize identity fields while preserving a missing custom team name.
         object.__setattr__(self, "user_id", str(self.user_id))
         object.__setattr__(self, "display_name", str(self.display_name))
         object.__setattr__(self, "avatar_id", str(self.avatar_id))
@@ -56,6 +59,7 @@ class SleeperTeam:
         )
 
 
+# Convert league-member responses into normalized SleeperTeam instances.
 @dataclass(frozen=True, slots=True)
 class UserContainer:
     users: list

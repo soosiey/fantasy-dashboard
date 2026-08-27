@@ -13,6 +13,7 @@ from fantasy_dashboard.models.league import (
 from fantasy_dashboard.models.user import SleeperUser, UserContainer
 
 
+# Wrap Sleeper HTTP endpoints and convert their responses into application models.
 class SleeperClient:
     BASE_URL = "https://api.sleeper.app/v1"
     AVATAR_URL = "https://sleepercdn.com/avatars/thumbs"
@@ -27,12 +28,14 @@ class SleeperClient:
     ) -> bool:
         cache_path = Path(cache_path)
 
+        # Reuse a recent cache to avoid downloading the large player dataset.
         if cache_path.exists():
             age_seconds = time.time() - cache_path.stat().st_mtime
             if age_seconds <= max_age.total_seconds():
                 print("No refresh for player file.")
                 return False
 
+        # Fetch and validate the complete NFL player payload.
         print("Refreshing player file.")
         response = requests.get(
             f"{self.BASE_URL}/players/nfl",
@@ -47,6 +50,7 @@ class SleeperClient:
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         temporary_path = None
 
+        # Replace the cache atomically so interrupted writes cannot corrupt it.
         try:
             with NamedTemporaryFile(
                 mode="wb",
@@ -65,6 +69,7 @@ class SleeperClient:
 
         return True
 
+    # Fetch user and league-level resources from their corresponding endpoints.
     def get_user(self, username: str) -> SleeperUser | None:
         response = requests.get(
             f"{self.BASE_URL}/user/{username}",
@@ -107,6 +112,7 @@ class SleeperClient:
             return None
         return LeagueModel.from_api(data)
 
+    # Fetch binary avatar content separately from Sleeper's JSON API.
     def get_avatar(self, avatar_id: str) -> bytes:
         response = requests.get(
             f"{self.AVATAR_URL}/{avatar_id}",
@@ -120,6 +126,7 @@ class SleeperClient:
             return None
         return data
 
+    # Fetch the roster and member collections used to assemble league teams.
     def get_all_rosters(self, league_id: str) -> RosterContainer:
         response = requests.get(
             f"{self.BASE_URL}/league/{league_id}/rosters",

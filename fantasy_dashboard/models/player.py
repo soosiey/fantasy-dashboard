@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Any
 
 
+# Represent the player fields consumed by roster views.
 @dataclass(frozen=True, slots=True)
 class PlayerModel:
     first_name: str
@@ -14,6 +15,7 @@ class PlayerModel:
     rotoworld_id: int
 
     def __post_init__(self) -> None:
+        # Normalize nullable Sleeper fields while preserving concrete model types.
         object.__setattr__(self, "first_name", str(self.first_name or ""))
         object.__setattr__(self, "last_name", str(self.last_name or ""))
         object.__setattr__(self, "number", int(self.number or 0))
@@ -25,6 +27,7 @@ class PlayerModel:
 
     @classmethod
     def from_json(cls, data: dict[str, Any]) -> "PlayerModel":
+        # Build a player from one entry in the cached NFL player JSON file.
         return cls(
             first_name=data.get("first_name"),
             last_name=data.get("last_name"),

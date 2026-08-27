@@ -9,6 +9,7 @@ from fantasy_dashboard.scoring import (
     get_scoring_sort_key,
 )
 
+# Restore the API client and selected league across page navigation.
 if "client" not in st.session_state:
     client = SleeperClient()
 else:
@@ -29,9 +30,11 @@ st.title("Overview")
 league = client.get_single_league(league_id)
 st.write(f"League: {league.name}")
 
+# Split the league overview into team browsing and settings views.
 teams_tab, settings_tab = st.tabs(["Teams", "Settings"])
 
 with teams_tab:
+    # Match league members to roster owners before rendering the team-card grid.
     teams = client.get_all_users(league_id)
     rosters = client.get_all_rosters(league_id)
     roster_owner_ids = {roster.user_id for roster in rosters.rosters}
@@ -53,11 +56,13 @@ with teams_tab:
                     )
 
 with settings_tab:
+    # Separate general league configuration from the larger scoring-rule set.
     league_settings_tab, scoring_settings_tab = st.tabs(
         ["League Settings", "Scoring Settings"]
     )
 
     with league_settings_tab:
+        # Convert the settings model into a compact, right-aligned table.
         league_settings = [
             {
                 "Setting": setting.name.replace("_", " ").title(),
@@ -78,6 +83,7 @@ with settings_tab:
         )
 
     with scoring_settings_tab:
+        # Group and rank every scoring rule before rendering section tables.
         grouped_scoring_settings = {section: [] for section in ScoringSection}
         for setting, value in league.scoring_settings.items():
             section = get_scoring_section(setting)
@@ -109,6 +115,7 @@ with settings_tab:
                 width="stretch",
             )
 
+# Keep league and account navigation available beneath either tab.
 with st.bottom:
     league_change = st.button("Switch Leagues")
     reset = st.button("Log Out")

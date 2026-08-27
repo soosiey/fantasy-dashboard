@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import Any
 
 
+# Represent the subset of league settings displayed by the dashboard.
 @dataclass(frozen=True, slots=True)
 class Settings:
     waiver_budget: int
@@ -13,6 +14,7 @@ class Settings:
     reserves: int
 
     def __post_init__(self) -> None:
+        # Normalize API primitives and turn Sleeper's weekday number into a label.
         object.__setattr__(self, "waiver_budget", int(self.waiver_budget))
         object.__setattr__(self, "playoff_teams", int(self.playoff_teams))
         object.__setattr__(self, "num_teams", int(self.num_teams))
@@ -34,6 +36,7 @@ class Settings:
         object.__setattr__(self, "reserves", int(self.reserves))
 
 
+# Normalize league metadata, roster configuration, and scoring rules.
 @dataclass(frozen=True, slots=True)
 class LeagueModel:
     league_id: str
@@ -50,6 +53,7 @@ class LeagueModel:
     avatar_id: str
 
     def __post_init__(self) -> None:
+        # Convert nested settings and mutable API collections into model values.
         object.__setattr__(self, "league_id", str(self.league_id))
         object.__setattr__(self, "rosters", int(self.rosters))
         object.__setattr__(self, "status", str(self.status))
@@ -85,6 +89,7 @@ class LeagueModel:
 
     @classmethod
     def from_json(cls, data: dict[str, Any]) -> "LeagueModel":
+        # Translate Sleeper's field names into the dashboard's league schema.
         return cls(
             league_id=data.get("league_id"),
             rosters=data.get("total_rosters"),
@@ -118,6 +123,7 @@ class LeagueModel:
         )
 
 
+# Convert a league-list response into normalized LeagueModel instances.
 @dataclass(frozen=True, slots=True)
 class LeagueContainer:
     leagues: list
@@ -141,6 +147,7 @@ class LeagueContainer:
         return cls(leagues=data)
 
 
+# Store roster membership and season results for one league team.
 @dataclass(frozen=True, slots=True)
 class RosterModel:
     starters: list
@@ -158,6 +165,7 @@ class RosterModel:
     league_id: str
 
     def __post_init__(self) -> None:
+        # Normalize nullable collections and numeric values returned by Sleeper.
         object.__setattr__(self, "starters", list(self.starters or []))
         object.__setattr__(self, "wins", int(self.wins))
         object.__setattr__(self, "waiver", int(self.waiver))
@@ -174,6 +182,7 @@ class RosterModel:
 
     @classmethod
     def from_json(cls, data: dict[str, Any]) -> "RosterModel":
+        # Flatten the nested roster settings into directly usable properties.
         settings = data.get("settings")
         return cls(
             starters=data.get("starters"),
@@ -192,6 +201,7 @@ class RosterModel:
         )
 
 
+# Convert a roster-list response into normalized RosterModel instances.
 @dataclass(frozen=True, slots=True)
 class RosterContainer:
     rosters: list

@@ -1,6 +1,7 @@
 from enum import Enum
 
 
+# Define the stable display sections used to organize Sleeper scoring keys.
 class ScoringSection(str, Enum):
     PASSING = "Passing"
     RUSHING = "Rushing"
@@ -13,6 +14,7 @@ class ScoringSection(str, Enum):
     OTHER = "Other"
 
 
+# Rank common scoring rules ahead of rare bonuses within each section.
 _SCORING_SETTING_PRIORITY = {
     ScoringSection.PASSING: (
         "pass_yd",
@@ -177,6 +179,7 @@ _SCORING_SETTING_PRIORITY = {
 }
 
 
+# Classify known key patterns while retaining unfamiliar API keys under Other.
 def get_scoring_section(setting: str) -> ScoringSection:
     if setting.startswith("idp_"):
         return ScoringSection.IDP
@@ -229,6 +232,7 @@ def get_scoring_section(setting: str) -> ScoringSection:
     return ScoringSection.OTHER
 
 
+# Sort recognized rules by relevance and unknown rules alphabetically afterward.
 def get_scoring_sort_key(section: ScoringSection, setting: str) -> tuple[int, str]:
     priorities = _SCORING_SETTING_PRIORITY.get(section, ())
     try:

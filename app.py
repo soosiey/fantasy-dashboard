@@ -4,6 +4,7 @@ import streamlit as st
 from fantasy_dashboard.clients.sleeper import SleeperClient
 from fantasy_dashboard.paths import NFL_PLAYERS_PATH
 
+# Refresh the shared player cache without preventing the app from starting on failure.
 try:
     SleeperClient(timeout=30.0).refresh_nfl_players_cache(NFL_PLAYERS_PATH)
 except (OSError, TypeError, ValueError, requests.RequestException) as error:
@@ -11,7 +12,7 @@ except (OSError, TypeError, ValueError, requests.RequestException) as error:
 
 start_page = st.Page("pages/start.py", title="User Login", default=True)
 
-
+# Build navigation around the user's login and league-selection state.
 if "sleeper_user" not in st.session_state:
     page_route = st.navigation([start_page])
 else:
@@ -41,4 +42,5 @@ else:
 
     page_route = st.navigation([leagues_page, overview_page, team_page])
 
+# Hand control to the page selected by Streamlit's navigation router.
 page_route.run()

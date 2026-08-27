@@ -3,9 +3,11 @@ from typing import Any
 from fantasy_dashboard.models.league import LeagueModel, RosterModel
 from fantasy_dashboard.models.player import PlayerModel
 
+# Positions managed separately from the starting lineup.
 NON_STARTING_POSITIONS = {"BN", "IR"}
 
 
+# Resolve one cached JSON record into the application's player model.
 def _get_player(
     players: dict[str, dict[str, Any]], player_id: str | None
 ) -> PlayerModel | None:
@@ -18,6 +20,7 @@ def _get_player(
     return PlayerModel.from_json(player_json)
 
 
+# Produce a readable name while retaining useful fallbacks for missing records.
 def _get_player_name(player: PlayerModel | None, player_id: str | None) -> str:
     if player is None:
         return player_id if player_id and player_id != "0" else "Empty"
@@ -26,6 +29,7 @@ def _get_player_name(player: PlayerModel | None, player_id: str | None) -> str:
     return full_name or player.player_id
 
 
+# Shape one player into the three values expected by the roster table.
 def _get_roster_row(
     roster_position: str,
     players: dict[str, dict[str, Any]],
@@ -46,6 +50,7 @@ def build_roster_rows(
     roster: RosterModel,
     players: dict[str, dict[str, Any]],
 ) -> list[tuple[str, str, str | None]]:
+    # Pair configured starting slots with the roster's ordered starter IDs.
     starter_positions = [
         position
         for position in league.roster_positions
@@ -60,6 +65,7 @@ def build_roster_rows(
         for index, position in enumerate(starter_positions)
     ]
 
+    # Fill configured bench slots with every non-starting, non-reserve player.
     starter_ids = set(roster.starters)
     reserve_ids = set(roster.reserve)
     bench_ids = [
@@ -78,6 +84,7 @@ def build_roster_rows(
         for index in range(bench_slots)
     )
 
+    # Append injured-reserve slots and leave unoccupied slots visibly empty.
     reserve_slots = max(league.settings.reserves, len(roster.reserve))
     rows.extend(
         _get_roster_row(
