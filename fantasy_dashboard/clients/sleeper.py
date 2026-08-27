@@ -5,6 +5,7 @@ from tempfile import NamedTemporaryFile
 
 import requests
 
+from fantasy_dashboard.models.bracket import BracketContainer
 from fantasy_dashboard.models.league import (
     LeagueContainer,
     LeagueModel,
@@ -152,3 +153,16 @@ class SleeperClient:
         if not data:
             return None
         return UserContainer.from_api(data)
+
+    # Fetch the winners bracket used by the playoff rankings view.
+    def get_winners_bracket(self, league_id: str) -> BracketContainer:
+        response = requests.get(
+            f"{self.BASE_URL}/league/{league_id}/winners_bracket",
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        if not isinstance(data, list):
+            raise TypeError("Sleeper's winners bracket response must be a list.")
+        return BracketContainer.from_api(data)

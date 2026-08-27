@@ -158,6 +158,7 @@ class RosterModel:
     ties: int
     losses: int
     points: float
+    points_against: float
     roster_id: int
     reserve: list
     players: list
@@ -174,6 +175,7 @@ class RosterModel:
         object.__setattr__(self, "ties", int(self.ties))
         object.__setattr__(self, "losses", int(self.losses))
         object.__setattr__(self, "points", float(self.points))
+        object.__setattr__(self, "points_against", float(self.points_against))
         object.__setattr__(self, "roster_id", int(self.roster_id))
         object.__setattr__(self, "reserve", list(self.reserve or []))
         object.__setattr__(self, "players", list(self.players or []))
@@ -184,6 +186,14 @@ class RosterModel:
     def from_json(cls, data: dict[str, Any]) -> "RosterModel":
         # Flatten the nested roster settings into directly usable properties.
         settings = data.get("settings")
+
+        # Combine Sleeper's whole and hundredths fields into display-ready totals.
+        points_for = float(settings.get("fpts") or 0) + (
+            float(settings.get("fpts_decimal") or 0) / 100
+        )
+        points_against = float(settings.get("fpts_against") or 0) + (
+            float(settings.get("fpts_against_decimal") or 0) / 100
+        )
         return cls(
             starters=data.get("starters"),
             wins=settings.get("wins"),
@@ -192,7 +202,8 @@ class RosterModel:
             moves=settings.get("total_moves"),
             ties=settings.get("ties"),
             losses=settings.get("losses"),
-            points=settings.get("fpts"),
+            points=points_for,
+            points_against=points_against,
             roster_id=data.get("roster_id"),
             reserve=data.get("reserve"),
             players=data.get("players"),
