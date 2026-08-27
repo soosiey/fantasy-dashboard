@@ -18,6 +18,7 @@ POSITION_LABELS = {
 class MatchupPlayer:
     name: str
     nfl_team: str
+    points: float = 0
 
 
 # Store one team's placard information for a weekly matchup.
@@ -47,14 +48,20 @@ class HeadToHeadMatchup:
 
 # Resolve a player ID from the shared Sleeper player cache.
 def _get_matchup_player(
-    players: dict[str, dict[str, Any]], player_id: str | None
+    players: dict[str, dict[str, Any]],
+    player_id: str | None,
+    player_points: dict[str, float] | None = None,
 ) -> MatchupPlayer:
     if not player_id or player_id == "0" or player_id not in players:
         return MatchupPlayer(name="Empty", nfl_team="")
 
     player = PlayerModel.from_json(players[player_id])
     player_name = f"{player.first_name} {player.last_name}".strip()
-    return MatchupPlayer(name=player_name or player.player_id, nfl_team=player.team)
+    return MatchupPlayer(
+        name=player_name or player.player_id,
+        nfl_team=player.team,
+        points=(player_points or {}).get(player_id, 0),
+    )
 
 
 # Match a weekly roster entry to its league team identity and score.
@@ -118,6 +125,7 @@ def build_head_to_head_matchups(
                         if index < len(left_matchup.starters)
                         else None
                     ),
+                    left_matchup.players_points,
                 ),
                 right_player=_get_matchup_player(
                     players,
@@ -127,6 +135,7 @@ def build_head_to_head_matchups(
                         and index < len(right_matchup.starters)
                         else None
                     ),
+                    right_matchup.players_points if right_matchup else None,
                 ),
             )
             for index, position in enumerate(starting_positions)
@@ -166,10 +175,12 @@ def build_head_to_head_matchups(
                 left_player=_get_matchup_player(
                     players,
                     left_bench_ids[index] if index < len(left_bench_ids) else None,
+                    left_matchup.players_points,
                 ),
                 right_player=_get_matchup_player(
                     players,
                     right_bench_ids[index] if index < len(right_bench_ids) else None,
+                    right_matchup.players_points if right_matchup else None,
                 ),
             )
             for index in range(bench_slots)

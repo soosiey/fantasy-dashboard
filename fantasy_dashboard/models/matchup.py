@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -11,6 +11,7 @@ class WeeklyMatchupModel:
     matchup_id: int | None
     points: float
     custom_points: float | None
+    players_points: dict[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "starters", [str(player) for player in self.starters])
@@ -27,6 +28,14 @@ class WeeklyMatchupModel:
             "custom_points",
             float(self.custom_points) if self.custom_points is not None else None,
         )
+        object.__setattr__(
+            self,
+            "players_points",
+            {
+                str(player_id): float(points or 0)
+                for player_id, points in self.players_points.items()
+            },
+        )
 
     @property
     def displayed_points(self) -> float:
@@ -41,6 +50,7 @@ class WeeklyMatchupModel:
             matchup_id=data.get("matchup_id"),
             points=data.get("points"),
             custom_points=data.get("custom_points"),
+            players_points=data.get("players_points") or {},
         )
 
 

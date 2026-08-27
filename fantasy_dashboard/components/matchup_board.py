@@ -10,21 +10,21 @@ from fantasy_dashboard.matchups import (
 )
 
 
-# Render one team placard with its owner and weekly score.
-def _render_team_placard(team: MatchupTeam) -> str:
+# Render one team placard with its weekly score on the outside edge.
+def _render_team_placard(team: MatchupTeam, side: str) -> str:
     owner = (
         f'<div class="matchup-owner">{escape(team.display_name)}</div>'
         if team.display_name
         else ""
     )
-    return (
-        '<div class="matchup-placard">'
+    identity = (
         '<div class="matchup-team-identity">'
         f'<div class="matchup-team-name">{escape(team.team_name)}</div>{owner}'
         "</div>"
-        f'<div class="matchup-score">{team.points:,.2f}</div>'
-        "</div>"
     )
+    score = f'<div class="matchup-score">{team.points:,.2f}</div>'
+    content = score + identity if side == "left" else identity + score
+    return f'<div class="matchup-placard matchup-placard-{side}">{content}</div>'
 
 
 # Render one player with muted NFL-team metadata.
@@ -34,10 +34,13 @@ def _render_player(player: MatchupPlayer, side: str) -> str:
         if player.nfl_team
         else ""
     )
-    return (
-        f'<div class="matchup-player matchup-player-{side}">'
+    identity = (
+        '<div class="matchup-player-identity">'
         f'<div>{escape(player.name)}</div>{nfl_team}</div>'
     )
+    score = f'<div class="matchup-player-score">{player.points:g}</div>'
+    content = score + identity if side == "left" else identity + score
+    return f'<div class="matchup-player matchup-player-{side}">{content}</div>'
 
 
 # Render all weekly pairings with mirrored lineups around position bubbles.
@@ -49,9 +52,9 @@ def render_matchup_board(matchups: list[HeadToHeadMatchup]) -> None:
     matchup_sections = "".join(
         '<section class="matchup-card">'
         '<div class="matchup-header">'
-        f"{_render_team_placard(matchup.left_team)}"
+        f"{_render_team_placard(matchup.left_team, 'left')}"
         '<div class="matchup-versus">VS</div>'
-        f"{_render_team_placard(matchup.right_team)}"
+        f"{_render_team_placard(matchup.right_team, 'right')}"
         "</div>"
         '<div class="matchup-lineup">'
         + "".join(
@@ -90,6 +93,9 @@ def render_matchup_board(matchups: list[HeadToHeadMatchup]) -> None:
             .matchup-team-identity {{
                 min-width: 0;
             }}
+            .matchup-placard-left .matchup-team-identity {{
+                text-align: right;
+            }}
             .matchup-team-name {{
                 font-size: 1rem;
                 font-weight: 700;
@@ -103,6 +109,11 @@ def render_matchup_board(matchups: list[HeadToHeadMatchup]) -> None:
                 font-size: 1.15rem;
                 font-variant-numeric: tabular-nums;
                 font-weight: 800;
+            }}
+            .matchup-placard-left .matchup-score {{
+                margin-right: 0.75rem;
+            }}
+            .matchup-placard-right .matchup-score {{
                 margin-left: 0.75rem;
             }}
             .matchup-versus {{
@@ -125,8 +136,11 @@ def render_matchup_board(matchups: list[HeadToHeadMatchup]) -> None:
                 background: rgba(128, 128, 128, 0.025);
             }}
             .matchup-player {{
+                align-items: center;
+                display: flex;
                 font-size: 0.88rem;
                 font-weight: 600;
+                justify-content: space-between;
                 min-width: 0;
             }}
             .matchup-player-left {{
@@ -134,6 +148,19 @@ def render_matchup_board(matchups: list[HeadToHeadMatchup]) -> None:
             }}
             .matchup-player-right {{
                 text-align: left;
+            }}
+            .matchup-player-identity {{
+                min-width: 0;
+            }}
+            .matchup-player-score {{
+                font-variant-numeric: tabular-nums;
+                font-weight: 700;
+            }}
+            .matchup-player-left .matchup-player-score {{
+                margin-right: 0.75rem;
+            }}
+            .matchup-player-right .matchup-player-score {{
+                margin-left: 0.75rem;
             }}
             .matchup-player-team {{
                 color: #808495;
