@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from fantasy_dashboard.models.bracket import BracketMatchup, BracketSource
 from fantasy_dashboard.models.league import RosterModel
 from fantasy_dashboard.models.user import SleeperTeam
+from fantasy_dashboard.standings import rank_rosters
 
 
 # Store one resolved or pending team slot in a displayed playoff matchup.
@@ -11,6 +12,7 @@ class PlayoffSlot:
     label: str
     roster_id: int | None
     is_winner: bool
+    seed: int | None = None
 
 
 # Store the presentation values needed for one bracket matchup card.
@@ -27,6 +29,7 @@ def _add_opening_round_byes(
     rounds: dict[int, list[PlayoffMatchup]],
     matchups: list[BracketMatchup],
     team_names_by_roster_id: dict[int, str],
+    seeds_by_roster_id: dict[int, int],
 ) -> None:
     round_numbers = sorted(rounds)
     if len(round_numbers) < 2:
@@ -76,6 +79,7 @@ def _add_opening_round_byes(
                             ),
                             roster_id=roster_id,
                             is_winner=False,
+                            seed=seeds_by_roster_id.get(roster_id),
                         ),
                         team_2=PlayoffSlot(
                             label="Bye week",
@@ -109,6 +113,7 @@ def _resolve_slot(
     winner_roster_id: int | None,
     matchups_by_id: dict[int, BracketMatchup],
     team_names_by_roster_id: dict[int, str],
+    seeds_by_roster_id: dict[int, int],
 ) -> PlayoffSlot:
     resolved_roster_id = roster_id
     if resolved_roster_id is None and source is not None:
@@ -127,6 +132,7 @@ def _resolve_slot(
             ),
             roster_id=resolved_roster_id,
             is_winner=resolved_roster_id == winner_roster_id,
+            seed=seeds_by_roster_id.get(resolved_roster_id),
         )
     if source is not None:
         return PlayoffSlot(
@@ -150,6 +156,10 @@ def build_playoff_rounds(
         if roster.user_id in teams_by_user_id
     }
     matchups_by_id = {matchup.matchup_id: matchup for matchup in matchups}
+    seeds_by_roster_id = {
+        roster.roster_id: seed
+        for seed, roster in enumerate(rank_rosters(rosters), start=1)
+    }
     placement_titles = {1: "Championship", 3: "Third Place", 5: "Fifth Place"}
     rounds: dict[int, list[PlayoffMatchup]] = {}
 
@@ -165,6 +175,7 @@ def build_playoff_rounds(
                 matchup.winner_roster_id,
                 matchups_by_id,
                 team_names_by_roster_id,
+                seeds_by_roster_id,
             ),
             team_2=_resolve_slot(
                 matchup.team_2_roster_id,
@@ -172,9 +183,15 @@ def build_playoff_rounds(
                 matchup.winner_roster_id,
                 matchups_by_id,
                 team_names_by_roster_id,
+                seeds_by_roster_id,
             ),
         )
         rounds.setdefault(matchup.round, []).append(matchup_view)
 
-    _add_opening_round_byes(rounds, matchups, team_names_by_roster_id)
+    _add_opening_round_byes(
+        rounds,
+        matchups,
+        team_names_by_roster_id,
+        seeds_by_roster_id,
+    )
     return rounds

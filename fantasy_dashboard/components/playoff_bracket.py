@@ -10,9 +10,15 @@ from fantasy_dashboard.playoffs import PlayoffMatchup, PlayoffSlot
 def _render_slot(slot: PlayoffSlot) -> str:
     css_class = " bracket-slot-winner" if slot.is_winner else ""
     winner_icon = '<span class="bracket-winner-icon">✓</span>' if slot.is_winner else ""
+    seed = (
+        f'<span class="bracket-seed">{slot.seed}</span>'
+        if slot.seed is not None
+        else ""
+    )
     return (
         f'<div class="bracket-slot{css_class}">'
-        f'<span>{escape(slot.label)}</span>{winner_icon}</div>'
+        '<span class="bracket-team-label">'
+        f'<span>{escape(slot.label)}</span>{seed}</span>{winner_icon}</div>'
     )
 
 
@@ -110,6 +116,17 @@ def render_playoff_bracket(rounds: dict[int, list[PlayoffMatchup]]) -> None:
             .bracket-slot-winner {{
                 background: rgba(34, 197, 94, 0.10);
                 font-weight: 700;
+            }}
+            .bracket-team-label {{
+                align-items: baseline;
+                display: flex;
+                gap: 0.35rem;
+                min-width: 0;
+            }}
+            .bracket-seed {{
+                color: #808495;
+                font-size: 0.68rem;
+                font-weight: 500;
             }}
             .bracket-winner-icon {{
                 color: #16a34a;

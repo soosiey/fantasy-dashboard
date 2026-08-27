@@ -44,7 +44,16 @@ st.write(f"League: {league.name}")
 
 # Render either the standings table or Sleeper's left-to-right playoff bracket.
 if ranking_view == "🏆 Playoffs":
+    st.header("Winners Bracket")
     bracket = client.get_winners_bracket(league_id)
+    playoff_rounds = build_playoff_rounds(
+        bracket.matchups,
+        rosters.rosters,
+        teams.users,
+    )
+    render_playoff_bracket(playoff_rounds)
+    st.header("Losers Bracket")
+    bracket = client.get_losers_bracket(league_id)
     playoff_rounds = build_playoff_rounds(
         bracket.matchups,
         rosters.rosters,

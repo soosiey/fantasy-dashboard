@@ -18,20 +18,26 @@ class StandingRow:
     points_against: float
 
 
-# Join roster results to league users and apply the configured tiebreakers.
-def build_standings(
-    rosters: list[RosterModel], teams: list[SleeperTeam]
-) -> list[StandingRow]:
-    teams_by_user_id = {team.user_id: team for team in teams}
-    ranked_rosters = [
-        roster for roster in rosters if roster.user_id in teams_by_user_id
-    ]
+# Apply the regular-season ordering shared by standings and playoff seeds.
+def rank_rosters(rosters: list[RosterModel]) -> list[RosterModel]:
+    ranked_rosters = list(rosters)
     ranked_rosters.sort(
         key=lambda roster: (
             -roster.wins,
             -roster.points,
             -roster.points_against,
         )
+    )
+    return ranked_rosters
+
+
+# Join roster results to league users and apply the configured tiebreakers.
+def build_standings(
+    rosters: list[RosterModel], teams: list[SleeperTeam]
+) -> list[StandingRow]:
+    teams_by_user_id = {team.user_id: team for team in teams}
+    ranked_rosters = rank_rosters(
+        [roster for roster in rosters if roster.user_id in teams_by_user_id]
     )
 
     # Assign sequential placements after all record and points tiebreakers.

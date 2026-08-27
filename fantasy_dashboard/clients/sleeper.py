@@ -166,3 +166,16 @@ class SleeperClient:
         if not isinstance(data, list):
             raise TypeError("Sleeper's winners bracket response must be a list.")
         return BracketContainer.from_api(data)
+
+    # Fetch the losers bracket used by the playoff rankings view.
+    def get_losers_bracket(self, league_id: str) -> BracketContainer:
+        response = requests.get(
+            f"{self.BASE_URL}/league/{league_id}/losers_bracket",
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        if not isinstance(data, list):
+            raise TypeError("Sleeper's losers bracket response must be a list.")
+        return BracketContainer.from_api(data)
