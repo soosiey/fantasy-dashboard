@@ -28,7 +28,7 @@ images_list = []
 for team in teams.users:
     display_name = team.display_name
     team_name = team.team_name
-    if team_name is None:
+    if team_name == "None":
         continue
     image = client.get_avatar(team.avatar_id)
     st.write(team_name)
