@@ -100,9 +100,7 @@ with settings_tab:
             st.dataframe(
                 scoring_table,
                 column_config={
-                    "Setting": st.column_config.TextColumn(
-                        "Setting", width="large"
-                    ),
+                    "Setting": st.column_config.TextColumn("Setting", width="large"),
                     "Points": st.column_config.NumberColumn(
                         "Points", width="small", alignment="right"
                     ),

@@ -2,13 +2,10 @@ from typing import Any
 
 from fantasy_dashboard.models.league import LeagueModel, RosterModel
 
-
 NON_STARTING_POSITIONS = {"BN", "IR"}
 
 
-def get_player_name(
-    players: dict[str, dict[str, Any]], player_id: str | None
-) -> str:
+def get_player_name(players: dict[str, dict[str, Any]], player_id: str | None) -> str:
     if not player_id or player_id == "0":
         return "Empty"
 

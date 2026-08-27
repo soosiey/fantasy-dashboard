@@ -24,8 +24,7 @@ def render_roster_table(rows: list[tuple[str, str, str | None]]) -> None:
         for position, player_name, player_position in rows
     )
     st.markdown(
-        dedent(
-            f"""
+        dedent(f"""
         <style>
             .roster-table {{
                 border-collapse: collapse;
@@ -66,8 +65,7 @@ def render_roster_table(rows: list[tuple[str, str, str | None]]) -> None:
             </thead>
             <tbody>{table_rows}</tbody>
         </table>
-        """
-        ),
+        """),
         unsafe_allow_html=True,
     )
 
