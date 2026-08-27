@@ -12,13 +12,15 @@ user = st.session_state["sleeper_user"]
 user_id = user.user_id
 
 st.title("Leagues")
+st.caption("Select a league to view.")
 leagues = client.get_leagues(user_id, "2026", "nfl")
 for league in leagues.leagues:
     st.page_link(
         "pages/overview.py",
-        label=league.name,
+        label=f"**{league.name}**",
         icon="🏈",
         query_params={"league_id": league.league_id},
+        width="stretch",
     )
 
 with st.bottom:

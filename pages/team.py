@@ -1,6 +1,76 @@
-import streamlit as st
-from fantasy_dashboard.clients.sleeper import SleeperClient
 import json
+from html import escape
+from textwrap import dedent
+
+import streamlit as st
+
+from fantasy_dashboard.clients.sleeper import SleeperClient
+from fantasy_dashboard.paths import NFL_PLAYERS_PATH
+from fantasy_dashboard.roster import build_roster_rows
+
+
+def render_roster_table(rows: list[tuple[str, str, str | None]]) -> None:
+    table_rows = "".join(
+        "<tr>"
+        f'<td class="roster-position">{escape(position)}</td>'
+        f"<td>{escape(player_name)}"
+        + (
+            f'<span class="player-position">{escape(player_position)}</span>'
+            if player_position
+            else ""
+        )
+        + "</td>"
+        "</tr>"
+        for position, player_name, player_position in rows
+    )
+    st.markdown(
+        dedent(
+            f"""
+        <style>
+            .roster-table {{
+                border-collapse: collapse;
+                color: inherit;
+                width: 100%;
+            }}
+            .roster-table th,
+            .roster-table td {{
+                border: none;
+                padding: 0.65rem 0.85rem;
+                text-align: left;
+            }}
+            .roster-table th {{
+                color: #808495;
+                font-size: 0.8rem;
+                text-transform: uppercase;
+            }}
+            .roster-table tbody tr:nth-child(odd) {{
+                background-color: rgba(128, 128, 128, 0.10);
+            }}
+            .roster-table tbody tr:nth-child(even) {{
+                background-color: rgba(128, 128, 128, 0.03);
+            }}
+            .roster-table .roster-position {{
+                color: #808495;
+                font-weight: 600;
+                width: 28%;
+            }}
+            .roster-table .player-position {{
+                color: #808495;
+                font-size: 0.78rem;
+                margin-left: 0.5rem;
+            }}
+        </style>
+        <table class="roster-table">
+            <thead>
+                <tr><th>Position</th><th>Player</th></tr>
+            </thead>
+            <tbody>{table_rows}</tbody>
+        </table>
+        """
+        ),
+        unsafe_allow_html=True,
+    )
+
 
 if "client" not in st.session_state:
     client = SleeperClient()
@@ -31,22 +101,25 @@ for roster in rosters.rosters:
 for team in teams.users:
     if team.user_id == user_id:
         team_selected = team
-st.write(f"Team: {team_selected.display_team_name}")
-st.write(f"Owner: {team_selected.display_name}")
 
-if league.status == "pre_draft":
+if league.status == "pre_draft" or team_roster is None or team_selected is None:
     st.warning("No roster found for this user.")
     st.session_state.pop("user_id")
     st.query_params.pop("user_id")
     st.switch_page("pages/overview.py")
 
-with open("nfl_players.json", "r") as f:
+team_icon, team_identity = st.columns([1, 5], vertical_alignment="center")
+with team_icon:
+    st.image(client.get_avatar(team_selected.avatar_id), width=112)
+with team_identity:
+    st.subheader(team_selected.display_team_name)
+    st.caption(f"Owner: {team_selected.display_name}")
+
+st.subheader("Roster")
+with NFL_PLAYERS_PATH.open(encoding="utf-8") as f:
     data = json.load(f)
 
-for starter in team_roster.starters:
-    player = data[starter]
-    name = f"{player['first_name']} {player['last_name']}"
-    st.write(name)
+render_roster_table(build_roster_rows(league, team_roster, data))
 
 with st.bottom:
     team_change = st.button("Different Team")

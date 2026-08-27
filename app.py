@@ -1,11 +1,8 @@
-from pathlib import Path
-
 import requests
 import streamlit as st
 
 from fantasy_dashboard.clients.sleeper import SleeperClient
-
-NFL_PLAYERS_PATH = Path(__file__).with_name("nfl_players.json")
+from fantasy_dashboard.paths import NFL_PLAYERS_PATH
 
 try:
     SleeperClient(timeout=30.0).refresh_nfl_players_cache(NFL_PLAYERS_PATH)

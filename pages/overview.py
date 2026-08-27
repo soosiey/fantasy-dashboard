@@ -58,9 +58,24 @@ with settings_tab:
     )
 
     with league_settings_tab:
-        for setting in fields(league.settings):
-            label = setting.name.replace("_", " ").title()
-            st.write(f"**{label}:** {getattr(league.settings, setting.name)}")
+        league_settings = [
+            {
+                "Setting": setting.name.replace("_", " ").title(),
+                "Value": str(getattr(league.settings, setting.name)),
+            }
+            for setting in fields(league.settings)
+        ]
+        st.dataframe(
+            league_settings,
+            column_config={
+                "Setting": st.column_config.TextColumn("Setting", width="large"),
+                "Value": st.column_config.TextColumn(
+                    "Value", width="small", alignment="right"
+                ),
+            },
+            hide_index=True,
+            width="stretch",
+        )
 
     with scoring_settings_tab:
         grouped_scoring_settings = {section: [] for section in ScoringSection}
@@ -72,12 +87,29 @@ with settings_tab:
             if not section_settings:
                 continue
             st.subheader(section.value)
-            for setting, value in sorted(
-                section_settings,
-                key=lambda item: get_scoring_sort_key(section, item[0]),
-            ):
-                label = setting.replace("_", " ").title()
-                st.write(f"**{label}:** {value}")
+            scoring_table = [
+                {
+                    "Setting": setting.replace("_", " ").title(),
+                    "Points": value,
+                }
+                for setting, value in sorted(
+                    section_settings,
+                    key=lambda item: get_scoring_sort_key(section, item[0]),
+                )
+            ]
+            st.dataframe(
+                scoring_table,
+                column_config={
+                    "Setting": st.column_config.TextColumn(
+                        "Setting", width="large"
+                    ),
+                    "Points": st.column_config.NumberColumn(
+                        "Points", width="small", alignment="right"
+                    ),
+                },
+                hide_index=True,
+                width="stretch",
+            )
 
 with st.bottom:
     league_change = st.button("Switch Leagues")
