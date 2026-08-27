@@ -11,6 +11,7 @@ from fantasy_dashboard.models.league import (
     LeagueModel,
     RosterContainer,
 )
+from fantasy_dashboard.models.matchup import WeeklyMatchupContainer
 from fantasy_dashboard.models.user import SleeperUser, UserContainer
 
 
@@ -140,6 +141,19 @@ class SleeperClient:
         if not data:
             return None
         return RosterContainer.from_api(data)
+
+    # Fetch every roster's lineup and score for one league week.
+    def get_matchups(self, league_id: str, week: int) -> WeeklyMatchupContainer:
+        response = requests.get(
+            f"{self.BASE_URL}/league/{league_id}/matchups/{week}",
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        if not isinstance(data, list):
+            raise TypeError("Sleeper's matchup response must be a list.")
+        return WeeklyMatchupContainer.from_api(data)
 
     def get_all_users(self, league_id: str) -> UserContainer:
         response = requests.get(

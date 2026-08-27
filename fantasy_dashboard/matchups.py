@@ -1,0 +1,188 @@
+from dataclasses import dataclass
+from typing import Any
+
+from fantasy_dashboard.models.league import LeagueModel, RosterModel
+from fantasy_dashboard.models.matchup import WeeklyMatchupModel
+from fantasy_dashboard.models.player import PlayerModel
+from fantasy_dashboard.models.user import SleeperTeam
+
+POSITION_LABELS = {
+    "SUPER_FLEX": "SFLEX",
+    "REC_FLEX": "FLEX",
+    "WRRB_FLEX": "FLEX",
+}
+
+
+# Store the compact player identity shown on either side of a matchup.
+@dataclass(frozen=True, slots=True)
+class MatchupPlayer:
+    name: str
+    nfl_team: str
+
+
+# Store one team's placard information for a weekly matchup.
+@dataclass(frozen=True, slots=True)
+class MatchupTeam:
+    team_name: str
+    display_name: str
+    points: float
+    user_id: str | None
+
+
+# Pair two starting players around their shared fantasy position.
+@dataclass(frozen=True, slots=True)
+class MatchupLineupRow:
+    position: str
+    left_player: MatchupPlayer
+    right_player: MatchupPlayer
+
+
+# Represent one complete head-to-head matchup ready for display.
+@dataclass(frozen=True, slots=True)
+class HeadToHeadMatchup:
+    left_team: MatchupTeam
+    right_team: MatchupTeam
+    lineup: list[MatchupLineupRow]
+
+
+# Resolve a player ID from the shared Sleeper player cache.
+def _get_matchup_player(
+    players: dict[str, dict[str, Any]], player_id: str | None
+) -> MatchupPlayer:
+    if not player_id or player_id == "0" or player_id not in players:
+        return MatchupPlayer(name="Empty", nfl_team="")
+
+    player = PlayerModel.from_json(players[player_id])
+    player_name = f"{player.first_name} {player.last_name}".strip()
+    return MatchupPlayer(name=player_name or player.player_id, nfl_team=player.team)
+
+
+# Match a weekly roster entry to its league team identity and score.
+def _get_matchup_team(
+    matchup: WeeklyMatchupModel | None,
+    rosters_by_id: dict[int, RosterModel],
+    teams_by_user_id: dict[str, SleeperTeam],
+) -> MatchupTeam:
+    if matchup is None:
+        return MatchupTeam(
+            team_name="Bye", display_name="", points=0, user_id=None
+        )
+
+    roster = rosters_by_id.get(matchup.roster_id)
+    team = teams_by_user_id.get(roster.user_id) if roster is not None else None
+    return MatchupTeam(
+        team_name=team.display_team_name if team is not None else f"Roster {matchup.roster_id}",
+        display_name=team.display_name if team is not None else "",
+        points=matchup.displayed_points,
+        user_id=team.user_id if team is not None else None,
+    )
+
+
+# Build mirrored starter rows for every head-to-head pairing in the selected week.
+def build_head_to_head_matchups(
+    weekly_matchups: list[WeeklyMatchupModel],
+    league: LeagueModel,
+    rosters: list[RosterModel],
+    teams: list[SleeperTeam],
+    players: dict[str, dict[str, Any]],
+) -> list[HeadToHeadMatchup]:
+    rosters_by_id = {roster.roster_id: roster for roster in rosters}
+    teams_by_user_id = {team.user_id: team for team in teams}
+    starting_positions = [
+        position
+        for position in league.roster_positions
+        if position not in {"BN", "IR"}
+    ]
+
+    grouped_matchups: dict[int, list[WeeklyMatchupModel]] = {}
+    for matchup in weekly_matchups:
+        group_id = (
+            matchup.matchup_id
+            if matchup.matchup_id is not None
+            else -matchup.roster_id
+        )
+        grouped_matchups.setdefault(group_id, []).append(matchup)
+
+    head_to_head_matchups: list[HeadToHeadMatchup] = []
+    for _, matchup_teams in sorted(grouped_matchups.items()):
+        matchup_teams.sort(key=lambda matchup: matchup.roster_id)
+        left_matchup = matchup_teams[0]
+        right_matchup = matchup_teams[1] if len(matchup_teams) > 1 else None
+        lineup = [
+            MatchupLineupRow(
+                position=POSITION_LABELS.get(position, position.replace("_", "")),
+                left_player=_get_matchup_player(
+                    players,
+                    (
+                        left_matchup.starters[index]
+                        if index < len(left_matchup.starters)
+                        else None
+                    ),
+                ),
+                right_player=_get_matchup_player(
+                    players,
+                    (
+                        right_matchup.starters[index]
+                        if right_matchup is not None
+                        and index < len(right_matchup.starters)
+                        else None
+                    ),
+                ),
+            )
+            for index, position in enumerate(starting_positions)
+        ]
+
+        # Pair active bench players beneath the starters without including reserves.
+        left_roster = rosters_by_id.get(left_matchup.roster_id)
+        right_roster = (
+            rosters_by_id.get(right_matchup.roster_id)
+            if right_matchup is not None
+            else None
+        )
+        left_reserve_ids = set(left_roster.reserve if left_roster is not None else [])
+        right_reserve_ids = set(
+            right_roster.reserve if right_roster is not None else []
+        )
+        left_starter_ids = set(left_matchup.starters)
+        right_starter_ids = set(right_matchup.starters if right_matchup else [])
+        left_bench_ids = [
+            player_id
+            for player_id in left_matchup.players
+            if player_id not in left_starter_ids and player_id not in left_reserve_ids
+        ]
+        right_bench_ids = [
+            player_id
+            for player_id in (right_matchup.players if right_matchup else [])
+            if player_id not in right_starter_ids and player_id not in right_reserve_ids
+        ]
+        bench_slots = max(
+            league.roster_positions.count("BN"),
+            len(left_bench_ids),
+            len(right_bench_ids),
+        )
+        lineup.extend(
+            MatchupLineupRow(
+                position="BN",
+                left_player=_get_matchup_player(
+                    players,
+                    left_bench_ids[index] if index < len(left_bench_ids) else None,
+                ),
+                right_player=_get_matchup_player(
+                    players,
+                    right_bench_ids[index] if index < len(right_bench_ids) else None,
+                ),
+            )
+            for index in range(bench_slots)
+        )
+        head_to_head_matchups.append(
+            HeadToHeadMatchup(
+                left_team=_get_matchup_team(
+                    left_matchup, rosters_by_id, teams_by_user_id
+                ),
+                right_team=_get_matchup_team(
+                    right_matchup, rosters_by_id, teams_by_user_id
+                ),
+                lineup=lineup,
+            )
+        )
+    return head_to_head_matchups

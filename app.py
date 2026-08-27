@@ -40,6 +40,12 @@ else:
         visibility="visible" if st.session_state.get("league_id") else "hidden",
     )
 
+    matchups_page = st.Page(
+        "pages/matchups.py",
+        title="Matchups",
+        visibility="visible" if st.session_state.get("league_id") else "hidden",
+    )
+
     team_page = st.Page(
         "pages/team.py",
         title="Team",
@@ -47,7 +53,7 @@ else:
     )
 
     page_route = st.navigation(
-        [leagues_page, overview_page, ranking_page, team_page]
+        [leagues_page, overview_page, matchups_page, ranking_page, team_page]
     )
 
 # Hand control to the page selected by Streamlit's navigation router.
