@@ -10,7 +10,10 @@ from fantasy_dashboard.models.matchup import (
 
 # Supply only the league configuration needed to arrange matchup rows.
 def _league(*positions: str) -> SimpleNamespace:
-    return SimpleNamespace(roster_positions=list(positions))
+    return SimpleNamespace(
+        roster_positions=list(positions),
+        scoring_settings={"pass_yd": 0.04, "pass_td": 4, "rush_yd": 0.1},
+    )
 
 
 # Build one normalized weekly entry while allowing each test to override its data.
@@ -88,6 +91,76 @@ def test_missing_player_score_defaults_to_zero() -> None:
 
     assert result[0].lineup[0].left_player.points == 12.5
     assert result[0].lineup[1].left_player.points == 0
+
+
+# NFL stats should drive player scores and starter-only team totals.
+def test_nfl_stats_score_players_and_exclude_bench_from_team_total() -> None:
+    matchup = _weekly_matchup(
+        starters=["starter"],
+        players=["starter", "bench"],
+        points=99,
+    )
+    players = {
+        "starter": {
+            "player_id": "starter",
+            "first_name": "Starting",
+            "last_name": "Quarterback",
+        },
+        "bench": {
+            "player_id": "bench",
+            "first_name": "Bench",
+            "last_name": "Player",
+        },
+    }
+    stats = {
+        "starter": {"pass_yd": 250, "pass_td": 1},
+        "bench": {"rush_yd": 100},
+    }
+
+    result = build_head_to_head_matchups(
+        [matchup],
+        _league("QB", "BN"),
+        [],
+        [],
+        players,
+        stats,
+    )
+
+    assert result[0].lineup[0].left_player.points == 14
+    assert result[0].lineup[1].left_player.points == 10
+    assert result[0].left_team.points == 14
+
+
+# The first bench row should be visually divided from the starting lineup.
+def test_matchup_board_marks_bench_rows(monkeypatch) -> None:
+    matchup = _weekly_matchup(
+        starters=["starter"],
+        players=["starter", "bench"],
+    )
+    players = {
+        player_id: {
+            "player_id": player_id,
+            "first_name": player_id.title(),
+        }
+        for player_id in ("starter", "bench")
+    }
+    rendered_markup: list[str] = []
+    result = build_head_to_head_matchups(
+        [matchup], _league("QB", "BN"), [], [], players
+    )
+    monkeypatch.setattr(
+        matchup_board,
+        "st",
+        SimpleNamespace(
+            info=lambda message: None,
+            markdown=lambda markup, **kwargs: rendered_markup.append(markup),
+        ),
+    )
+
+    matchup_board.render_matchup_board(result)
+
+    assert "matchup-lineup-row-bench" in rendered_markup[0]
+    assert "border-top" in rendered_markup[0]
 
 
 # The board should give a useful empty state rather than rendering blank markup.

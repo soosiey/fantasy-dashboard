@@ -1,3 +1,4 @@
+import requests
 import streamlit as st
 
 from fantasy_dashboard.components.matchup_board import render_matchup_carousel
@@ -6,6 +7,7 @@ from fantasy_dashboard.data import (
     get_league,
     get_league_users,
     get_nfl_players,
+    get_player_stats,
     get_rosters,
     get_weekly_matchups,
 )
@@ -20,6 +22,9 @@ else:
 if league_id is None:
     st.warning("Select a league first.")
     st.switch_page("pages/leagues.py")
+
+league = get_league(league_id)
+stats_season = league.season
 
 # Keep the week selector aligned opposite the page title.
 title_column, week_column, refresh_column = st.columns(
@@ -42,15 +47,28 @@ with refresh_column:
     )
 
 if force_refresh:
-    clear_matchup_data(league_id, selected_week)
+    clear_matchup_data(
+        league_id,
+        selected_week,
+        stats_season,
+        league.season_type,
+    )
     st.rerun()
 
 # Load the selected week's lineups and resolve their team and player identities.
-league = get_league(league_id)
 weekly_matchups = get_weekly_matchups(league_id, selected_week)
 rosters = get_rosters(league_id)
 teams = get_league_users(league_id)
 players = get_nfl_players()
+try:
+    stats_by_player_id = get_player_stats(
+        stats_season,
+        league.season_type,
+        selected_week,
+    )
+except (requests.RequestException, TypeError, ValueError):
+    stats_by_player_id = {}
+    st.warning("Player statistics could not be loaded; scores default to zero.")
 
 st.write(f"League: {league.name}")
 matchups = build_head_to_head_matchups(
@@ -59,6 +77,7 @@ matchups = build_head_to_head_matchups(
     rosters.rosters,
     teams.users,
     players,
+    stats_by_player_id,
 )
 current_user = st.session_state.get("sleeper_user")
 render_matchup_carousel(

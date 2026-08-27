@@ -58,7 +58,9 @@ def render_matchup_board(matchups: list[HeadToHeadMatchup]) -> None:
         "</div>"
         '<div class="matchup-lineup">'
         + "".join(
-            '<div class="matchup-lineup-row">'
+            '<div class="matchup-lineup-row'
+            + (" matchup-lineup-row-bench" if row.position == "BN" else "")
+            + '">'
             f"{_render_player(row.left_player, 'left')}"
             f'<div class="matchup-position">{escape(row.position)}</div>'
             f"{_render_player(row.right_player, 'right')}"
@@ -134,6 +136,12 @@ def render_matchup_board(matchups: list[HeadToHeadMatchup]) -> None:
             }}
             .matchup-lineup-row:nth-child(even) {{
                 background: rgba(128, 128, 128, 0.025);
+            }}
+            .matchup-lineup-row:not(.matchup-lineup-row-bench)
+                + .matchup-lineup-row-bench {{
+                border-top: 1px solid rgba(128, 128, 128, 0.35);
+                margin-top: 0.4rem;
+                padding-top: 0.75rem;
             }}
             .matchup-player {{
                 align-items: center;

@@ -111,9 +111,15 @@ def clear_league_data(league_id: str) -> None:
     get_rosters.clear(league_id)
 
 
-def clear_matchup_data(league_id: str, week: int) -> None:
+def clear_matchup_data(
+    league_id: str,
+    week: int,
+    season: str,
+    season_type: str,
+) -> None:
     clear_league_data(league_id)
     get_weekly_matchups.clear(league_id, week)
+    get_player_stats.clear(season, season_type, week)
 
 
 def clear_ranking_data(league_id: str) -> None:
