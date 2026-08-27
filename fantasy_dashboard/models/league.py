@@ -51,6 +51,8 @@ class LeagueModel:
     bracket_id: str
     loser_bracket_id: str
     avatar_id: str
+    season: str = ""
+    season_type: str = "regular"
 
     def __post_init__(self) -> None:
         # Convert nested settings and mutable API collections into model values.
@@ -86,6 +88,10 @@ class LeagueModel:
         object.__setattr__(self, "bracket_id", str(self.bracket_id))
         object.__setattr__(self, "loser_bracket_id", str(self.loser_bracket_id))
         object.__setattr__(self, "avatar_id", str(self.avatar_id))
+        object.__setattr__(self, "season", str(self.season or ""))
+        object.__setattr__(
+            self, "season_type", str(self.season_type or "regular")
+        )
 
     @classmethod
     def from_json(cls, data: dict[str, Any]) -> "LeagueModel":
@@ -103,6 +109,8 @@ class LeagueModel:
             bracket_id=data.get("bracket_id"),
             loser_bracket_id=data.get("loser_bracket_id"),
             avatar_id=data.get("avatar"),
+            season=data.get("season"),
+            season_type=data.get("season_type"),
         )
 
     @classmethod
@@ -120,6 +128,8 @@ class LeagueModel:
             bracket_id=data.get("bracket_id"),
             loser_bracket_id=data.get("loser_bracket_id"),
             avatar_id=data.get("avatar"),
+            season=data.get("season"),
+            season_type=data.get("season_type"),
         )
 
 

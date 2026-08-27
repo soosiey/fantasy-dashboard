@@ -155,6 +155,29 @@ class SleeperClient:
             raise TypeError("Sleeper's matchup response must be a list.")
         return WeeklyMatchupContainer.from_api(data)
 
+    # Fetch raw NFL player statistics for a season or one selected week.
+    def get_player_stats(
+        self,
+        season: str,
+        season_type: str = "regular",
+        week: int | None = None,
+    ) -> dict[str, dict]:
+        stats_url = f"{self.BASE_URL}/stats/nfl/{season_type}/{season}"
+        if week is not None:
+            stats_url = f"{stats_url}/{week}"
+
+        response = requests.get(stats_url, timeout=self.timeout)
+        response.raise_for_status()
+
+        data = response.json()
+        if not isinstance(data, dict):
+            raise TypeError("Sleeper's NFL stats response must be a JSON object.")
+        return {
+            str(player_id): stats
+            for player_id, stats in data.items()
+            if isinstance(stats, dict)
+        }
+
     def get_all_users(self, league_id: str) -> UserContainer:
         response = requests.get(
             f"{self.BASE_URL}/league/{league_id}/users",

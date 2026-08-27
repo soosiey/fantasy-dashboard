@@ -59,6 +59,15 @@ def get_weekly_matchups(
     return get_sleeper_client().get_matchups(league_id, week)
 
 
+@st.cache_data(ttl=300, max_entries=64, show_spinner=False)
+def get_player_stats(
+    season: str,
+    season_type: str = "regular",
+    week: int | None = None,
+) -> dict[str, dict]:
+    return get_sleeper_client().get_player_stats(season, season_type, week)
+
+
 @st.cache_data(ttl=5, show_spinner=False)
 def get_winners_bracket(league_id: str) -> BracketContainer:
     return get_sleeper_client().get_winners_bracket(league_id)
@@ -115,3 +124,14 @@ def clear_ranking_data(league_id: str) -> None:
 
 def clear_league_list(user_id: str, season: str, sport: str = "nfl") -> None:
     get_leagues.clear(user_id, season, sport)
+
+
+def clear_player_data(
+    league_id: str,
+    season: str,
+    season_type: str,
+    week: int | None,
+) -> None:
+    get_league.clear(league_id)
+    get_rosters.clear(league_id)
+    get_player_stats.clear(season, season_type, week)
