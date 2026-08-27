@@ -29,19 +29,25 @@ def _get_player_name(player: PlayerModel | None, player_id: str | None) -> str:
     return full_name or player.player_id
 
 
-# Shape one player into the three values expected by the roster table.
+# Shape one player into the values expected by the roster table.
 def _get_roster_row(
     roster_position: str,
     players: dict[str, dict[str, Any]],
     player_id: str | None,
     show_player_position: bool = False,
-) -> tuple[str, str, str | None]:
+) -> tuple[str, str, str | None, str | None, str | None, str | None]:
     player = _get_player(players, player_id)
     player_position = player.position if player and player.position else None
+    injury_status = player.injury_status if player and player.injury_status else None
+    player_team = player.team if player and player.team else None
+    resolved_player_id = player.player_id if player else None
     return (
         roster_position,
         _get_player_name(player, player_id),
         player_position if show_player_position else None,
+        injury_status,
+        player_team,
+        resolved_player_id,
     )
 
 
@@ -49,7 +55,7 @@ def build_roster_rows(
     league: LeagueModel,
     roster: RosterModel,
     players: dict[str, dict[str, Any]],
-) -> list[tuple[str, str, str | None]]:
+) -> list[tuple[str, str, str | None, str | None, str | None, str | None]]:
     # Pair configured starting slots with the roster's ordered starter IDs.
     starter_positions = [
         position
@@ -96,3 +102,10 @@ def build_roster_rows(
         for index in range(reserve_slots)
     )
     return rows
+
+
+# Find the full player model selected by a roster action.
+def get_player_by_id(
+    players: dict[str, dict[str, Any]], player_id: str
+) -> PlayerModel | None:
+    return _get_player(players, player_id)

@@ -1,75 +1,15 @@
 import json
-from html import escape
-from textwrap import dedent
 
 import streamlit as st
 
 from fantasy_dashboard.clients.sleeper import SleeperClient
+from fantasy_dashboard.components.player_news import show_player_news
+from fantasy_dashboard.components.roster_table import render_roster_table
 from fantasy_dashboard.paths import NFL_PLAYERS_PATH
-from fantasy_dashboard.roster import build_roster_rows
-
-
-# Render roster rows as a borderless, zebra-striped table.
-def render_roster_table(rows: list[tuple[str, str, str | None]]) -> None:
-    table_rows = "".join(
-        "<tr>"
-        f'<td class="roster-position">{escape(position)}</td>'
-        f"<td>{escape(player_name)}"
-        + (
-            f'<span class="player-position">{escape(player_position)}</span>'
-            if player_position
-            else ""
-        )
-        + "</td>"
-        "</tr>"
-        for position, player_name, player_position in rows
-    )
-    st.markdown(
-        dedent(f"""
-        <style>
-            .roster-table {{
-                border-collapse: collapse;
-                color: inherit;
-                width: 100%;
-            }}
-            .roster-table th,
-            .roster-table td {{
-                border: none;
-                padding: 0.65rem 0.85rem;
-                text-align: left;
-            }}
-            .roster-table th {{
-                color: #808495;
-                font-size: 0.8rem;
-                text-transform: uppercase;
-            }}
-            .roster-table tbody tr:nth-child(odd) {{
-                background-color: rgba(128, 128, 128, 0.10);
-            }}
-            .roster-table tbody tr:nth-child(even) {{
-                background-color: rgba(128, 128, 128, 0.03);
-            }}
-            .roster-table .roster-position {{
-                color: #808495;
-                font-weight: 600;
-                width: 28%;
-            }}
-            .roster-table .player-position {{
-                color: #808495;
-                font-size: 0.78rem;
-                margin-left: 0.5rem;
-            }}
-        </style>
-        <table class="roster-table">
-            <thead>
-                <tr><th>Position</th><th>Player</th></tr>
-            </thead>
-            <tbody>{table_rows}</tbody>
-        </table>
-        """),
-        unsafe_allow_html=True,
-    )
-
+from fantasy_dashboard.roster import (
+    build_roster_rows,
+    get_player_by_id,
+)
 
 # Restore the selected user and API client across page navigation.
 if "client" not in st.session_state:
@@ -124,7 +64,17 @@ st.subheader("Roster")
 with NFL_PLAYERS_PATH.open(encoding="utf-8") as f:
     data = json.load(f)
 
-render_roster_table(build_roster_rows(league, team_roster, data))
+selected_news_player_id = render_roster_table(
+    build_roster_rows(league, team_roster, data)
+)
+
+# Open the selected player's dismissible blurb without leaving the current page.
+if selected_news_player_id:
+    news_player = get_player_by_id(data, selected_news_player_id)
+    if news_player is None:
+        st.warning("That player could not be found in the local player cache.")
+    else:
+        show_player_news(news_player)
 
 # Keep team, league, and account navigation anchored below the roster.
 with st.bottom:
