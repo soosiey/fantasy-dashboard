@@ -18,7 +18,7 @@ if league_id is None:
     st.warning("Select a league first.")
     st.switch_page("pages/leagues.py")
 
-st.title("Dashboard")
+st.title("Overview")
 league = client.get_single_league(league_id)
 st.write(f"League: {league.name}")
 st.write("Players: ")
@@ -41,7 +41,8 @@ with st.bottom:
 
 if league_change:
     st.session_state.pop("league_id")
-    st.query_params.pop("league_id")
+    if "league_id" in st.query_params:
+        st.query_params.pop("league_id")
     st.switch_page("pages/leagues.py")
 if reset:
     st.session_state.clear()

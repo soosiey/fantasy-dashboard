@@ -34,9 +34,9 @@ else:
         visibility="hidden" if st.session_state.get("league_id") else "visible"
     )
 
-    dashboard_page = st.Page(
-        "pages/dashboard.py",
-        title="Dashboard",
+    overview_page = st.Page(
+        "pages/overview.py",
+        title="Overview",
         visibility="visible" if st.session_state.get("league_id") else "hidden"
     )
 
@@ -46,6 +46,6 @@ else:
         visibility="visible" if st.session_state.get("team_id") else "hidden"
     )
 
-    page_route = st.navigation([leagues_page, dashboard_page, team_page])
+    page_route = st.navigation([leagues_page, overview_page, team_page])
 
 page_route.run()

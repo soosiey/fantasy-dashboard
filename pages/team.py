@@ -21,6 +21,7 @@ if user_id is None:
 st.title("Team Page")
 rosters = client.get_all_rosters(st.session_state.get("league_id"))
 teams = client.get_all_users(st.session_state.get("league_id"))
+league = client.get_single_league(st.session_state.get("league_id"))
 team_roster = None
 team_selected = None
 
@@ -32,8 +33,15 @@ for team in teams.users:
         team_selected = team
 st.write(f"Team: {team_selected.team_name}")
 
+if league.status == "pre_draft":
+    st.warning("No roster found for this user.")
+    st.session_state.pop("user_id")
+    st.query_params.pop("user_id")
+    st.switch_page("pages/overview.py")
+
 with open("nfl_players.json", 'r') as f:
     data = json.load(f)
+
 for starter in team_roster.starters:
     player = data[starter]
     name = f"{player['first_name']} {player['last_name']}"
@@ -47,7 +55,7 @@ with st.bottom:
 if team_change:
     st.session_state.pop("user_id")
     st.query_params.pop("user_id")
-    st.switch_page("pages/dashboard.py")
+    st.switch_page("pages/overview.py")
 if league_change:
     st.session_state.pop("league_id")
     st.switch_page("pages/leagues.py")

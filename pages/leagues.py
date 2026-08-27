@@ -14,7 +14,7 @@ user_id = user.user_id
 st.title("Leagues")
 leagues = client.get_leagues(user_id, "2026", "nfl")
 for league in leagues.leagues:
-    st.page_link("pages/dashboard.py", label=league.name, icon="🏈", query_params={"league_id": league.league_id})
+    st.page_link("pages/overview.py", label=league.name, icon="🏈", query_params={"league_id": league.league_id})
 
 with st.bottom:
     reset = st.button("Log Out")
