@@ -17,6 +17,7 @@ from fantasy_dashboard.models.league import (
     RosterContainer,
 )
 from fantasy_dashboard.models.matchup import WeeklyMatchupContainer
+from fantasy_dashboard.models.transaction import TransactionContainer
 from fantasy_dashboard.models.user import SleeperUser, UserContainer
 from fantasy_dashboard.paths import ESPN_PROJECTIONS_CACHE_DIR, NFL_PLAYERS_PATH
 
@@ -75,6 +76,18 @@ def get_league(league_id: str) -> LeagueModel | None:
 @st.cache_data(ttl=1800, show_spinner=False)
 def get_draft_picks(draft_id: str) -> DraftPickContainer:
     return get_sleeper_client().get_draft_picks(draft_id)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def get_league_transactions(league_id: str) -> TransactionContainer:
+    transactions_by_id = {}
+    for week in range(1, 19):
+        weekly_transactions = get_sleeper_client().get_transactions(
+            league_id, week
+        )
+        for transaction in weekly_transactions.transactions:
+            transactions_by_id[transaction.transaction_id] = transaction
+    return TransactionContainer.from_models(list(transactions_by_id.values()))
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -190,6 +203,10 @@ def clear_league_data(league_id: str) -> None:
 
 def clear_draft_data(draft_id: str) -> None:
     get_draft_picks.clear(draft_id)
+
+
+def clear_transaction_data(league_id: str) -> None:
+    get_league_transactions.clear(league_id)
 
 
 def clear_matchup_data(

@@ -40,6 +40,12 @@ else:
         visibility="visible" if st.session_state.get("league_id") else "hidden",
     )
 
+    transactions_page = st.Page(
+        "pages/transactions.py",
+        title="Transactions",
+        visibility="visible" if st.session_state.get("league_id") else "hidden",
+    )
+
     players_page = st.Page(
         "pages/players.py",
         title="Players",
@@ -69,6 +75,7 @@ else:
             leagues_page,
             overview_page,
             draft_results_page,
+            transactions_page,
             players_page,
             matchups_page,
             ranking_page,

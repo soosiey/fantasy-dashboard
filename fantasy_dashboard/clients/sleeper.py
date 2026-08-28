@@ -14,6 +14,7 @@ from fantasy_dashboard.models.league import (
     RosterContainer,
 )
 from fantasy_dashboard.models.matchup import WeeklyMatchupContainer
+from fantasy_dashboard.models.transaction import TransactionContainer
 from fantasy_dashboard.models.user import SleeperUser, UserContainer
 
 
@@ -156,6 +157,21 @@ class SleeperClient:
         if not isinstance(data, list):
             raise TypeError("Sleeper's draft picks response must be a list.")
         return DraftPickContainer.from_api(data)
+
+    # Fetch free-agent moves, waivers, and trades assigned to one league week.
+    def get_transactions(
+        self, league_id: str, week: int
+    ) -> TransactionContainer:
+        response = requests.get(
+            f"{self.BASE_URL}/league/{league_id}/transactions/{week}",
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        if not isinstance(data, list):
+            raise TypeError("Sleeper's transactions response must be a list.")
+        return TransactionContainer.from_api(data)
 
     # Fetch binary avatar content separately from Sleeper's JSON API.
     def get_avatar(self, avatar_id: str) -> bytes:
