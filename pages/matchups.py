@@ -8,6 +8,7 @@ from fantasy_dashboard.components.matchup_board import (
 )
 from fantasy_dashboard.components.player_comparison import show_player_comparison
 from fantasy_dashboard.components.player_details import show_player_details
+from fantasy_dashboard.components.player_news import show_player_news
 from fantasy_dashboard.data import (
     clear_matchup_data,
     clear_projected_player_data,
@@ -24,8 +25,10 @@ from fantasy_dashboard.data import (
 )
 from fantasy_dashboard.matchups import (
     build_head_to_head_matchups,
+    build_week_game_statuses,
     build_week_opponents,
 )
+from fantasy_dashboard.models.player import PlayerModel
 
 league_id = st.query_params.get("league_id")
 if league_id is not None:
@@ -119,6 +122,7 @@ try:
 except (requests.RequestException, TypeError, ValueError):
     nfl_schedule = []
 opponents_by_team = build_week_opponents(nfl_schedule, selected_week)
+game_statuses_by_team = build_week_game_statuses(nfl_schedule, selected_week)
 
 st.write(f"League: {league.name}")
 matchups = build_head_to_head_matchups(
@@ -129,6 +133,7 @@ matchups = build_head_to_head_matchups(
     players,
     stats_by_player_id,
     opponents_by_team,
+    game_statuses_by_team,
 )
 current_user = st.session_state.get("sleeper_user")
 selected_player_id = render_matchup_carousel(
@@ -137,7 +142,15 @@ selected_player_id = render_matchup_carousel(
     context_key=f"{league_id}-{selected_week}-{stats_source.casefold()}",
 )
 
-if isinstance(selected_player_id, PlayerComparisonSelection):
+selected_news_player_id = st.session_state.pop("matchups_news_player_id", None)
+
+if selected_news_player_id:
+    selected_news_player = players.get(str(selected_news_player_id))
+    if selected_news_player is None:
+        st.warning("Player news is unavailable because the player could not be found.")
+    else:
+        show_player_news(PlayerModel.from_json(selected_news_player))
+elif isinstance(selected_player_id, PlayerComparisonSelection):
     show_player_comparison(
         selected_player_id.left_player_id,
         selected_player_id.right_player_id,
@@ -161,6 +174,8 @@ elif selected_player_id:
             selected_stats=stats_by_player_id.get(str(selected_player_id), {}),
             selected_week=selected_week,
             stats_source=stats_source,
+            show_news_button=True,
+            show_stat_filter=True,
         )
 
 stats_update = (
@@ -172,6 +187,7 @@ stats_update = (
 )
 render_data_disclaimer(
     get_data_update("weekly_matchups", league_id, selected_week),
+    get_data_update("nfl_schedule", stats_season, league.season_type),
     stats_update,
 )
 

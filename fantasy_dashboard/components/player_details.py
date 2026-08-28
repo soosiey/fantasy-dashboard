@@ -25,6 +25,8 @@ def show_player_details(
     selected_stats: dict[str, Any] | None = None,
     selected_week: int | None = None,
     stats_source: str | None = None,
+    show_news_button: bool = False,
+    show_stat_filter: bool = False,
 ) -> None:
     player_name = (
         f"{player.get('first_name') or ''} {player.get('last_name') or ''}"
@@ -33,7 +35,22 @@ def show_player_details(
     team = str(player.get("team") or "FA")
     number = player.get("number")
 
-    st.header(player_name or player_id)
+    if show_news_button:
+        name_column, news_column = st.columns(
+            [3, 1], vertical_alignment="center"
+        )
+        with name_column:
+            st.header(player_name or player_id)
+        with news_column:
+            if st.button(
+                "View Recent News",
+                key=f"player-details-news-{player_id}",
+                width="stretch",
+            ):
+                st.session_state["matchups_news_player_id"] = player_id
+                st.rerun(scope="app")
+    else:
+        st.header(player_name or player_id)
     details = [team, position]
     if number not in (None, ""):
         details.append(f"#{number}")
@@ -68,8 +85,31 @@ def show_player_details(
         )
         table_height = 650
 
+    stat_view = "All Stats"
+    if show_stat_filter:
+        stat_view = (
+            st.segmented_control(
+                "Stats shown",
+                ["All Stats", "Relevant Stats"],
+                default="All Stats",
+                key=f"player-details-stat-view-{player_id}-{selected_week}",
+                width="content",
+            )
+            or "All Stats"
+        )
+
+    relevant_columns = get_relevant_stat_labels(position)
+    if stat_view == "Relevant Stats":
+        context_columns = {"Week", "Opponent"}
+        weekly_table = weekly_table[
+            [
+                column
+                for column in weekly_table.columns
+                if column in context_columns or column in relevant_columns
+            ]
+        ]
+
     def highlight_relevant_stats(row: pd.Series) -> list[str]:
-        relevant_columns = get_relevant_stat_labels(position)
         return [
             "background-color: rgba(59, 130, 246, 0.10)"
             if column in relevant_columns

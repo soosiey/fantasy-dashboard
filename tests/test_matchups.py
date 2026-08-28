@@ -3,7 +3,10 @@ from types import SimpleNamespace
 from fantasy_dashboard.components import matchup_board
 from fantasy_dashboard.components.matchup_board import PlayerComparisonSelection
 from fantasy_dashboard.matchups import (
+    MatchupPlayer,
+    MatchupTeam,
     build_head_to_head_matchups,
+    build_week_game_statuses,
     build_week_opponents,
 )
 from fantasy_dashboard.models.matchup import (
@@ -108,6 +111,8 @@ def test_nfl_stats_score_players_and_exclude_bench_from_team_total() -> None:
             "player_id": "starter",
             "first_name": "Starting",
             "last_name": "Quarterback",
+            "injury_status": "Questionable",
+            "active": False,
         },
         "bench": {
             "player_id": "bench",
@@ -129,10 +134,14 @@ def test_nfl_stats_score_players_and_exclude_bench_from_team_total() -> None:
         players,
         stats,
         {"KC": "vs BUF"},
+        {"KC": "playing"},
     )
 
     assert result[0].lineup[0].left_player.points == 14
     assert result[0].lineup[0].left_player.opponent == "vs BUF"
+    assert result[0].lineup[0].left_player.injury_status == "Questionable"
+    assert result[0].lineup[0].left_player.game_status == "playing"
+    assert result[0].lineup[0].left_player.is_inactive is True
     assert result[0].lineup[1].left_player.points == 10
     assert result[0].left_team.points == 14
 
@@ -150,6 +159,112 @@ def test_week_opponents_indexes_both_teams_for_selected_week() -> None:
     }
 
 
+# Sleeper game states should shade both teams with the matching display state.
+def test_week_game_statuses_normalize_schedule_states() -> None:
+    schedule = [
+        {
+            "week": 1,
+            "home": "KC",
+            "away": "BUF",
+            "status": "pre_game",
+        },
+        {
+            "week": 1,
+            "home": "DAL",
+            "away": "NYG",
+            "status": "in_game",
+        },
+        {
+            "week": 1,
+            "home": "PHI",
+            "away": "WAS",
+            "status": "post_game",
+        },
+        {
+            "week": 2,
+            "home": "MIA",
+            "away": "NE",
+            "status": "pre_game",
+        },
+    ]
+
+    assert build_week_game_statuses(schedule, 1) == {
+        "KC": "to-play",
+        "BUF": "to-play",
+        "DAL": "playing",
+        "NYG": "playing",
+        "PHI": "finished",
+        "WAS": "finished",
+    }
+
+
+# Only unplayed starters should contribute to the placard's remaining count.
+def test_matchup_team_counts_to_play_starters_only() -> None:
+    matchup = _weekly_matchup(
+        starters=["starter"],
+        players=["starter", "bench"],
+    )
+    players = {
+        "starter": {
+            "player_id": "starter",
+            "first_name": "Starting",
+            "team": "KC",
+        },
+        "bench": {
+            "player_id": "bench",
+            "first_name": "Bench",
+            "team": "BUF",
+        },
+    }
+
+    result = build_head_to_head_matchups(
+        [matchup],
+        _league("QB", "BN"),
+        [],
+        [],
+        players,
+        game_statuses_by_team={"KC": "to-play", "BUF": "to-play"},
+    )
+
+    assert result[0].left_team.to_play_count == 1
+    assert result[0].right_team.to_play_count == 0
+
+
+# Remaining counts should sit outside the mirrored owner labels.
+def test_team_placard_mirrors_to_play_count_around_owner() -> None:
+    team = MatchupTeam("Team", "Owner", 10, "user-1", 3)
+
+    left_markup = matchup_board._render_team_placard(team, "left")
+    right_markup = matchup_board._render_team_placard(team, "right")
+
+    assert left_markup.index("(3)") < left_markup.index("Owner")
+    assert right_markup.index("Owner") < right_markup.index("(3)")
+
+
+# Empty, injured, and inactive starters should receive the warning border only.
+def test_starter_attention_border_excludes_bench_players() -> None:
+    empty_starter = MatchupPlayer("Empty", "")
+    injured_starter = MatchupPlayer(
+        "Injured Player", "KC", player_id="injured", injury_status="Out"
+    )
+    inactive_starter = MatchupPlayer(
+        "Inactive Player", "BUF", player_id="inactive", is_inactive=True
+    )
+
+    assert "matchup-player-attention" in matchup_board._render_player(
+        empty_starter, "left", True
+    )
+    assert "matchup-player-attention" in matchup_board._render_player(
+        injured_starter, "left", True
+    )
+    assert "matchup-player-attention" in matchup_board._render_player(
+        inactive_starter, "right", True
+    )
+    assert "matchup-player-attention" not in matchup_board._render_player(
+        injured_starter, "left", False
+    )
+
+
 # The first bench row should be visually divided from the starting lineup.
 def test_matchup_board_marks_bench_rows(monkeypatch) -> None:
     matchup = _weekly_matchup(
@@ -160,6 +275,10 @@ def test_matchup_board_marks_bench_rows(monkeypatch) -> None:
         player_id: {
             "player_id": player_id,
             "first_name": player_id.title(),
+            "team": "KC",
+            "injury_status": (
+                "Questionable" if player_id == "starter" else None
+            ),
         }
         for player_id in ("starter", "bench")
     }
@@ -181,7 +300,12 @@ def test_matchup_board_marks_bench_rows(monkeypatch) -> None:
         return FakeContext()
 
     result = build_head_to_head_matchups(
-        [matchup], _league("QB", "BN"), [], [], players
+        [matchup],
+        _league("QB", "BN"),
+        [],
+        [],
+        players,
+        game_statuses_by_team={"KC": "to-play"},
     )
     monkeypatch.setattr(
         matchup_board,
@@ -207,6 +331,11 @@ def test_matchup_board_marks_bench_rows(monkeypatch) -> None:
     assert any("matchup-position-click" in key for key in container_keys)
     assert ':has([data-testid="stButton"])' in rendered_markup[0]
     assert "transform: translateX(-50%)" in rendered_markup[0]
+    assert "transform: translateY(-0.4rem)" in rendered_markup[0]
+    assert "injury-questionable" in rendered_markup[0]
+    assert any('title="Questionable">Q</span>' in item for item in rendered_markup)
+    assert any("matchup-player-status-to-play" in item for item in rendered_markup)
+    assert any("matchup-player-attention" in item for item in rendered_markup)
 
 
 # Clicking a position bubble should select both players in that lineup row.

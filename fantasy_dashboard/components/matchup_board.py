@@ -4,6 +4,7 @@ from textwrap import dedent
 
 import streamlit as st
 
+from fantasy_dashboard.components.roster_table import render_injury_badge
 from fantasy_dashboard.matchups import (
     HeadToHeadMatchup,
     MatchupPlayer,
@@ -22,8 +23,14 @@ class PlayerComparisonSelection:
 
 # Render one team placard with its weekly score on the outside edge.
 def _render_team_placard(team: MatchupTeam, side: str) -> str:
+    to_play = f'<span class="matchup-to-play">({team.to_play_count})</span>'
+    owner_content = (
+        f"{to_play}<span>{escape(team.display_name)}</span>"
+        if side == "left"
+        else f"<span>{escape(team.display_name)}</span>{to_play}"
+    )
     owner = (
-        f'<div class="matchup-owner">{escape(team.display_name)}</div>'
+        f'<div class="matchup-owner matchup-owner-{side}">{owner_content}</div>'
         if team.display_name
         else ""
     )
@@ -38,7 +45,11 @@ def _render_team_placard(team: MatchupTeam, side: str) -> str:
 
 
 # Render one player with muted NFL-team and weekly-opponent metadata.
-def _render_player(player: MatchupPlayer, side: str) -> str:
+def _render_player(
+    player: MatchupPlayer,
+    side: str,
+    is_starter: bool = True,
+) -> str:
     metadata_parts = [escape(player.nfl_team)] if player.nfl_team else []
     if player.opponent:
         metadata_parts.append(escape(player.opponent))
@@ -49,11 +60,32 @@ def _render_player(player: MatchupPlayer, side: str) -> str:
     )
     identity = (
         '<div class="matchup-player-identity">'
-        f"<div>{escape(player.name)}</div>{metadata}</div>"
+        '<div class="matchup-player-name">'
+        f"{render_injury_badge(player.injury_status)}"
+        f"<span>{escape(player.name)}</span></div>{metadata}</div>"
     )
     score = f'<div class="matchup-player-score">{player.points:g}</div>'
     content = score + identity if side == "left" else identity + score
-    return f'<div class="matchup-player matchup-player-{side}">{content}</div>'
+    status_class = (
+        f" matchup-player-status-{player.game_status}"
+        if player.game_status in {"to-play", "playing", "finished"}
+        else ""
+    )
+    attention_class = (
+        " matchup-player-attention"
+        if is_starter
+        and (
+            player.player_id is None
+            or player.is_inactive
+            or bool(player.injury_status)
+        )
+        else ""
+    )
+    return (
+        f'<div class="matchup-player matchup-player-{side}'
+        f'{status_class}{attention_class}">'
+        f"{content}</div>"
+    )
 
 
 # Render all weekly pairings with mirrored lineups around position bubbles.
@@ -90,10 +122,15 @@ def render_matchup_board(
                 font-weight: 700;
             }
             .matchup-owner {
+                align-items: center;
                 color: #808495;
+                display: flex;
                 font-size: 0.72rem;
+                gap: 0.3rem;
                 margin-top: 0.1rem;
             }
+            .matchup-owner-left { justify-content: flex-end; }
+            .matchup-owner-right { justify-content: flex-start; }
             .matchup-score {
                 font-size: 1.15rem;
                 font-variant-numeric: tabular-nums;
@@ -132,11 +169,29 @@ def render_matchup_board(
             }
             .matchup-player {
                 align-items: center;
+                border: 1px solid transparent;
+                border-radius: 0.4rem;
+                box-sizing: border-box;
                 display: flex;
                 font-size: 0.88rem;
                 font-weight: 600;
                 justify-content: space-between;
                 min-width: 0;
+                padding: 0.3rem 0.45rem;
+                position: relative;
+                transform: translateY(-0.4rem);
+            }
+            .matchup-player-status-to-play {
+                background: rgba(239, 68, 68, 0.16);
+            }
+            .matchup-player-status-playing {
+                background: rgba(249, 115, 22, 0.18);
+            }
+            .matchup-player-status-finished {
+                background: rgba(34, 197, 94, 0.16);
+            }
+            .matchup-player-attention {
+                border-color: rgba(249, 115, 22, 0.42);
             }
             [class*="st-key-matchup-player-click-"] {
                 border-radius: 0.35rem;
@@ -202,6 +257,33 @@ def render_matchup_board(
             .matchup-player-identity {
                 min-width: 0;
             }
+            .matchup-player-name {
+                display: inline-block;
+                position: relative;
+            }
+            .matchup-player-name .injury-status {
+                border-radius: 0.25rem;
+                color: white;
+                display: inline-block;
+                font-size: 0.58rem;
+                font-weight: 700;
+                line-height: 1;
+                padding: 0.08rem 0.25rem;
+                position: absolute;
+                right: calc(100% + 0.35rem);
+                top: 50%;
+                transform: translateY(-50%);
+            }
+            .matchup-player-name .injury-questionable { background: #f59e0b; }
+            .matchup-player-name .injury-doubtful { background: #ca8a04; }
+            .matchup-player-name .injury-out,
+            .matchup-player-name .injury-ir { background: #dc2626; }
+            .matchup-player-name .injury-pup,
+            .matchup-player-name .injury-suspended { background: #7c3aed; }
+            .matchup-player-name .injury-inactive,
+            .matchup-player-name .injury-unknown { background: #6b7280; }
+            .matchup-player-name .injury-dnr { background: #2563eb; }
+            .matchup-player-name .injury-covid { background: #0f766e; }
             .matchup-player-score {
                 font-variant-numeric: tabular-nums;
                 font-weight: 700;
@@ -287,7 +369,11 @@ def render_matchup_board(
                         ),
                     ):
                         st.markdown(
-                            _render_player(player, side),
+                            _render_player(
+                                player,
+                                side,
+                                is_starter=row.position != "BN",
+                            ),
                             unsafe_allow_html=True,
                         )
                         if player.player_id is not None and st.button(

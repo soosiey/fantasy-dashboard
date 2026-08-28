@@ -22,6 +22,9 @@ class MatchupPlayer:
     opponent: str = ""
     points: float = 0
     player_id: str | None = None
+    injury_status: str | None = None
+    game_status: str = ""
+    is_inactive: bool = False
 
 
 # Store one team's placard information for a weekly matchup.
@@ -31,6 +34,7 @@ class MatchupTeam:
     display_name: str
     points: float
     user_id: str | None
+    to_play_count: int = 0
 
 
 # Pair two starting players around their shared fantasy position.
@@ -55,18 +59,27 @@ def _get_matchup_player(
     player_id: str | None,
     player_points: dict[str, float] | None = None,
     opponents_by_team: dict[str, str] | None = None,
+    game_statuses_by_team: dict[str, str] | None = None,
 ) -> MatchupPlayer:
     if not player_id or player_id == "0" or player_id not in players:
         return MatchupPlayer(name="Empty", nfl_team="")
 
-    player = PlayerModel.from_json(players[player_id])
+    player_data = players[player_id]
+    player = PlayerModel.from_json(player_data)
     player_name = f"{player.first_name} {player.last_name}".strip()
+    player_status = str(player_data.get("status") or "").strip().casefold()
     return MatchupPlayer(
         name=player_name or player.player_id,
         nfl_team=player.team,
         opponent=(opponents_by_team or {}).get(player.team, ""),
         points=(player_points or {}).get(player_id, 0),
         player_id=player_id,
+        injury_status=player.injury_status or None,
+        game_status=(game_statuses_by_team or {}).get(player.team, ""),
+        is_inactive=(
+            player_data.get("active") is False
+            or player_status in {"inactive", "ineligible"}
+        ),
     )
 
 
@@ -84,12 +97,46 @@ def build_week_opponents(schedule: list[dict[str, Any]], week: int) -> dict[str,
     return opponents
 
 
+# Convert Sleeper's weekly game state into the three matchup display states.
+def build_week_game_statuses(
+    schedule: list[dict[str, Any]], week: int
+) -> dict[str, str]:
+    status_aliases = {
+        "pre_game": "to-play",
+        "scheduled": "to-play",
+        "pre": "to-play",
+        "in_game": "playing",
+        "in_progress": "playing",
+        "live": "playing",
+        "post_game": "finished",
+        "complete": "finished",
+        "completed": "finished",
+        "final": "finished",
+        "closed": "finished",
+    }
+    statuses: dict[str, str] = {}
+    for game in schedule:
+        if game.get("week") != week:
+            continue
+        display_status = status_aliases.get(
+            str(game.get("status") or "").strip().casefold()
+        )
+        if display_status is None:
+            continue
+        for team_field in ("home", "away"):
+            team = str(game.get(team_field) or "").strip().upper()
+            if team:
+                statuses[team] = display_status
+    return statuses
+
+
 # Match a weekly roster entry to its league team identity and score.
 def _get_matchup_team(
     matchup: WeeklyMatchupModel | None,
     rosters_by_id: dict[int, RosterModel],
     teams_by_user_id: dict[str, SleeperTeam],
     starter_points: float | None = None,
+    to_play_count: int = 0,
 ) -> MatchupTeam:
     if matchup is None:
         return MatchupTeam(team_name="Bye", display_name="", points=0, user_id=None)
@@ -103,6 +150,7 @@ def _get_matchup_team(
         display_name=team.display_name if team is not None else "",
         points=(matchup.displayed_points if starter_points is None else starter_points),
         user_id=team.user_id if team is not None else None,
+        to_play_count=to_play_count,
     )
 
 
@@ -136,6 +184,7 @@ def build_head_to_head_matchups(
     players: dict[str, dict[str, Any]],
     stats_by_player_id: dict[str, dict[str, Any]] | None = None,
     opponents_by_team: dict[str, str] | None = None,
+    game_statuses_by_team: dict[str, str] | None = None,
 ) -> list[HeadToHeadMatchup]:
     rosters_by_id = {roster.roster_id: roster for roster in rosters}
     teams_by_user_id = {team.user_id: team for team in teams}
@@ -173,6 +222,7 @@ def build_head_to_head_matchups(
                     ),
                     left_player_points,
                     opponents_by_team,
+                    game_statuses_by_team,
                 ),
                 right_player=_get_matchup_player(
                     players,
@@ -184,6 +234,7 @@ def build_head_to_head_matchups(
                     ),
                     right_player_points,
                     opponents_by_team,
+                    game_statuses_by_team,
                 ),
             )
             for index, position in enumerate(starting_positions)
@@ -225,12 +276,14 @@ def build_head_to_head_matchups(
                     left_bench_ids[index] if index < len(left_bench_ids) else None,
                     left_player_points,
                     opponents_by_team,
+                    game_statuses_by_team,
                 ),
                 right_player=_get_matchup_player(
                     players,
                     right_bench_ids[index] if index < len(right_bench_ids) else None,
                     right_player_points,
                     opponents_by_team,
+                    game_statuses_by_team,
                 ),
             )
             for index in range(bench_slots)
@@ -244,6 +297,11 @@ def build_head_to_head_matchups(
                     sum(
                         row.left_player.points for row in lineup if row.position != "BN"
                     ),
+                    sum(
+                        row.left_player.game_status == "to-play"
+                        for row in lineup
+                        if row.position != "BN"
+                    ),
                 ),
                 right_team=_get_matchup_team(
                     right_matchup,
@@ -251,6 +309,11 @@ def build_head_to_head_matchups(
                     teams_by_user_id,
                     sum(
                         row.right_player.points
+                        for row in lineup
+                        if row.position != "BN"
+                    ),
+                    sum(
+                        row.right_player.game_status == "to-play"
                         for row in lineup
                         if row.position != "BN"
                     ),

@@ -19,7 +19,7 @@ RosterRow = tuple[str, str, str | None, str | None, str | None, str | None]
 
 
 # Render a compact injury marker before the player's name.
-def _render_injury_badge(injury_status: str | None) -> str:
+def render_injury_badge(injury_status: str | None) -> str:
     if not injury_status:
         return ""
 
@@ -50,7 +50,7 @@ def _render_player_cell(
     return (
         '<div class="roster-player">'
         '<div class="player-primary">'
-        f"{_render_injury_badge(injury_status)}{escape(player_name)}{position}"
+        f"{render_injury_badge(injury_status)}{escape(player_name)}{position}"
         "</div>"
         f"{team}</div>"
     )

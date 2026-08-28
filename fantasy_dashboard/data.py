@@ -183,7 +183,7 @@ def get_player_stats(
     return stats
 
 
-@st.cache_data(ttl=1800, max_entries=16, show_spinner=False)
+@st.cache_data(ttl=30, max_entries=16, show_spinner=False)
 def get_nfl_schedule(
     season: str,
     season_type: str = "regular",
