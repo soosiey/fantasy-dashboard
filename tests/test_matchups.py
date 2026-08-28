@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 from fantasy_dashboard.components import matchup_board
+from fantasy_dashboard.components.matchup_board import PlayerComparisonSelection
 from fantasy_dashboard.matchups import build_head_to_head_matchups
 from fantasy_dashboard.models.matchup import (
     WeeklyMatchupContainer,
@@ -186,9 +187,58 @@ def test_matchup_board_marks_bench_rows(monkeypatch) -> None:
     assert any("matchup-lineup-row-bench" in key for key in container_keys)
     assert "border-top" in rendered_markup[0]
     assert "matchup-player-click" in rendered_markup[0]
+    assert any("matchup-position-click" in key for key in container_keys)
     assert ':has([data-testid="stButton"])' in rendered_markup[0]
     assert "transform: translateX(-50%)" in rendered_markup[0]
-    assert any('class="matchup-position">QB</div>' in markup for markup in rendered_markup)
+
+
+# Clicking a position bubble should select both players in that lineup row.
+def test_position_circle_selects_player_comparison(monkeypatch) -> None:
+    matchup = _weekly_matchup(
+        starters=["left-player"],
+        players=["left-player"],
+    )
+    players = {
+        "left-player": {
+            "player_id": "left-player",
+            "first_name": "Left",
+        }
+    }
+
+    class FakeContext:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def markdown(self, *args: object, **kwargs: object) -> None:
+            return None
+
+    monkeypatch.setattr(
+        matchup_board,
+        "st",
+        SimpleNamespace(
+            info=lambda message: None,
+            markdown=lambda *args, **kwargs: None,
+            container=lambda **kwargs: FakeContext(),
+            columns=lambda *args, **kwargs: [
+                FakeContext(),
+                FakeContext(),
+                FakeContext(),
+            ],
+            button=lambda *args, **kwargs: str(kwargs.get("key", "")).startswith(
+                "matchup-position-button-"
+            ),
+        ),
+    )
+    board = build_head_to_head_matchups(
+        [matchup], _league("QB"), [], [], players
+    )
+
+    selection = matchup_board.render_matchup_board(board, "league-1")
+
+    assert selection == PlayerComparisonSelection("left-player", None)
 
 
 # The board should give a useful empty state rather than rendering blank markup.

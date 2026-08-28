@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from html import escape
 from textwrap import dedent
 
@@ -10,6 +11,13 @@ from fantasy_dashboard.matchups import (
 )
 
 MATCHUP_COLUMN_WIDTHS = [1, 0.12, 1]
+
+
+# Identify the two players selected through a matchup position badge.
+@dataclass(frozen=True, slots=True)
+class PlayerComparisonSelection:
+    left_player_id: str | None
+    right_player_id: str | None
 
 
 # Render one team placard with its weekly score on the outside edge.
@@ -48,7 +56,7 @@ def _render_player(player: MatchupPlayer, side: str) -> str:
 # Render all weekly pairings with mirrored lineups around position bubbles.
 def render_matchup_board(
     matchups: list[HeadToHeadMatchup], context_key: str = "board"
-) -> str | None:
+) -> str | PlayerComparisonSelection | None:
     if not matchups:
         st.info("No matchups are available for this week.")
         return None
@@ -152,6 +160,35 @@ def render_matchup_board(
                 height: 100%;
                 opacity: 0;
                 width: 100%;
+            }
+            [class*="st-key-matchup-position-click-"] {
+                align-items: center;
+                display: flex;
+                justify-content: center;
+                min-height: 2.7rem;
+            }
+            [class*="st-key-matchup-position-click-"] [data-testid="stButton"] {
+                display: flex;
+                justify-content: center;
+                width: 100%;
+            }
+            [class*="st-key-matchup-position-click-"] [data-testid="stButton"] button {
+                aspect-ratio: 1;
+                background: rgba(37, 99, 235, 0.14);
+                border: 0;
+                border-radius: 50%;
+                color: #3b82f6;
+                font-size: 0.58rem;
+                font-weight: 800;
+                height: 2.35rem;
+                min-height: 2.35rem;
+                padding: 0;
+                width: 2.35rem;
+            }
+            [class*="st-key-matchup-position-click-"]
+                [data-testid="stButton"] button:hover {
+                background: rgba(37, 99, 235, 0.24);
+                color: #3b82f6;
             }
             .matchup-player-left {
                 text-align: right;
@@ -259,10 +296,34 @@ def render_matchup_board(
                         ):
                             selected_player_id = player.player_id
 
-                position_column.markdown(
-                    f'<div class="matchup-position">{escape(row.position)}</div>',
-                    unsafe_allow_html=True,
-                )
+                with position_column, st.container(
+                    key=(
+                        f"matchup-position-click-{context_key}-{matchup_index}-"
+                        f"{row_index}"
+                    )
+                ):
+                    has_player = (
+                        row.left_player.player_id is not None
+                        or row.right_player.player_id is not None
+                    )
+                    if has_player:
+                        if st.button(
+                            row.position,
+                            key=(
+                                f"matchup-position-button-{context_key}-"
+                                f"{matchup_index}-{row_index}"
+                            ),
+                            width="content",
+                        ):
+                            selected_player_id = PlayerComparisonSelection(
+                                left_player_id=row.left_player.player_id,
+                                right_player_id=row.right_player.player_id,
+                            )
+                    else:
+                        st.markdown(
+                            f'<div class="matchup-position">{escape(row.position)}</div>',
+                            unsafe_allow_html=True,
+                        )
 
     return selected_player_id
 
@@ -272,7 +333,7 @@ def render_matchup_carousel(
     matchups: list[HeadToHeadMatchup],
     current_user_id: str | None,
     context_key: str,
-) -> str | None:
+) -> str | PlayerComparisonSelection | None:
     if not matchups:
         return render_matchup_board([], context_key)
 

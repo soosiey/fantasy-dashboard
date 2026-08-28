@@ -121,12 +121,25 @@ def calculate_fantasy_points(
     return round(points, 2)
 
 
+# Return the shared, ordered stat fields relevant to one or more positions.
+def get_relevant_stat_fields(
+    *positions: str,
+) -> list[tuple[str, str | None]]:
+    relevant_labels = {
+        label
+        for position in positions
+        for label, _ in POSITION_STATS.get(position, [])
+    }
+    return [
+        ("Fantasy Points", None),
+        *COMMON_STATS,
+        *(stat for stat in ALL_STATS if stat[0] in relevant_labels),
+    ]
+
+
 # Identify the stat columns worth emphasizing for one player's position.
 def get_relevant_stat_labels(position: str) -> set[str]:
-    return {
-        "Fantasy Points",
-        *(label for label, _ in COMMON_STATS + POSITION_STATS.get(position, [])),
-    }
+    return {label for label, _ in get_relevant_stat_fields(position)}
 
 
 # Describe each rostered player using the owner's Sleeper display name.

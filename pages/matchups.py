@@ -1,7 +1,11 @@
 import requests
 import streamlit as st
 
-from fantasy_dashboard.components.matchup_board import render_matchup_carousel
+from fantasy_dashboard.components.matchup_board import (
+    PlayerComparisonSelection,
+    render_matchup_carousel,
+)
+from fantasy_dashboard.components.player_comparison import show_player_comparison
 from fantasy_dashboard.components.player_details import show_player_details
 from fantasy_dashboard.data import (
     clear_matchup_data,
@@ -87,7 +91,15 @@ selected_player_id = render_matchup_carousel(
     context_key=f"{league_id}-{selected_week}",
 )
 
-if selected_player_id:
+if isinstance(selected_player_id, PlayerComparisonSelection):
+    show_player_comparison(
+        selected_player_id.left_player_id,
+        selected_player_id.right_player_id,
+        players,
+        stats_by_player_id,
+        league.scoring_settings,
+    )
+elif selected_player_id:
     selected_player = players.get(str(selected_player_id))
     if selected_player is None:
         st.warning("That player could not be found in the local player cache.")
