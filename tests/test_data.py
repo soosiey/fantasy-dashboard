@@ -4,6 +4,39 @@ from types import SimpleNamespace
 from fantasy_dashboard import data
 
 
+# The active NFL season and week should share one cached Sleeper state lookup.
+def test_current_nfl_state_is_cached(monkeypatch) -> None:
+    calls = 0
+    nfl_state = {
+        "season": "2026",
+        "season_type": "regular",
+        "week": 6,
+        "display_week": 7,
+    }
+
+    class FakeClient:
+        def get_nfl_state(self) -> dict[str, str | int]:
+            nonlocal calls
+            calls += 1
+            return nfl_state.copy()
+
+    data.get_nfl_state.clear()
+    monkeypatch.setattr(data, "get_sleeper_client", FakeClient)
+
+    assert data.get_current_nfl_season() == "2026"
+    assert data.get_current_nfl_week() == 7
+    assert data.get_default_nfl_week("2026") == 7
+    assert data.get_default_nfl_week("2025") == 1
+    assert calls == 1
+
+    nfl_state["season_type"] = "pre"
+    nfl_state["display_week"] = 3
+    data.get_nfl_state.clear()
+
+    assert data.get_default_nfl_week("2026") == 1
+    assert calls == 2
+
+
 # Repeated lookups should be reused until a targeted force refresh clears them.
 def test_league_lookup_is_cached_and_can_be_refreshed(monkeypatch) -> None:
     calls: list[str] = []

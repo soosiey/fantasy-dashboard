@@ -10,6 +10,7 @@ from fantasy_dashboard.components.player_details import show_player_details
 from fantasy_dashboard.data import (
     clear_matchup_data,
     clear_projected_player_data,
+    get_default_nfl_week,
     get_league,
     get_league_users,
     get_nfl_players,
@@ -36,6 +37,10 @@ if league_id is None:
 
 league = get_league(league_id)
 stats_season = league.season
+try:
+    current_week = get_default_nfl_week(stats_season)
+except (requests.RequestException, KeyError, TypeError, ValueError):
+    current_week = 1
 
 # Group the matchup filters opposite the title with enough room for the
 # Actual/Predicted selector to remain on one horizontal line.
@@ -52,7 +57,9 @@ with filter_column:
         selected_week = st.selectbox(
             "Week",
             range(1, 19),
+            index=current_week - 1,
             format_func=lambda week: f"Week {week}",
+            key=f"matchup-week-v2-{stats_season}",
         )
     with refresh_column:
         force_refresh = st.button(

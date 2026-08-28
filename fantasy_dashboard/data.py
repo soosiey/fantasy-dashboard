@@ -32,6 +32,32 @@ def get_user(username: str) -> SleeperUser | None:
     return get_sleeper_client().get_user(username)
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_nfl_state() -> dict[str, Any]:
+    return get_sleeper_client().get_nfl_state()
+
+
+def get_current_nfl_season() -> str:
+    return str(get_nfl_state()["season"])
+
+
+def get_current_nfl_week() -> int:
+    state = get_nfl_state()
+    week = int(state.get("display_week") or state.get("week"))
+    return min(max(week, 1), 18)
+
+
+def get_default_nfl_week(season: str) -> int:
+    state = get_nfl_state()
+    if (
+        str(season) != str(state["season"])
+        or state.get("season_type") == "pre"
+    ):
+        return 1
+    week = int(state.get("display_week") or state.get("week"))
+    return min(max(week, 1), 18)
+
+
 @st.cache_data(ttl=1800, show_spinner=False)
 def get_leagues(
     user_id: str, season: str, sport: str = "nfl"

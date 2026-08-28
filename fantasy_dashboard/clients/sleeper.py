@@ -2,6 +2,7 @@ import time
 from datetime import timedelta
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from typing import Any
 
 import requests
 
@@ -87,6 +88,19 @@ class SleeperClient:
             return None
 
         return SleeperUser.from_api(data)
+
+    # Read Sleeper's global NFL state to identify the active season and week.
+    def get_nfl_state(self) -> dict[str, Any]:
+        response = requests.get(
+            f"{self.BASE_URL}/state/nfl",
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        if not isinstance(data, dict) or not data.get("season"):
+            raise TypeError("Sleeper's NFL state response must contain a season.")
+        return data
 
     def get_leagues(
         self, user_id: str, season: str, sport: str = "nfl"

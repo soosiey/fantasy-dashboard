@@ -6,6 +6,7 @@ from fantasy_dashboard.components.player_details import show_player_details
 from fantasy_dashboard.data import (
     clear_player_data,
     clear_projected_player_data,
+    get_default_nfl_week,
     get_league,
     get_league_users,
     get_nfl_players,
@@ -58,6 +59,10 @@ roster_labels = build_player_roster_labels(rosters.rosters, teams.users)
 rosterable_positions = get_rosterable_positions(league.roster_positions)
 season = league.season
 season_type = league.season_type
+try:
+    current_week = get_default_nfl_week(season)
+except (requests.RequestException, KeyError, TypeError, ValueError):
+    current_week = 1
 
 # Keep the force-refresh control compact and separate from the player filters.
 title_column, refresh_column = st.columns([8, 1], vertical_alignment="center")
@@ -101,7 +106,9 @@ with players_list_tab:
             st.selectbox(
                 "Week",
                 range(1, 19),
+                index=current_week - 1,
                 format_func=lambda week: f"Week {week}",
+                key=f"players-week-v2-{season}",
             )
             if stats_period == "Week"
             else None
