@@ -31,9 +31,7 @@ def test_get_weekly_player_stats(monkeypatch) -> None:
 
     stats = SleeperClient().get_player_stats("2026", "regular", 4)
 
-    assert requested_urls == [
-        "https://api.sleeper.app/v1/stats/nfl/regular/2026/4"
-    ]
+    assert requested_urls == ["https://api.sleeper.app/v1/stats/nfl/regular/2026/4"]
     assert stats == {"player-1": {"pass_yd": 250}}
 
 
@@ -49,18 +47,29 @@ def test_get_season_player_stats(monkeypatch) -> None:
 
     stats = SleeperClient().get_player_stats("2026", "regular")
 
-    assert requested_urls == [
-        "https://api.sleeper.app/v1/stats/nfl/regular/2026"
-    ]
+    assert requested_urls == ["https://api.sleeper.app/v1/stats/nfl/regular/2026"]
     assert stats == {}
+
+
+def test_get_nfl_schedule_uses_season_endpoint(monkeypatch) -> None:
+    requested_urls: list[str] = []
+
+    def fake_get(url: str, timeout: float) -> FakeResponse:
+        requested_urls.append(url)
+        return FakeResponse([{"week": 1, "home": "KC", "away": "BUF"}, None])
+
+    monkeypatch.setattr(sleeper.requests, "get", fake_get)
+
+    schedule = SleeperClient().get_nfl_schedule("2026", "regular")
+
+    assert requested_urls == ["https://api.sleeper.app/schedule/nfl/regular/2026"]
+    assert schedule == [{"week": 1, "home": "KC", "away": "BUF"}]
 
 
 def test_get_trending_players_uses_requested_window_and_limit(monkeypatch) -> None:
     request: dict[str, object] = {}
 
-    def fake_get(
-        url: str, params: dict[str, int], timeout: float
-    ) -> FakeResponse:
+    def fake_get(url: str, params: dict[str, int], timeout: float) -> FakeResponse:
         request.update(url=url, params=params, timeout=timeout)
         return FakeResponse([{"player_id": "player-1", "count": 12}])
 
@@ -79,9 +88,7 @@ def test_get_trending_players_uses_requested_window_and_limit(monkeypatch) -> No
 def test_get_player_weekly_stats_normalizes_week_keys(monkeypatch) -> None:
     request: dict[str, object] = {}
 
-    def fake_get(
-        url: str, params: dict[str, str], timeout: float
-    ) -> FakeResponse:
+    def fake_get(url: str, params: dict[str, str], timeout: float) -> FakeResponse:
         request.update(url=url, params=params, timeout=timeout)
         return FakeResponse(
             {

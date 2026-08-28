@@ -18,6 +18,7 @@ from fantasy_dashboard.models.user import SleeperUser, UserContainer
 # Wrap Sleeper HTTP endpoints and convert their responses into application models.
 class SleeperClient:
     BASE_URL = "https://api.sleeper.app/v1"
+    SCHEDULE_URL = "https://api.sleeper.app/schedule/nfl"
     PLAYER_STATS_URL = "https://api.sleeper.com/stats/nfl/player"
     AVATAR_URL = "https://sleepercdn.com/avatars/thumbs"
 
@@ -178,6 +179,23 @@ class SleeperClient:
             for player_id, stats in data.items()
             if isinstance(stats, dict)
         }
+
+    # Fetch the season schedule used to resolve each NFL team's weekly opponent.
+    def get_nfl_schedule(
+        self,
+        season: str,
+        season_type: str = "regular",
+    ) -> list[dict]:
+        response = requests.get(
+            f"{self.SCHEDULE_URL}/{season_type}/{season}",
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        if not isinstance(data, list):
+            raise TypeError("Sleeper's NFL schedule response must be a list.")
+        return [game for game in data if isinstance(game, dict)]
 
     # Fetch one player's complete week-by-week game log in a single request.
     def get_player_weekly_stats(

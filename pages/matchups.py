@@ -12,11 +12,15 @@ from fantasy_dashboard.data import (
     get_league,
     get_league_users,
     get_nfl_players,
+    get_nfl_schedule,
     get_player_stats,
     get_rosters,
     get_weekly_matchups,
 )
-from fantasy_dashboard.matchups import build_head_to_head_matchups
+from fantasy_dashboard.matchups import (
+    build_head_to_head_matchups,
+    build_week_opponents,
+)
 
 league_id = st.query_params.get("league_id")
 if league_id is not None:
@@ -75,6 +79,12 @@ except (requests.RequestException, TypeError, ValueError):
     stats_by_player_id = {}
     st.warning("Player statistics could not be loaded; scores default to zero.")
 
+try:
+    nfl_schedule = get_nfl_schedule(stats_season, league.season_type)
+except (requests.RequestException, TypeError, ValueError):
+    nfl_schedule = []
+opponents_by_team = build_week_opponents(nfl_schedule, selected_week)
+
 st.write(f"League: {league.name}")
 matchups = build_head_to_head_matchups(
     weekly_matchups.matchups,
@@ -83,6 +93,7 @@ matchups = build_head_to_head_matchups(
     teams.users,
     players,
     stats_by_player_id,
+    opponents_by_team,
 )
 current_user = st.session_state.get("sleeper_user")
 selected_player_id = render_matchup_carousel(

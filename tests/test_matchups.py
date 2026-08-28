@@ -2,7 +2,10 @@ from types import SimpleNamespace
 
 from fantasy_dashboard.components import matchup_board
 from fantasy_dashboard.components.matchup_board import PlayerComparisonSelection
-from fantasy_dashboard.matchups import build_head_to_head_matchups
+from fantasy_dashboard.matchups import (
+    build_head_to_head_matchups,
+    build_week_opponents,
+)
 from fantasy_dashboard.models.matchup import (
     WeeklyMatchupContainer,
     WeeklyMatchupModel,
@@ -54,9 +57,7 @@ def test_empty_matchup_data_uses_defaults() -> None:
 def test_incomplete_matchup_builds_fallback_team_and_empty_players() -> None:
     matchup = _weekly_matchup(starters=["missing-player"])
 
-    result = build_head_to_head_matchups(
-        [matchup], _league("QB"), [], [], {}
-    )
+    result = build_head_to_head_matchups([matchup], _league("QB"), [], [], {})
 
     assert len(result) == 1
     assert result[0].left_team.team_name == "Roster 1"
@@ -118,6 +119,7 @@ def test_nfl_stats_score_players_and_exclude_bench_from_team_total() -> None:
         "starter": {"pass_yd": 250, "pass_td": 1},
         "bench": {"rush_yd": 100},
     }
+    players["starter"]["team"] = "KC"
 
     result = build_head_to_head_matchups(
         [matchup],
@@ -126,11 +128,26 @@ def test_nfl_stats_score_players_and_exclude_bench_from_team_total() -> None:
         [],
         players,
         stats,
+        {"KC": "vs BUF"},
     )
 
     assert result[0].lineup[0].left_player.points == 14
+    assert result[0].lineup[0].left_player.opponent == "vs BUF"
     assert result[0].lineup[1].left_player.points == 10
     assert result[0].left_team.points == 14
+
+
+def test_week_opponents_indexes_both_teams_for_selected_week() -> None:
+    schedule = [
+        {"week": 1, "home": "KC", "away": "BUF"},
+        {"week": 2, "home": "KC", "away": "DEN"},
+        {"week": 1, "home": None, "away": "NYJ"},
+    ]
+
+    assert build_week_opponents(schedule, 1) == {
+        "KC": "vs BUF",
+        "BUF": "at KC",
+    }
 
 
 # The first bench row should be visually divided from the starting lineup.
@@ -232,9 +249,7 @@ def test_position_circle_selects_player_comparison(monkeypatch) -> None:
             ),
         ),
     )
-    board = build_head_to_head_matchups(
-        [matchup], _league("QB"), [], [], players
-    )
+    board = build_head_to_head_matchups([matchup], _league("QB"), [], [], players)
 
     selection = matchup_board.render_matchup_board(board, "league-1")
 

@@ -37,16 +37,19 @@ def _render_team_placard(team: MatchupTeam, side: str) -> str:
     return f'<div class="matchup-placard matchup-placard-{side}">{content}</div>'
 
 
-# Render one player with muted NFL-team metadata.
+# Render one player with muted NFL-team and weekly-opponent metadata.
 def _render_player(player: MatchupPlayer, side: str) -> str:
-    nfl_team = (
-        f'<div class="matchup-player-team">{escape(player.nfl_team)}</div>'
-        if player.nfl_team
+    metadata_parts = [escape(player.nfl_team)] if player.nfl_team else []
+    if player.opponent:
+        metadata_parts.append(escape(player.opponent))
+    metadata = (
+        f'<div class="matchup-player-team">{" ".join(metadata_parts)}</div>'
+        if metadata_parts
         else ""
     )
     identity = (
         '<div class="matchup-player-identity">'
-        f'<div>{escape(player.name)}</div>{nfl_team}</div>'
+        f"<div>{escape(player.name)}</div>{metadata}</div>"
     )
     score = f'<div class="matchup-player-score">{player.points:g}</div>'
     content = score + identity if side == "left" else identity + score
@@ -238,9 +241,7 @@ def render_matchup_board(
 
     selected_player_id = None
     for matchup_index, matchup in enumerate(matchups):
-        with st.container(
-            key=f"matchup-header-{context_key}-{matchup_index}"
-        ):
+        with st.container(key=f"matchup-header-{context_key}-{matchup_index}"):
             left_header, versus_header, right_header = st.columns(
                 MATCHUP_COLUMN_WIDTHS,
                 vertical_alignment="center",
@@ -276,11 +277,14 @@ def render_matchup_board(
                     ("left", left_column, row.left_player),
                     ("right", right_column, row.right_player),
                 ):
-                    with column, st.container(
-                        key=(
-                            f"matchup-player-click-{context_key}-{matchup_index}-"
-                            f"{row_index}-{side}"
-                        )
+                    with (
+                        column,
+                        st.container(
+                            key=(
+                                f"matchup-player-click-{context_key}-{matchup_index}-"
+                                f"{row_index}-{side}"
+                            )
+                        ),
                     ):
                         st.markdown(
                             _render_player(player, side),
@@ -296,11 +300,14 @@ def render_matchup_board(
                         ):
                             selected_player_id = player.player_id
 
-                with position_column, st.container(
-                    key=(
-                        f"matchup-position-click-{context_key}-{matchup_index}-"
-                        f"{row_index}"
-                    )
+                with (
+                    position_column,
+                    st.container(
+                        key=(
+                            f"matchup-position-click-{context_key}-{matchup_index}-"
+                            f"{row_index}"
+                        )
+                    ),
                 ):
                     has_player = (
                         row.left_player.player_id is not None
@@ -348,17 +355,13 @@ def render_matchup_carousel(
         ),
         0,
     )
-    ordered_matchups = (
-        matchups[user_matchup_index:] + matchups[:user_matchup_index]
-    )
+    ordered_matchups = matchups[user_matchup_index:] + matchups[:user_matchup_index]
 
     state_key = f"selected-matchup-v2-{context_key}"
     if state_key not in st.session_state:
         st.session_state[state_key] = 0
 
-    selected_index = min(
-        int(st.session_state[state_key]), len(ordered_matchups) - 1
-    )
+    selected_index = min(int(st.session_state[state_key]), len(ordered_matchups) - 1)
     dots_placeholder = st.empty()
     _, previous_column, next_column, _ = st.columns([5, 1, 1, 5])
     if previous_column.button(
@@ -390,6 +393,4 @@ def render_matchup_carousel(
         "letter-spacing: 0.25rem; text-align: center; }</style>",
         unsafe_allow_html=True,
     )
-    return render_matchup_board(
-        [ordered_matchups[selected_index]], context_key
-    )
+    return render_matchup_board([ordered_matchups[selected_index]], context_key)

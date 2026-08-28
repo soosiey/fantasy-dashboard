@@ -19,6 +19,7 @@ POSITION_LABELS = {
 class MatchupPlayer:
     name: str
     nfl_team: str
+    opponent: str = ""
     points: float = 0
     player_id: str | None = None
 
@@ -53,6 +54,7 @@ def _get_matchup_player(
     players: dict[str, dict[str, Any]],
     player_id: str | None,
     player_points: dict[str, float] | None = None,
+    opponents_by_team: dict[str, str] | None = None,
 ) -> MatchupPlayer:
     if not player_id or player_id == "0" or player_id not in players:
         return MatchupPlayer(name="Empty", nfl_team="")
@@ -62,9 +64,24 @@ def _get_matchup_player(
     return MatchupPlayer(
         name=player_name or player.player_id,
         nfl_team=player.team,
+        opponent=(opponents_by_team or {}).get(player.team, ""),
         points=(player_points or {}).get(player_id, 0),
         player_id=player_id,
     )
+
+
+# Build each NFL team's selected-week opponent label with home/away context.
+def build_week_opponents(schedule: list[dict[str, Any]], week: int) -> dict[str, str]:
+    opponents: dict[str, str] = {}
+    for game in schedule:
+        if game.get("week") != week:
+            continue
+        home = str(game.get("home") or "").strip().upper()
+        away = str(game.get("away") or "").strip().upper()
+        if home and away:
+            opponents[home] = f"vs {away}"
+            opponents[away] = f"at {home}"
+    return opponents
 
 
 # Match a weekly roster entry to its league team identity and score.
@@ -75,14 +92,14 @@ def _get_matchup_team(
     starter_points: float | None = None,
 ) -> MatchupTeam:
     if matchup is None:
-        return MatchupTeam(
-            team_name="Bye", display_name="", points=0, user_id=None
-        )
+        return MatchupTeam(team_name="Bye", display_name="", points=0, user_id=None)
 
     roster = rosters_by_id.get(matchup.roster_id)
     team = teams_by_user_id.get(roster.user_id) if roster is not None else None
     return MatchupTeam(
-        team_name=team.display_team_name if team is not None else f"Roster {matchup.roster_id}",
+        team_name=team.display_team_name
+        if team is not None
+        else f"Roster {matchup.roster_id}",
         display_name=team.display_name if team is not None else "",
         points=(matchup.displayed_points if starter_points is None else starter_points),
         user_id=team.user_id if team is not None else None,
@@ -118,21 +135,18 @@ def build_head_to_head_matchups(
     teams: list[SleeperTeam],
     players: dict[str, dict[str, Any]],
     stats_by_player_id: dict[str, dict[str, Any]] | None = None,
+    opponents_by_team: dict[str, str] | None = None,
 ) -> list[HeadToHeadMatchup]:
     rosters_by_id = {roster.roster_id: roster for roster in rosters}
     teams_by_user_id = {team.user_id: team for team in teams}
     starting_positions = [
-        position
-        for position in league.roster_positions
-        if position not in {"BN", "IR"}
+        position for position in league.roster_positions if position not in {"BN", "IR"}
     ]
 
     grouped_matchups: dict[int, list[WeeklyMatchupModel]] = {}
     for matchup in weekly_matchups:
         group_id = (
-            matchup.matchup_id
-            if matchup.matchup_id is not None
-            else -matchup.roster_id
+            matchup.matchup_id if matchup.matchup_id is not None else -matchup.roster_id
         )
         grouped_matchups.setdefault(group_id, []).append(matchup)
 
@@ -158,6 +172,7 @@ def build_head_to_head_matchups(
                         else None
                     ),
                     left_player_points,
+                    opponents_by_team,
                 ),
                 right_player=_get_matchup_player(
                     players,
@@ -168,6 +183,7 @@ def build_head_to_head_matchups(
                         else None
                     ),
                     right_player_points,
+                    opponents_by_team,
                 ),
             )
             for index, position in enumerate(starting_positions)
@@ -208,11 +224,13 @@ def build_head_to_head_matchups(
                     players,
                     left_bench_ids[index] if index < len(left_bench_ids) else None,
                     left_player_points,
+                    opponents_by_team,
                 ),
                 right_player=_get_matchup_player(
                     players,
                     right_bench_ids[index] if index < len(right_bench_ids) else None,
                     right_player_points,
+                    opponents_by_team,
                 ),
             )
             for index in range(bench_slots)
@@ -224,9 +242,7 @@ def build_head_to_head_matchups(
                     rosters_by_id,
                     teams_by_user_id,
                     sum(
-                        row.left_player.points
-                        for row in lineup
-                        if row.position != "BN"
+                        row.left_player.points for row in lineup if row.position != "BN"
                     ),
                 ),
                 right_team=_get_matchup_team(

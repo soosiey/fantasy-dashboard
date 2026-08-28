@@ -53,9 +53,7 @@ def get_rosters(league_id: str) -> RosterContainer | None:
 
 # Keep live scores and playoff progression fresh while avoiding rerun requests.
 @st.cache_data(ttl=5, max_entries=128, show_spinner=False)
-def get_weekly_matchups(
-    league_id: str, week: int
-) -> WeeklyMatchupContainer:
+def get_weekly_matchups(league_id: str, week: int) -> WeeklyMatchupContainer:
     return get_sleeper_client().get_matchups(league_id, week)
 
 
@@ -68,15 +66,21 @@ def get_player_stats(
     return get_sleeper_client().get_player_stats(season, season_type, week)
 
 
+@st.cache_data(ttl=1800, max_entries=16, show_spinner=False)
+def get_nfl_schedule(
+    season: str,
+    season_type: str = "regular",
+) -> list[dict]:
+    return get_sleeper_client().get_nfl_schedule(season, season_type)
+
+
 @st.cache_data(ttl=5, max_entries=256, show_spinner=False)
 def get_player_weekly_stats(
     player_id: str,
     season: str,
     season_type: str = "regular",
 ) -> dict[int, dict]:
-    return get_sleeper_client().get_player_weekly_stats(
-        player_id, season, season_type
-    )
+    return get_sleeper_client().get_player_weekly_stats(player_id, season, season_type)
 
 
 @st.cache_data(ttl=300, max_entries=8, show_spinner=False)
@@ -85,9 +89,7 @@ def get_trending_players(
     lookback_hours: int = 48,
     limit: int = 25,
 ) -> list[dict[str, int | str]]:
-    return get_sleeper_client().get_trending_players(
-        trend_type, lookback_hours, limit
-    )
+    return get_sleeper_client().get_trending_players(trend_type, lookback_hours, limit)
 
 
 @st.cache_data(ttl=5, show_spinner=False)
@@ -108,9 +110,7 @@ def get_avatar(avatar_id: str) -> bytes | None:
 
 # Decode the large player file once per file version instead of on every rerun.
 @st.cache_data(show_spinner=False)
-def _load_nfl_players(
-    path: str, modified_at_ns: int
-) -> dict[str, dict[str, Any]]:
+def _load_nfl_players(path: str, modified_at_ns: int) -> dict[str, dict[str, Any]]:
     del modified_at_ns
     with Path(path).open(encoding="utf-8") as player_file:
         data = json.load(player_file)
@@ -142,6 +142,7 @@ def clear_matchup_data(
     clear_league_data(league_id)
     get_weekly_matchups.clear(league_id, week)
     get_player_stats.clear(season, season_type, week)
+    get_nfl_schedule.clear(season, season_type)
 
 
 def clear_ranking_data(league_id: str) -> None:
