@@ -11,18 +11,15 @@ from fantasy_dashboard.data import (
     get_league_users,
     get_rosters,
 )
+from fantasy_dashboard.routing import require_authentication, resolve_league_id
 from fantasy_dashboard.scoring import (
     ScoringSection,
     get_scoring_section,
     get_scoring_sort_key,
 )
 
-league_id = st.query_params.get("league_id")
-
-if league_id is not None:
-    st.session_state["league_id"] = str(league_id)
-else:
-    league_id = st.session_state["league_id"]
+require_authentication("overview")
+league_id = resolve_league_id()
 
 if league_id is None:
     st.warning("Select a league first.")
@@ -67,7 +64,10 @@ with teams_tab:
                 st.page_link(
                     "pages/team.py",
                     label="View Team",
-                    query_params={"user_id": team.user_id},
+                    query_params={
+                        "league_id": league_id,
+                        "user_id": team.user_id,
+                    },
                 )
 
 with settings_tab:
@@ -142,7 +142,8 @@ with st.bottom:
     reset = st.button("Log Out")
 
 if league_change:
-    st.session_state.pop("league_id")
+    st.session_state.pop("league_id", None)
+    st.session_state.pop("user_id", None)
     if "league_id" in st.query_params:
         st.query_params.pop("league_id")
     st.switch_page("pages/leagues.py")

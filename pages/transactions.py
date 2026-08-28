@@ -14,6 +14,7 @@ from fantasy_dashboard.data import (
     get_nfl_players,
     get_rosters,
 )
+from fantasy_dashboard.routing import require_authentication, resolve_league_id
 from fantasy_dashboard.transactions import (
     build_transaction_detail_rows,
     build_transaction_rows,
@@ -34,11 +35,8 @@ def open_transaction_from_button(
 
 
 # Resolve league context consistently across direct links and page navigation.
-league_id = st.query_params.get("league_id")
-if league_id is not None:
-    st.session_state["league_id"] = str(league_id)
-else:
-    league_id = st.session_state.get("league_id")
+require_authentication("transactions")
+league_id = resolve_league_id()
 
 if league_id is None:
     st.warning("Select a league first.")
@@ -160,6 +158,7 @@ with st.bottom:
 
 if league_change:
     st.session_state.pop("league_id", None)
+    st.session_state.pop("user_id", None)
     if "league_id" in st.query_params:
         st.query_params.pop("league_id")
     st.switch_page("pages/leagues.py")

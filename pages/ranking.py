@@ -13,17 +13,27 @@ from fantasy_dashboard.data import (
     get_winners_bracket,
 )
 from fantasy_dashboard.playoffs import build_playoff_rounds
+from fantasy_dashboard.routing import (
+    require_authentication,
+    resolve_league_id,
+    sync_query_params,
+)
 from fantasy_dashboard.standings import build_standings
 
-league_id = st.query_params.get("league_id")
-if league_id is not None:
-    st.session_state["league_id"] = str(league_id)
-else:
-    league_id = st.session_state.get("league_id")
+require_authentication("rankings")
+league_id = resolve_league_id()
 
 if league_id is None:
     st.warning("Select a league first.")
     st.switch_page("pages/leagues.py")
+
+ranking_view_key = f"ranking-view-{league_id}"
+if ranking_view_key not in st.session_state:
+    st.session_state[ranking_view_key] = (
+        "🏆 Playoffs"
+        if str(st.query_params.get("view") or "").casefold() == "playoffs"
+        else "📊 Regular Season"
+    )
 
 # Keep the regular-season/playoff switch aligned at the top right of the page.
 title_column, view_column, refresh_column = st.columns(
@@ -35,10 +45,15 @@ with view_column:
     ranking_view = st.segmented_control(
         "Ranking view",
         ["📊 Regular Season", "🏆 Playoffs"],
-        default="📊 Regular Season",
+        key=ranking_view_key,
         label_visibility="collapsed",
         width="stretch",
     )
+
+sync_query_params(
+    league_id=league_id,
+    view="playoffs" if ranking_view == "🏆 Playoffs" else "regular-season",
+)
 with refresh_column:
     force_refresh = st.button(
         "↻",
@@ -96,7 +111,8 @@ with st.bottom:
     reset = st.button("Log Out")
 
 if league_change:
-    st.session_state.pop("league_id")
+    st.session_state.pop("league_id", None)
+    st.session_state.pop("user_id", None)
     if "league_id" in st.query_params:
         st.query_params.pop("league_id")
     st.switch_page("pages/leagues.py")

@@ -11,9 +11,9 @@ from fantasy_dashboard.data import (
     get_data_update,
     get_leagues,
 )
+from fantasy_dashboard.routing import require_authentication, sync_query_params
 
-assert "sleeper_user" in st.session_state, "No user found for leagues to show"
-user = st.session_state["sleeper_user"]
+user = require_authentication("leagues")
 user_id = user.user_id
 
 # Prefer Sleeper's active season, with a calendar fallback during API outages.
@@ -25,6 +25,12 @@ except (requests.RequestException, KeyError, TypeError, ValueError):
     st.warning("The current NFL season could not be detected from Sleeper.")
 
 season_options = [str(current_season - offset) for offset in range(3)]
+requested_season = str(st.query_params.get("season") or "")
+season_key = f"league-season-{user_id}"
+if season_key not in st.session_state:
+    st.session_state[season_key] = (
+        requested_season if requested_season in season_options else season_options[0]
+    )
 
 # Render the season filter and each league as a full-width navigation target.
 title_column, season_column, refresh_column = st.columns(
@@ -33,7 +39,7 @@ title_column, season_column, refresh_column = st.columns(
 with title_column:
     st.title("Leagues")
 with season_column:
-    selected_season = st.selectbox("Season", season_options)
+    selected_season = st.selectbox("Season", season_options, key=season_key)
 with refresh_column:
     force_refresh = st.button(
         "↻",
@@ -45,6 +51,8 @@ with refresh_column:
 if force_refresh:
     clear_league_list(user_id, selected_season, "nfl")
     st.rerun()
+
+sync_query_params(season=selected_season)
 
 st.caption("Select a league to view.")
 leagues = get_leagues(user_id, selected_season, "nfl")

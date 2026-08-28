@@ -16,19 +16,23 @@ from fantasy_dashboard.roster import (
     build_roster_rows,
     get_player_by_id,
 )
+from fantasy_dashboard.routing import (
+    require_authentication,
+    resolve_league_id,
+    resolve_user_id,
+)
 
-user_id = st.query_params.get("user_id")
-
-if user_id is not None:
-    st.session_state["user_id"] = str(user_id)
-else:
-    user_id = st.session_state["user_id"]
+require_authentication("team")
+user_id = resolve_user_id()
 
 if user_id is None:
     st.warning("Select a user first.")
     st.switch_page("pages/leagues.py")
 
-league_id = st.session_state.get("league_id")
+league_id = resolve_league_id()
+if league_id is None:
+    st.warning("Select a league first.")
+    st.switch_page("pages/leagues.py")
 title_column, refresh_column = st.columns([8, 1], vertical_alignment="center")
 with title_column:
     st.title("Team Page")
@@ -62,7 +66,7 @@ if league.status == "pre_draft" or team_roster is None or team_selected is None:
     st.warning("No roster found for this user.")
     st.session_state.pop("user_id")
     st.query_params.pop("user_id")
-    st.switch_page("pages/overview.py")
+    st.switch_page("pages/overview.py", query_params={"league_id": league_id})
 
 # Present the team identity above its roster.
 team_icon, team_identity = st.columns([1, 5], vertical_alignment="center")
@@ -101,11 +105,13 @@ with st.bottom:
     reset = st.button("Log Out")
 
 if team_change:
-    st.session_state.pop("user_id")
-    st.query_params.pop("user_id")
-    st.switch_page("pages/overview.py")
+    st.session_state.pop("user_id", None)
+    if "user_id" in st.query_params:
+        st.query_params.pop("user_id")
+    st.switch_page("pages/overview.py", query_params={"league_id": league_id})
 if league_change:
-    st.session_state.pop("league_id")
+    st.session_state.pop("league_id", None)
+    st.session_state.pop("user_id", None)
     st.switch_page("pages/leagues.py")
 if reset:
     st.session_state.clear()

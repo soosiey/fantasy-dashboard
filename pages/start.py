@@ -1,6 +1,7 @@
 import streamlit as st
 
 from fantasy_dashboard.data import get_user
+from fantasy_dashboard.routing import PAGE_SOURCES, pop_pending_route
 
 st.title("Fantasy Football Dashboard")
 st.write("Enter your Sleeper username to start")
@@ -19,4 +20,6 @@ if submit_button:
         st.stop()
 
     st.session_state["sleeper_user"] = user
-    st.rerun()
+    pending_route, pending_query = pop_pending_route()
+    destination = PAGE_SOURCES.get(pending_route or "", PAGE_SOURCES["leagues"])
+    st.switch_page(destination, query_params=pending_query)

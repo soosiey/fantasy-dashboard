@@ -16,6 +16,23 @@ Run
 
 from the root directory.
 
+## Application URLs
+
+The application uses explicit, stable routes:
+
+- `/leagues`
+- `/overview?league_id=LEAGUE_ID`
+- `/draft-results?league_id=LEAGUE_ID`
+- `/transactions?league_id=LEAGUE_ID`
+- `/players?league_id=LEAGUE_ID`
+- `/matchups?league_id=LEAGUE_ID`
+- `/rankings?league_id=LEAGUE_ID`
+- `/team?league_id=LEAGUE_ID&user_id=USER_ID`
+
+Matchup week/stat source and player-page filters are also stored in the URL.
+Protected deep links return to their requested page after Sleeper login. The
+former `/ranking` and `/draft_results` routes remain available as redirects.
+
 Player projections are retrieved from ESPN and cached for one hour in memory
 and under `data/cache/espn_projections/`. Sleeper's shared NFL player catalog is
 stored at `data/nfl_players.json`.

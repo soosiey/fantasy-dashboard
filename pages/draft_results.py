@@ -12,13 +12,15 @@ from fantasy_dashboard.data import (
     get_nfl_players,
 )
 from fantasy_dashboard.draft import build_draft_result_rows
+from fantasy_dashboard.routing import (
+    require_authentication,
+    resolve_league_id,
+    sync_query_params,
+)
 
 # Resolve league context consistently across direct links and page navigation.
-league_id = st.query_params.get("league_id")
-if league_id is not None:
-    st.session_state["league_id"] = str(league_id)
-else:
-    league_id = st.session_state.get("league_id")
+require_authentication("draft-results")
+league_id = resolve_league_id()
 
 if league_id is None:
     st.warning("Select a league first.")
@@ -64,6 +66,8 @@ else:
             player_search = st.text_input(
                 "Player name",
                 placeholder="Search by player name",
+                value=str(st.query_params.get("search") or ""),
+                key=f"draft-player-search-{league_id}",
             )
         with drafter_column:
             drafter_ids = sorted(
@@ -75,6 +79,11 @@ else:
             selected_drafter_id = st.selectbox(
                 "Drafted by",
                 ["", *drafter_ids],
+                index=(
+                    ["", *drafter_ids].index(str(st.query_params.get("drafter") or ""))
+                    if str(st.query_params.get("drafter") or "") in ["", *drafter_ids]
+                    else 0
+                ),
                 format_func=lambda user_id: (
                     "All users"
                     if not user_id
@@ -82,7 +91,14 @@ else:
                         user_id, f"Unknown User ({user_id})"
                     )
                 ),
+                key=f"draft-drafter-{league_id}",
             )
+
+        sync_query_params(
+            league_id=league_id,
+            search=player_search.strip() or None,
+            drafter=selected_drafter_id or None,
+        )
 
         rows = build_draft_result_rows(
             draft.picks,
@@ -108,6 +124,7 @@ with st.bottom:
 
 if league_change:
     st.session_state.pop("league_id", None)
+    st.session_state.pop("user_id", None)
     if "league_id" in st.query_params:
         st.query_params.pop("league_id")
     st.switch_page("pages/leagues.py")

@@ -3,6 +3,13 @@ import streamlit as st
 
 from fantasy_dashboard.clients.sleeper import SleeperClient
 from fantasy_dashboard.paths import NFL_PLAYERS_PATH
+from fantasy_dashboard.routing import (
+    PAGE_SOURCES,
+    PENDING_ROUTE_KEY,
+    pop_pending_route,
+    resolve_league_id,
+    store_pending_route,
+)
 
 # Refresh the shared player cache without preventing the app from starting on failure.
 try:
@@ -10,78 +17,124 @@ try:
 except (OSError, TypeError, ValueError, requests.RequestException) as error:
     st.warning(f"Unable to refresh NFL player data: {error}")
 
-start_page = st.Page("pages/start.py", title="User Login", default=True)
+authenticated = "sleeper_user" in st.session_state
+league_id = resolve_league_id()
+requested_user_id = st.query_params.get("user_id")
+if requested_user_id is not None:
+    st.session_state["user_id"] = str(requested_user_id)
+user_id = st.session_state.get("user_id")
+league_visibility = "visible" if authenticated and league_id else "hidden"
 
-# Build navigation around the user's login and league-selection state.
-if "sleeper_user" not in st.session_state:
-    page_route = st.navigation([start_page])
-else:
-    league_id = st.query_params.get("league_id")
+# Declare every route on every run so bookmarked pages remain recognizable.
+start_page = st.Page(
+    PAGE_SOURCES["login"],
+    title="User Login",
+    url_path="login",
+    default=True,
+    visibility="hidden" if authenticated else "visible",
+)
+leagues_page = st.Page(
+    PAGE_SOURCES["leagues"],
+    title="Leagues",
+    url_path="leagues",
+    visibility="visible" if authenticated and not league_id else "hidden",
+)
+overview_page = st.Page(
+    PAGE_SOURCES["overview"],
+    title="Overview",
+    url_path="overview",
+    visibility=league_visibility,
+)
+draft_results_page = st.Page(
+    PAGE_SOURCES["draft-results"],
+    title="Draft Results",
+    url_path="draft-results",
+    visibility=league_visibility,
+)
+transactions_page = st.Page(
+    PAGE_SOURCES["transactions"],
+    title="Transactions",
+    url_path="transactions",
+    visibility=league_visibility,
+)
+players_page = st.Page(
+    PAGE_SOURCES["players"],
+    title="Players",
+    url_path="players",
+    visibility=league_visibility,
+)
+matchups_page = st.Page(
+    PAGE_SOURCES["matchups"],
+    title="Matchups",
+    url_path="matchups",
+    visibility=league_visibility,
+)
+ranking_page = st.Page(
+    PAGE_SOURCES["rankings"],
+    title="Rankings",
+    url_path="rankings",
+    visibility=league_visibility,
+)
+legacy_ranking_page = st.Page(
+    "pages/ranking_legacy.py",
+    title="Rankings",
+    url_path="ranking",
+    visibility="hidden",
+)
+legacy_draft_results_page = st.Page(
+    "pages/draft_results_legacy.py",
+    title="Draft Results",
+    url_path="draft_results",
+    visibility="hidden",
+)
+team_page = st.Page(
+    PAGE_SOURCES["team"],
+    title="Team",
+    url_path="team",
+    visibility=("visible" if authenticated and league_id and user_id else "hidden"),
+)
+pages_by_route = {
+    "leagues": leagues_page,
+    "overview": overview_page,
+    "draft-results": draft_results_page,
+    "transactions": transactions_page,
+    "players": players_page,
+    "matchups": matchups_page,
+    "rankings": ranking_page,
+    "ranking": legacy_ranking_page,
+    "draft_results": legacy_draft_results_page,
+    "team": team_page,
+}
+page_route = st.navigation(
+    [
+        start_page,
+        leagues_page,
+        overview_page,
+        draft_results_page,
+        transactions_page,
+        players_page,
+        matchups_page,
+        ranking_page,
+        team_page,
+        legacy_ranking_page,
+        legacy_draft_results_page,
+    ]
+)
 
-    if league_id:
-        st.session_state["league_id"] = str(league_id)
+# Preserve a cold deep link through login, then return to the requested page.
+if not authenticated and page_route.url_path:
+    store_pending_route(page_route.url_path, st.query_params)
+    st.switch_page(start_page)
+if authenticated and PENDING_ROUTE_KEY in st.session_state:
+    pending_route, pending_query = pop_pending_route()
+    destination = pages_by_route.get(pending_route or "", leagues_page)
+    st.switch_page(destination, query_params=pending_query)
+if authenticated and not page_route.url_path:
+    st.switch_page(overview_page if league_id else leagues_page)
+if authenticated and page_route.url_path not in {"", "leagues"} and not league_id:
+    st.switch_page(leagues_page)
+if authenticated and page_route.url_path == "team" and not user_id:
+    st.switch_page(overview_page, query_params={"league_id": league_id})
 
-    leagues_page = st.Page(
-        "pages/leagues.py",
-        title="Leagues",
-        default=True,
-        visibility="hidden" if st.session_state.get("league_id") else "visible",
-    )
-
-    overview_page = st.Page(
-        "pages/overview.py",
-        title="Overview",
-        visibility="visible" if st.session_state.get("league_id") else "hidden",
-    )
-
-    draft_results_page = st.Page(
-        "pages/draft_results.py",
-        title="Draft Results",
-        visibility="visible" if st.session_state.get("league_id") else "hidden",
-    )
-
-    transactions_page = st.Page(
-        "pages/transactions.py",
-        title="Transactions",
-        visibility="visible" if st.session_state.get("league_id") else "hidden",
-    )
-
-    players_page = st.Page(
-        "pages/players.py",
-        title="Players",
-        visibility="visible" if st.session_state.get("league_id") else "hidden",
-    )
-
-    ranking_page = st.Page(
-        "pages/ranking.py",
-        title="Rankings",
-        visibility="visible" if st.session_state.get("league_id") else "hidden",
-    )
-
-    matchups_page = st.Page(
-        "pages/matchups.py",
-        title="Matchups",
-        visibility="visible" if st.session_state.get("league_id") else "hidden",
-    )
-
-    team_page = st.Page(
-        "pages/team.py",
-        title="Team",
-        visibility="visible" if st.session_state.get("team_id") else "hidden",
-    )
-
-    page_route = st.navigation(
-        [
-            leagues_page,
-            overview_page,
-            draft_results_page,
-            transactions_page,
-            players_page,
-            matchups_page,
-            ranking_page,
-            team_page,
-        ]
-    )
-
-# Hand control to the page selected by Streamlit's navigation router.
+# Hand control to the authenticated and context-valid page.
 page_route.run()

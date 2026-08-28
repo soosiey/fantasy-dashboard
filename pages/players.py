@@ -26,6 +26,11 @@ from fantasy_dashboard.player_stats import (
     get_rosterable_positions,
 )
 from fantasy_dashboard.player_trends import build_player_trend_rows
+from fantasy_dashboard.routing import (
+    require_authentication,
+    resolve_league_id,
+    sync_query_params,
+)
 
 
 # Resolve a dataframe button click to the player ID at the same row position.
@@ -44,11 +49,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-league_id = st.query_params.get("league_id")
-if league_id is not None:
-    st.session_state["league_id"] = str(league_id)
-else:
-    league_id = st.session_state.get("league_id")
+require_authentication("players")
+league_id = resolve_league_id()
 
 if league_id is None:
     st.warning("Select a league first.")
@@ -66,6 +68,41 @@ try:
     current_week = get_default_nfl_week(season)
 except (requests.RequestException, KeyError, TypeError, ValueError):
     current_week = 1
+
+requested_stats_source = str(st.query_params.get("stats") or "actual").casefold()
+requested_period = str(st.query_params.get("period") or "season").casefold()
+requested_position = str(st.query_params.get("position") or "")
+requested_availability = str(st.query_params.get("availability") or "").casefold()
+try:
+    requested_week = int(st.query_params.get("week") or current_week)
+except (TypeError, ValueError):
+    requested_week = current_week
+requested_week = min(max(requested_week, 1), 18)
+filter_prefix = f"players-{league_id}"
+available_filter_key = f"{filter_prefix}-available-only"
+stats_source_filter_key = f"{filter_prefix}-stat-source"
+position_filter_key = f"{filter_prefix}-position"
+period_filter_key = f"{filter_prefix}-period"
+week_filter_key = f"{filter_prefix}-week-v3-{season}"
+search_filter_key = f"{filter_prefix}-search"
+
+player_filter_defaults = {
+    available_filter_key: requested_availability == "available",
+    stats_source_filter_key: (
+        "Predicted" if requested_stats_source == "predicted" else "Actual"
+    ),
+    position_filter_key: (
+        requested_position
+        if requested_position in rosterable_positions
+        else "All Positions"
+    ),
+    period_filter_key: "Week" if requested_period == "week" else "Season",
+    week_filter_key: requested_week,
+    search_filter_key: str(st.query_params.get("search") or ""),
+}
+for filter_key, default_value in player_filter_defaults.items():
+    if filter_key not in st.session_state:
+        st.session_state[filter_key] = default_value
 
 # Keep the force-refresh control compact and separate from the player filters.
 title_column, refresh_column = st.columns([8, 1], vertical_alignment="center")
@@ -85,23 +122,24 @@ with players_list_tab:
     # Filter current availability independently from the selected statistics period.
     availability_column, position_column, period_column, week_column = st.columns(4)
     with availability_column:
-        available_only = st.toggle("Available players only")
+        available_only = st.toggle("Available players only", key=available_filter_key)
         stats_source = st.segmented_control(
             "Stat type",
             ["Actual", "Predicted"],
-            default="Actual",
+            key=stats_source_filter_key,
             width="stretch",
         )
     with position_column:
         selected_position_label = st.selectbox(
             "Position",
             ["All Positions", *rosterable_positions],
+            key=position_filter_key,
         )
     with period_column:
         stats_period = st.segmented_control(
             "Period",
             ["Season", "Week"],
-            default="Season",
+            key=period_filter_key,
             width="stretch",
         )
     with week_column:
@@ -111,7 +149,7 @@ with players_list_tab:
                 range(1, 19),
                 index=current_week - 1,
                 format_func=lambda week: f"Week {week}",
-                key=f"players-week-v2-{season}",
+                key=week_filter_key,
             )
             if stats_period == "Week"
             else None
@@ -120,6 +158,21 @@ with players_list_tab:
     player_search = st.text_input(
         "Player name",
         placeholder="Search by player name",
+        key=search_filter_key,
+    )
+
+    sync_query_params(
+        league_id=league_id,
+        availability="available" if available_only else None,
+        position=(
+            selected_position_label
+            if selected_position_label != "All Positions"
+            else None
+        ),
+        period=stats_period.casefold(),
+        week=selected_week,
+        stats=stats_source.casefold(),
+        search=player_search.strip() or None,
     )
 
     if force_refresh:
@@ -375,7 +428,8 @@ with st.bottom:
     reset = st.button("Log Out")
 
 if league_change:
-    st.session_state.pop("league_id")
+    st.session_state.pop("league_id", None)
+    st.session_state.pop("user_id", None)
     if "league_id" in st.query_params:
         st.query_params.pop("league_id")
     st.switch_page("pages/leagues.py")

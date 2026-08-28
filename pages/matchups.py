@@ -29,12 +29,14 @@ from fantasy_dashboard.matchups import (
     build_week_opponents,
 )
 from fantasy_dashboard.models.player import PlayerModel
+from fantasy_dashboard.routing import (
+    require_authentication,
+    resolve_league_id,
+    sync_query_params,
+)
 
-league_id = st.query_params.get("league_id")
-if league_id is not None:
-    st.session_state["league_id"] = str(league_id)
-else:
-    league_id = st.session_state.get("league_id")
+require_authentication("matchups")
+league_id = resolve_league_id()
 
 if league_id is None:
     st.warning("Select a league first.")
@@ -46,6 +48,21 @@ try:
     current_week = get_default_nfl_week(stats_season)
 except (requests.RequestException, KeyError, TypeError, ValueError):
     current_week = 1
+
+try:
+    requested_week = int(st.query_params.get("week") or current_week)
+except (TypeError, ValueError):
+    requested_week = current_week
+requested_week = min(max(requested_week, 1), 18)
+requested_stats_source = str(st.query_params.get("stats") or "actual").casefold()
+week_key = f"matchup-week-v3-{league_id}-{stats_season}"
+stats_source_key = f"matchup-stat-source-{league_id}-{stats_season}"
+if week_key not in st.session_state:
+    st.session_state[week_key] = requested_week
+if stats_source_key not in st.session_state:
+    st.session_state[stats_source_key] = (
+        "Predicted" if requested_stats_source == "predicted" else "Actual"
+    )
 
 # Group the matchup filters opposite the title with enough room for the
 # Actual/Predicted selector to remain on one horizontal line.
@@ -60,7 +77,7 @@ with filter_column:
             range(1, 19),
             index=current_week - 1,
             format_func=lambda week: f"Week {week}",
-            key=f"matchup-week-v2-{stats_season}",
+            key=week_key,
         )
     with refresh_column:
         force_refresh = st.button(
@@ -72,9 +89,15 @@ with filter_column:
     stats_source = st.segmented_control(
         "Stat type",
         ["Actual", "Predicted"],
-        default="Actual",
+        key=stats_source_key,
         width="stretch",
     )
+
+sync_query_params(
+    league_id=league_id,
+    week=selected_week,
+    stats=stats_source.casefold(),
+)
 
 if force_refresh:
     clear_matchup_data(
@@ -191,7 +214,8 @@ with st.bottom:
     reset = st.button("Log Out")
 
 if league_change:
-    st.session_state.pop("league_id")
+    st.session_state.pop("league_id", None)
+    st.session_state.pop("user_id", None)
     if "league_id" in st.query_params:
         st.query_params.pop("league_id")
     st.switch_page("pages/leagues.py")
