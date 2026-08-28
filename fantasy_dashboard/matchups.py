@@ -20,6 +20,7 @@ class MatchupPlayer:
     name: str
     nfl_team: str
     points: float = 0
+    player_id: str | None = None
 
 
 # Store one team's placard information for a weekly matchup.
@@ -62,6 +63,7 @@ def _get_matchup_player(
         name=player_name or player.player_id,
         nfl_team=player.team,
         points=(player_points or {}).get(player_id, 0),
+        player_id=player_id,
     )
 
 

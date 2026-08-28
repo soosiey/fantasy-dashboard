@@ -90,6 +90,7 @@ def test_missing_player_score_defaults_to_zero() -> None:
     )
 
     assert result[0].lineup[0].left_player.points == 12.5
+    assert result[0].lineup[0].left_player.player_id == "scored-player"
     assert result[0].lineup[1].left_player.points == 0
 
 
@@ -145,6 +146,22 @@ def test_matchup_board_marks_bench_rows(monkeypatch) -> None:
         for player_id in ("starter", "bench")
     }
     rendered_markup: list[str] = []
+    container_keys: list[str] = []
+
+    class FakeContext:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def markdown(self, markup: str, **kwargs: object) -> None:
+            rendered_markup.append(markup)
+
+    def fake_container(*, key: str) -> FakeContext:
+        container_keys.append(key)
+        return FakeContext()
+
     result = build_head_to_head_matchups(
         [matchup], _league("QB", "BN"), [], [], players
     )
@@ -154,13 +171,22 @@ def test_matchup_board_marks_bench_rows(monkeypatch) -> None:
         SimpleNamespace(
             info=lambda message: None,
             markdown=lambda markup, **kwargs: rendered_markup.append(markup),
+            container=fake_container,
+            columns=lambda *args, **kwargs: [
+                FakeContext(),
+                FakeContext(),
+                FakeContext(),
+            ],
+            button=lambda *args, **kwargs: False,
         ),
     )
 
-    matchup_board.render_matchup_board(result)
+    matchup_board.render_matchup_board(result, "league 1")
 
-    assert "matchup-lineup-row-bench" in rendered_markup[0]
+    assert any("matchup-lineup-row-bench" in key for key in container_keys)
     assert "border-top" in rendered_markup[0]
+    assert "matchup-player-click" in rendered_markup[0]
+    assert any('class="matchup-position">QB</div>' in markup for markup in rendered_markup)
 
 
 # The board should give a useful empty state rather than rendering blank markup.

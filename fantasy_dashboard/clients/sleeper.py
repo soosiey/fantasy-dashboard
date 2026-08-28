@@ -18,6 +18,7 @@ from fantasy_dashboard.models.user import SleeperUser, UserContainer
 # Wrap Sleeper HTTP endpoints and convert their responses into application models.
 class SleeperClient:
     BASE_URL = "https://api.sleeper.app/v1"
+    PLAYER_STATS_URL = "https://api.sleeper.com/stats/nfl/player"
     AVATAR_URL = "https://sleepercdn.com/avatars/thumbs"
 
     def __init__(self, timeout: float = 10.0) -> None:
@@ -176,6 +177,33 @@ class SleeperClient:
             str(player_id): stats
             for player_id, stats in data.items()
             if isinstance(stats, dict)
+        }
+
+    # Fetch one player's complete week-by-week game log in a single request.
+    def get_player_weekly_stats(
+        self,
+        player_id: str,
+        season: str,
+        season_type: str = "regular",
+    ) -> dict[int, dict]:
+        response = requests.get(
+            f"{self.PLAYER_STATS_URL}/{player_id}",
+            params={
+                "season": season,
+                "season_type": season_type,
+                "grouping": "week",
+            },
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        if not isinstance(data, dict):
+            raise TypeError("Sleeper's weekly player stats response must be an object.")
+        return {
+            int(week): record
+            for week, record in data.items()
+            if str(week).isdigit() and isinstance(record, dict)
         }
 
     # Fetch the most-added or most-dropped NFL players for a recent window.

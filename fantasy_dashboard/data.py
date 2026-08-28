@@ -59,13 +59,24 @@ def get_weekly_matchups(
     return get_sleeper_client().get_matchups(league_id, week)
 
 
-@st.cache_data(ttl=300, max_entries=64, show_spinner=False)
+@st.cache_data(ttl=5, max_entries=64, show_spinner=False)
 def get_player_stats(
     season: str,
     season_type: str = "regular",
     week: int | None = None,
 ) -> dict[str, dict]:
     return get_sleeper_client().get_player_stats(season, season_type, week)
+
+
+@st.cache_data(ttl=5, max_entries=256, show_spinner=False)
+def get_player_weekly_stats(
+    player_id: str,
+    season: str,
+    season_type: str = "regular",
+) -> dict[int, dict]:
+    return get_sleeper_client().get_player_weekly_stats(
+        player_id, season, season_type
+    )
 
 
 @st.cache_data(ttl=300, max_entries=8, show_spinner=False)

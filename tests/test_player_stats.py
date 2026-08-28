@@ -4,6 +4,7 @@ from fantasy_dashboard.player_stats import (
     build_player_identity_image,
     build_player_roster_labels,
     build_player_stat_rows,
+    build_player_weekly_stat_rows,
     calculate_fantasy_points,
     get_relevant_stat_labels,
     get_rosterable_positions,
@@ -15,6 +16,27 @@ def test_player_identity_image_centers_name_independently_from_owner() -> None:
 
     assert identity.startswith("data:image/svg+xml;utf8,")
     assert "%C2%B7%20SleeperUser" in identity
+
+
+def test_weekly_player_rows_include_every_week_opponent_and_scoring() -> None:
+    rows = build_player_weekly_stat_rows(
+        {
+            1: {
+                "opponent": "BUF",
+                "is_away_team": True,
+                "stats": {"pass_yd": 250, "pass_td": 2},
+            }
+        },
+        {"pass_yd": 0.04, "pass_td": 4},
+    )
+
+    assert len(rows) == 18
+    assert rows[0]["Week"] == 1
+    assert rows[0]["Opponent"] == "@ BUF"
+    assert rows[0]["Fantasy Points"] == 18
+    assert rows[0]["Pass Yds"] == 250
+    assert rows[1]["Week"] == 2
+    assert rows[1]["Opponent"] == "—"
 
 
 def test_rostered_players_are_labeled_with_team_and_owner() -> None:

@@ -44,40 +44,20 @@ def _render_player(player: MatchupPlayer, side: str) -> str:
 
 
 # Render all weekly pairings with mirrored lineups around position bubbles.
-def render_matchup_board(matchups: list[HeadToHeadMatchup]) -> None:
+def render_matchup_board(
+    matchups: list[HeadToHeadMatchup], context_key: str = "board"
+) -> str | None:
     if not matchups:
         st.info("No matchups are available for this week.")
-        return
+        return None
 
-    matchup_sections = "".join(
-        '<section class="matchup-card">'
-        '<div class="matchup-header">'
-        f"{_render_team_placard(matchup.left_team, 'left')}"
-        '<div class="matchup-versus">VS</div>'
-        f"{_render_team_placard(matchup.right_team, 'right')}"
-        "</div>"
-        '<div class="matchup-lineup">'
-        + "".join(
-            '<div class="matchup-lineup-row'
-            + (" matchup-lineup-row-bench" if row.position == "BN" else "")
-            + '">'
-            f"{_render_player(row.left_player, 'left')}"
-            f'<div class="matchup-position">{escape(row.position)}</div>'
-            f"{_render_player(row.right_player, 'right')}"
-            "</div>"
-            for row in matchup.lineup
-        )
-        + "</div></section>"
-        for matchup in matchups
-    )
     st.markdown(
         dedent(f"""
         <style>
             .matchup-card {{
-                margin: 0 0 2rem;
+                margin: 0 0 0.65rem;
             }}
-            .matchup-header,
-            .matchup-lineup-row {{
+            .matchup-header {{
                 align-items: center;
                 display: grid;
                 gap: 1rem;
@@ -127,18 +107,18 @@ def render_matchup_board(matchups: list[HeadToHeadMatchup]) -> None:
             .matchup-lineup {{
                 margin-top: 0.65rem;
             }}
-            .matchup-lineup-row {{
+            [class*="st-key-matchup-lineup-row-"] {{
+                border-radius: 0.2rem;
                 min-height: 3.25rem;
                 padding: 0.35rem 1rem;
             }}
-            .matchup-lineup-row:nth-child(odd) {{
+            [class*="st-key-matchup-lineup-row-odd-"] {{
                 background: rgba(128, 128, 128, 0.08);
             }}
-            .matchup-lineup-row:nth-child(even) {{
+            [class*="st-key-matchup-lineup-row-even-"] {{
                 background: rgba(128, 128, 128, 0.025);
             }}
-            .matchup-lineup-row:not(.matchup-lineup-row-bench)
-                + .matchup-lineup-row-bench {{
+            [class*="st-key-matchup-lineup-row-bench-"] {{
                 border-top: 1px solid rgba(128, 128, 128, 0.35);
                 margin-top: 0.4rem;
                 padding-top: 0.75rem;
@@ -150,6 +130,26 @@ def render_matchup_board(matchups: list[HeadToHeadMatchup]) -> None:
                 font-weight: 600;
                 justify-content: space-between;
                 min-width: 0;
+            }}
+            [class*="st-key-matchup-player-click-"] {{
+                border-radius: 0.35rem;
+                cursor: pointer;
+                padding: 0.35rem 0.45rem;
+                position: relative;
+                transition: background-color 120ms ease;
+            }}
+            [class*="st-key-matchup-player-click-"]:hover {{
+                background: rgba(99, 102, 241, 0.13);
+            }}
+            [class*="st-key-matchup-player-click-"] [data-testid="stButton"] {{
+                inset: 0;
+                position: absolute;
+                z-index: 2;
+            }}
+            [class*="st-key-matchup-player-click-"] [data-testid="stButton"] button {{
+                height: 100%;
+                opacity: 0;
+                width: 100%;
             }}
             .matchup-player-left {{
                 text-align: right;
@@ -191,10 +191,62 @@ def render_matchup_board(matchups: list[HeadToHeadMatchup]) -> None:
                 width: 2.35rem;
             }}
         </style>
-        <div class="matchup-board">{matchup_sections}</div>
         """),
         unsafe_allow_html=True,
     )
+
+    selected_player_id = None
+    for matchup_index, matchup in enumerate(matchups):
+        header = (
+            '<section class="matchup-card"><div class="matchup-header">'
+            f"{_render_team_placard(matchup.left_team, 'left')}"
+            '<div class="matchup-versus">VS</div>'
+            f"{_render_team_placard(matchup.right_team, 'right')}"
+            "</div></section>"
+        )
+        st.markdown(header, unsafe_allow_html=True)
+
+        for row_index, row in enumerate(matchup.lineup):
+            shade = "odd" if row_index % 2 == 0 else "even"
+            bench = "bench-" if row.position == "BN" else ""
+            row_key = (
+                f"matchup-lineup-row-{bench}{shade}-{context_key}-"
+                f"{matchup_index}-{row_index}"
+            )
+            with st.container(key=row_key):
+                left_column, position_column, right_column = st.columns(
+                    [1, 0.12, 1], vertical_alignment="center", gap="medium"
+                )
+                for side, column, player in (
+                    ("left", left_column, row.left_player),
+                    ("right", right_column, row.right_player),
+                ):
+                    with column, st.container(
+                        key=(
+                            f"matchup-player-click-{context_key}-{matchup_index}-"
+                            f"{row_index}-{side}"
+                        )
+                    ):
+                        st.markdown(
+                            _render_player(player, side),
+                            unsafe_allow_html=True,
+                        )
+                        if player.player_id is not None and st.button(
+                            f"View {player.name} details",
+                            key=(
+                                f"matchup-player-button-{context_key}-"
+                                f"{matchup_index}-{row_index}-{side}"
+                            ),
+                            width="stretch",
+                        ):
+                            selected_player_id = player.player_id
+
+                position_column.markdown(
+                    f'<div class="matchup-position">{escape(row.position)}</div>',
+                    unsafe_allow_html=True,
+                )
+
+    return selected_player_id
 
 
 # Select one matchup with dots and arrows, defaulting to the signed-in user's game.
@@ -202,10 +254,9 @@ def render_matchup_carousel(
     matchups: list[HeadToHeadMatchup],
     current_user_id: str | None,
     context_key: str,
-) -> None:
+) -> str | None:
     if not matchups:
-        render_matchup_board([])
-        return
+        return render_matchup_board([], context_key)
 
     # Rotate the signed-in user's matchup to the first carousel position.
     user_matchup_index = next(
@@ -260,4 +311,6 @@ def render_matchup_carousel(
         "letter-spacing: 0.25rem; text-align: center; }</style>",
         unsafe_allow_html=True,
     )
-    render_matchup_board([ordered_matchups[selected_index]])
+    return render_matchup_board(
+        [ordered_matchups[selected_index]], context_key
+    )

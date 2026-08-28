@@ -153,7 +153,7 @@ def build_player_roster_labels(
 # Render a player and optional owner as one image-backed dataframe cell so each
 # text fragment can retain its own size and color inside Streamlit's data grid.
 def build_player_identity_image(player_name: str, owner_name: str = "") -> str:
-    player_center = 190
+    player_center = 105
     approximate_player_half_width = len(player_name) * 3.9
     owner = (
         f'<text class="owner" x="{player_center + approximate_player_half_width + 6}" '
@@ -161,7 +161,7 @@ def build_player_identity_image(player_name: str, owner_name: str = "") -> str:
         if owner_name
         else ""
     )
-    svg = """<svg xmlns="http://www.w3.org/2000/svg" width="380" height="28">
+    svg = """<svg xmlns="http://www.w3.org/2000/svg" width="260" height="28">
 <style>
 .player {{ fill: #6366f1; font: 600 14px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }}
 .owner {{ fill: #808495; font-size: 11px; }}
@@ -177,6 +177,34 @@ def build_player_identity_image(player_name: str, owner_name: str = "") -> str:
         owner=owner,
     )
     return f"data:image/svg+xml;utf8,{quote(svg, safe='')}"
+
+
+# Shape an 18-week player game log using the same stat columns as the browser.
+def build_player_weekly_stat_rows(
+    weekly_stats: dict[int, dict[str, Any]],
+    scoring_settings: dict[str, Any],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for week in range(1, 19):
+        record = weekly_stats.get(week, {})
+        stats = record.get("stats") if isinstance(record.get("stats"), dict) else {}
+        opponent = str(record.get("opponent") or "—")
+        if opponent != "—":
+            opponent = f"@ {opponent}" if record.get("is_away_team") else f"vs {opponent}"
+        rows.append(
+            {
+                "Week": week,
+                "Opponent": opponent,
+                "Fantasy Points": calculate_fantasy_points(
+                    stats, scoring_settings
+                ),
+                **{
+                    label: stats.get(stat_name, 0) or 0
+                    for label, stat_name in ALL_STATS
+                },
+            }
+        )
+    return rows
 
 
 def _display_position(
@@ -235,6 +263,7 @@ def build_player_stat_rows(
         ).strip()
         rows.append(
             {
+                "Player ID": str(player_id),
                 "Player": player_name or str(player_id),
                 **(
                     {

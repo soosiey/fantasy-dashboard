@@ -74,3 +74,41 @@ def test_get_trending_players_uses_requested_window_and_limit(monkeypatch) -> No
         "timeout": 10.0,
     }
     assert trends == [{"player_id": "player-1", "count": 12}]
+
+
+def test_get_player_weekly_stats_normalizes_week_keys(monkeypatch) -> None:
+    request: dict[str, object] = {}
+
+    def fake_get(
+        url: str, params: dict[str, str], timeout: float
+    ) -> FakeResponse:
+        request.update(url=url, params=params, timeout=timeout)
+        return FakeResponse(
+            {
+                "1": {
+                    "week": 1,
+                    "opponent": "BUF",
+                    "stats": {"pass_yd": 250},
+                },
+                "2": None,
+            }
+        )
+
+    monkeypatch.setattr(sleeper.requests, "get", fake_get)
+
+    weekly_stats = SleeperClient().get_player_weekly_stats(
+        "player-1", "2026", "regular"
+    )
+
+    assert request == {
+        "url": "https://api.sleeper.com/stats/nfl/player/player-1",
+        "params": {
+            "season": "2026",
+            "season_type": "regular",
+            "grouping": "week",
+        },
+        "timeout": 10.0,
+    }
+    assert weekly_stats == {
+        1: {"week": 1, "opponent": "BUF", "stats": {"pass_yd": 250}}
+    }

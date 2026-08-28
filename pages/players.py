@@ -2,6 +2,7 @@ import pandas as pd
 import requests
 import streamlit as st
 
+from fantasy_dashboard.components.player_details import show_player_details
 from fantasy_dashboard.data import (
     clear_player_data,
     get_league,
@@ -19,6 +20,16 @@ from fantasy_dashboard.player_stats import (
     get_rosterable_positions,
 )
 from fantasy_dashboard.player_trends import build_player_trend_rows
+
+
+# Resolve a dataframe button click to the player ID at the same row position.
+def open_player_from_button(click_key: str, player_ids: list[str]) -> None:
+    click = st.session_state.get(click_key)
+    if not click:
+        return
+    selected_row = int(click["row"])
+    if 0 <= selected_row < len(player_ids):
+        st.session_state["_selected_player_id"] = player_ids[selected_row]
 
 # Give the player browser room for its identity, availability, and stat columns.
 st.markdown(
@@ -139,6 +150,7 @@ with players_list_tab:
         st.info("No players match the selected filters.")
     else:
         player_table = pd.DataFrame(player_rows)
+        player_ids = player_table["Player ID"].astype(str).tolist()
         player_table["Player"] = [
             build_player_identity_image(player, owner)
             for player, owner in zip(
@@ -146,6 +158,7 @@ with players_list_tab:
             )
         ]
         player_table = player_table.drop(columns="Roster")
+        player_table.insert(2, "Details", "View")
 
         # Subtly emphasize each row's position-relevant statistics.
         def highlight_relevant_stats(row: pd.Series) -> list[str]:
@@ -163,7 +176,16 @@ with players_list_tab:
         st.dataframe(
             styled_player_table,
             column_config={
-                "Player": st.column_config.ImageColumn("Player", width="large"),
+                "Player ID": None,
+                "Player": st.column_config.ImageColumn("Player", width=260),
+                "Details": st.column_config.ButtonColumn(
+                    "",
+                    width="small",
+                    type="secondary",
+                    on_click=open_player_from_button,
+                    args=("players-list-click", player_ids),
+                    key="players-list-click",
+                ),
                 "Position": st.column_config.TextColumn("Pos", width="small"),
                 "Team": st.column_config.TextColumn("Team", width="small"),
                 "Availability": st.column_config.TextColumn(
@@ -178,6 +200,7 @@ with players_list_tab:
             hide_index=True,
             height=700,
             width="stretch",
+            key="players-list-table",
         )
 
 with trends_tab:
@@ -190,7 +213,7 @@ with trends_tab:
     else:
         nfl_players = get_nfl_players()
         trend_columns = {
-            "Player": st.column_config.ImageColumn("Player", width="large"),
+            "Player": st.column_config.ImageColumn("Player", width=260),
             "Position": st.column_config.TextColumn("Pos", width="small"),
             "Team": st.column_config.TextColumn("Team", width="small"),
         }
@@ -203,13 +226,19 @@ with trends_tab:
                 ),
                 columns=["Player", "Roster", "Position", "Team", "Adds"],
             )
+            adds_frame["Player ID"] = [
+                str(trend["player_id"]) for trend in added_players
+            ]
+            add_player_ids = adds_frame["Player ID"].tolist()
             adds_frame["Player"] = [
                 build_player_identity_image(player, owner)
                 for player, owner in zip(
                     adds_frame["Player"], adds_frame["Roster"]
                 )
             ]
-            adds_table = adds_frame.drop(columns="Roster").style.format(
+            adds_frame = adds_frame.drop(columns="Roster")
+            adds_frame.insert(1, "Details", "View")
+            adds_table = adds_frame.style.format(
                 {"Adds": lambda count: f"{count} ↑"}
             ).map(
                 lambda _: "color: #16a34a; font-weight: 600;",
@@ -219,11 +248,21 @@ with trends_tab:
                 adds_table,
                 column_config={
                     **trend_columns,
+                    "Player ID": None,
+                    "Details": st.column_config.ButtonColumn(
+                        "",
+                        width="small",
+                        type="secondary",
+                        on_click=open_player_from_button,
+                        args=("player-adds-click", add_player_ids),
+                        key="player-adds-click",
+                    ),
                     "Adds": st.column_config.Column("Adds", width="small"),
                 },
                 hide_index=True,
                 height=700,
                 width="stretch",
+                key="player-adds-table",
             )
         with drops_column:
             st.subheader("Drops")
@@ -233,13 +272,19 @@ with trends_tab:
                 ),
                 columns=["Player", "Roster", "Position", "Team", "Drops"],
             )
+            drops_frame["Player ID"] = [
+                str(trend["player_id"]) for trend in dropped_players
+            ]
+            drop_player_ids = drops_frame["Player ID"].tolist()
             drops_frame["Player"] = [
                 build_player_identity_image(player, owner)
                 for player, owner in zip(
                     drops_frame["Player"], drops_frame["Roster"]
                 )
             ]
-            drops_table = drops_frame.drop(columns="Roster").style.format(
+            drops_frame = drops_frame.drop(columns="Roster")
+            drops_frame.insert(1, "Details", "View")
+            drops_table = drops_frame.style.format(
                 {"Drops": lambda count: f"{count} ↓"}
             ).map(
                 lambda _: "color: #dc2626; font-weight: 600;",
@@ -249,13 +294,37 @@ with trends_tab:
                 drops_table,
                 column_config={
                     **trend_columns,
+                    "Player ID": None,
+                    "Details": st.column_config.ButtonColumn(
+                        "",
+                        width="small",
+                        type="secondary",
+                        on_click=open_player_from_button,
+                        args=("player-drops-click", drop_player_ids),
+                        key="player-drops-click",
+                    ),
                     "Drops": st.column_config.Column("Drops", width="small"),
                 },
                 hide_index=True,
                 height=700,
                 width="stretch",
+                key="player-drops-table",
             )
         st.caption("Trending data provided by Sleeper.")
+
+selected_player_id = st.session_state.pop("_selected_player_id", None)
+if selected_player_id:
+    selected_player = nfl_players.get(str(selected_player_id))
+    if selected_player is None:
+        st.warning("That player could not be found in the local player cache.")
+    else:
+        show_player_details(
+            str(selected_player_id),
+            selected_player,
+            season,
+            season_type,
+            league.scoring_settings,
+        )
 
 # Keep league and account navigation available beneath the player browser.
 with st.bottom:

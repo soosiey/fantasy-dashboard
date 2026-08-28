@@ -1,6 +1,7 @@
 import requests
 import streamlit as st
 
+from fantasy_dashboard.components.player_details import show_player_details
 from fantasy_dashboard.components.matchup_board import render_matchup_carousel
 from fantasy_dashboard.data import (
     clear_matchup_data,
@@ -80,11 +81,24 @@ matchups = build_head_to_head_matchups(
     stats_by_player_id,
 )
 current_user = st.session_state.get("sleeper_user")
-render_matchup_carousel(
+selected_player_id = render_matchup_carousel(
     matchups,
     current_user.user_id if current_user is not None else None,
     context_key=f"{league_id}-{selected_week}",
 )
+
+if selected_player_id:
+    selected_player = players.get(str(selected_player_id))
+    if selected_player is None:
+        st.warning("That player could not be found in the local player cache.")
+    else:
+        show_player_details(
+            str(selected_player_id),
+            selected_player,
+            stats_season,
+            league.season_type,
+            league.scoring_settings,
+        )
 
 # Keep league and account navigation available beneath the weekly matchups.
 with st.bottom:
