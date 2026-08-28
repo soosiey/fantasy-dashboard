@@ -4,9 +4,11 @@ from zoneinfo import ZoneInfo
 import requests
 import streamlit as st
 
+from fantasy_dashboard.components.data_disclaimer import render_data_disclaimer
 from fantasy_dashboard.data import (
     clear_league_list,
     get_current_nfl_season,
+    get_data_update,
     get_leagues,
 )
 
@@ -57,6 +59,10 @@ else:
             query_params={"league_id": league.league_id},
             width="stretch",
         )
+
+render_data_disclaimer(
+    get_data_update("leagues", user_id, selected_season, "nfl")
+)
 
 # Keep account-level actions anchored at the bottom of the page.
 with st.bottom:

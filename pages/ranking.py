@@ -1,9 +1,11 @@
 import streamlit as st
 
+from fantasy_dashboard.components.data_disclaimer import render_data_disclaimer
 from fantasy_dashboard.components.playoff_bracket import render_playoff_bracket
 from fantasy_dashboard.components.ranking_table import render_ranking_table
 from fantasy_dashboard.data import (
     clear_ranking_data,
+    get_data_update,
     get_league,
     get_league_users,
     get_losers_bracket,
@@ -77,6 +79,16 @@ if ranking_view == "🏆 Playoffs":
 else:
     standings = build_standings(rosters.rosters, teams.users)
     render_ranking_table(standings)
+
+ranking_updates = [get_data_update("rosters", league_id)]
+if ranking_view == "🏆 Playoffs":
+    ranking_updates.extend(
+        [
+            get_data_update("winners_bracket", league_id),
+            get_data_update("losers_bracket", league_id),
+        ]
+    )
+render_data_disclaimer(*ranking_updates)
 
 # Keep league and account navigation available beneath the standings.
 with st.bottom:

@@ -1,6 +1,7 @@
 import requests
 import streamlit as st
 
+from fantasy_dashboard.components.data_disclaimer import render_data_disclaimer
 from fantasy_dashboard.components.matchup_board import (
     PlayerComparisonSelection,
     render_matchup_carousel,
@@ -10,6 +11,7 @@ from fantasy_dashboard.components.player_details import show_player_details
 from fantasy_dashboard.data import (
     clear_matchup_data,
     clear_projected_player_data,
+    get_data_update,
     get_default_nfl_week,
     get_league,
     get_league_users,
@@ -160,6 +162,18 @@ elif selected_player_id:
             selected_week=selected_week,
             stats_source=stats_source,
         )
+
+stats_update = (
+    get_data_update("projected_player_stats", stats_season, selected_week)
+    if stats_source == "Predicted"
+    else get_data_update(
+        "player_stats", stats_season, league.season_type, selected_week
+    )
+)
+render_data_disclaimer(
+    get_data_update("weekly_matchups", league_id, selected_week),
+    stats_update,
+)
 
 # Keep league and account navigation available beneath the weekly matchups.
 with st.bottom:

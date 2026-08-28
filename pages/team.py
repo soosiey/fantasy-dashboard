@@ -1,10 +1,12 @@
 import streamlit as st
 
+from fantasy_dashboard.components.data_disclaimer import render_data_disclaimer
 from fantasy_dashboard.components.player_news import show_player_news
 from fantasy_dashboard.components.roster_table import render_roster_table
 from fantasy_dashboard.data import (
     clear_league_data,
     get_avatar,
+    get_data_update,
     get_league,
     get_league_users,
     get_nfl_players,
@@ -86,6 +88,11 @@ if selected_news_player_id:
         st.warning("That player could not be found in the local player cache.")
     else:
         show_player_news(news_player)
+
+render_data_disclaimer(
+    get_data_update("rosters", league_id),
+    get_data_update("nfl_players"),
+)
 
 # Keep team, league, and account navigation anchored below the roster.
 with st.bottom:

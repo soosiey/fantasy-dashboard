@@ -2,9 +2,11 @@ from dataclasses import fields
 
 import streamlit as st
 
+from fantasy_dashboard.components.data_disclaimer import render_data_disclaimer
 from fantasy_dashboard.data import (
     clear_league_data,
     get_avatar,
+    get_data_update,
     get_league,
     get_league_users,
     get_rosters,
@@ -127,6 +129,12 @@ with settings_tab:
                 hide_index=True,
                 width="stretch",
             )
+
+render_data_disclaimer(
+    get_data_update("league", league_id),
+    get_data_update("league_users", league_id),
+    get_data_update("rosters", league_id),
+)
 
 # Keep league and account navigation available beneath either tab.
 with st.bottom:

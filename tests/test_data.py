@@ -51,16 +51,22 @@ def test_league_lookup_is_cached_and_can_be_refreshed(monkeypatch) -> None:
 
     first = data.get_league("league-1")
     second = data.get_league("league-1")
+    cached_update = data.get_data_update("league", "league-1")
 
     assert first.league_id == "league-1"
     assert second.league_id == "league-1"
     assert calls == ["league-1"]
+    assert cached_update is not None
+    assert cached_update.provider == "Sleeper"
 
     data.clear_league_data("league-1")
     refreshed = data.get_league("league-1")
+    refreshed_update = data.get_data_update("league", "league-1")
 
     assert refreshed.league_id == "league-1"
     assert calls == ["league-1", "league-1"]
+    assert refreshed_update is not None
+    assert refreshed_update.updated_at >= cached_update.updated_at
 
 
 # A new file modification version should replace the cached decoded player data.

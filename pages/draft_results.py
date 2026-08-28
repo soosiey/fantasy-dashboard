@@ -1,9 +1,11 @@
 import requests
 import streamlit as st
 
+from fantasy_dashboard.components.data_disclaimer import render_data_disclaimer
 from fantasy_dashboard.components.draft_table import render_draft_table
 from fantasy_dashboard.data import (
     clear_draft_data,
+    get_data_update,
     get_draft_picks,
     get_league,
     get_league_users,
@@ -94,6 +96,8 @@ else:
             st.info("No drafted players match that search.")
         else:
             st.info("No draft picks are available yet.")
+
+        render_data_disclaimer(get_data_update("draft_picks", draft_id))
 
 # Keep league and account navigation available below the draft results.
 with st.bottom:

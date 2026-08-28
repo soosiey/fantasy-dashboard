@@ -2,10 +2,12 @@ import pandas as pd
 import requests
 import streamlit as st
 
+from fantasy_dashboard.components.data_disclaimer import render_data_disclaimer
 from fantasy_dashboard.components.player_details import show_player_details
 from fantasy_dashboard.data import (
     clear_player_data,
     clear_projected_player_data,
+    get_data_update,
     get_default_nfl_week,
     get_league,
     get_league_users,
@@ -237,6 +239,18 @@ with players_list_tab:
             key="players-list-table",
         )
 
+    stats_update = (
+        get_data_update("projected_player_stats", season, selected_week)
+        if stats_source == "Predicted"
+        else get_data_update(
+            "player_stats", season, season_type, selected_week
+        )
+    )
+    render_data_disclaimer(
+        stats_update,
+        get_data_update("rosters", league_id),
+    )
+
 with trends_tab:
     st.caption("Most added and dropped NFL players over the past 48 hours.")
     try:
@@ -345,6 +359,10 @@ with trends_tab:
                 key="player-drops-table",
             )
         st.caption("Trending data provided by Sleeper.")
+        render_data_disclaimer(
+            get_data_update("trending_players", "add", 48, 25),
+            get_data_update("trending_players", "drop", 48, 25),
+        )
 
 selected_player_id = st.session_state.pop("_selected_player_id", None)
 if selected_player_id:

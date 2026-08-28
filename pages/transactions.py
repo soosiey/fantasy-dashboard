@@ -2,11 +2,13 @@ import pandas as pd
 import requests
 import streamlit as st
 
+from fantasy_dashboard.components.data_disclaimer import render_data_disclaimer
 from fantasy_dashboard.components.transaction_details import (
     show_transaction_details,
 )
 from fantasy_dashboard.data import (
     clear_transaction_data,
+    get_data_update,
     get_league_transactions,
     get_league_users,
     get_nfl_players,
@@ -149,6 +151,10 @@ else:
                     selected_row.transaction_type,
                     detail_rows,
                 )
+
+    render_data_disclaimer(
+        get_data_update("league_transactions", league_id)
+    )
 
 # Keep league and account navigation available below the transactions table.
 with st.bottom:
