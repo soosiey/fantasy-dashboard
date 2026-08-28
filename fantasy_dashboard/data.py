@@ -10,6 +10,7 @@ from fantasy_dashboard.clients.espn import (
 )
 from fantasy_dashboard.clients.sleeper import SleeperClient
 from fantasy_dashboard.models.bracket import BracketContainer
+from fantasy_dashboard.models.draft import DraftPickContainer
 from fantasy_dashboard.models.league import (
     LeagueContainer,
     LeagueModel,
@@ -69,6 +70,11 @@ def get_leagues(
 @st.cache_data(ttl=1800, show_spinner=False)
 def get_league(league_id: str) -> LeagueModel | None:
     return get_sleeper_client().get_single_league(league_id)
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def get_draft_picks(draft_id: str) -> DraftPickContainer:
+    return get_sleeper_client().get_draft_picks(draft_id)
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -180,6 +186,10 @@ def clear_league_data(league_id: str) -> None:
     get_league.clear(league_id)
     get_league_users.clear(league_id)
     get_rosters.clear(league_id)
+
+
+def clear_draft_data(draft_id: str) -> None:
+    get_draft_picks.clear(draft_id)
 
 
 def clear_matchup_data(

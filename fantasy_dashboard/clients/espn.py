@@ -255,6 +255,9 @@ class EspnClient:
         "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/"
         "seasons/{season}/segments/0/leaguedefaults/1"
     )
+    SCOREBOARD_URL = (
+        "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
+    )
 
     def __init__(self, timeout: float = 30.0) -> None:
         self.timeout = timeout
@@ -304,6 +307,31 @@ class EspnClient:
             raise
 
         self._write_cache(cache_path, data)
+        return data
+
+    # Fetch exact ESPN game timestamps for one NFL week without reusing a cache.
+    def get_nfl_schedule(
+        self,
+        season: str,
+        week: int,
+        season_type: str = "regular",
+    ) -> dict[str, Any]:
+        season_type_id = {"pre": 1, "regular": 2, "post": 3}[season_type]
+        response = requests.get(
+            self.SCOREBOARD_URL,
+            params={
+                "dates": season,
+                "seasontype": season_type_id,
+                "week": week,
+                "limit": 100,
+            },
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        if not isinstance(data, dict) or not isinstance(data.get("events"), list):
+            raise TypeError("ESPN's schedule response must contain events.")
         return data
 
     @staticmethod

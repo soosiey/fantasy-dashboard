@@ -7,6 +7,7 @@ from typing import Any
 import requests
 
 from fantasy_dashboard.models.bracket import BracketContainer
+from fantasy_dashboard.models.draft import DraftPickContainer
 from fantasy_dashboard.models.league import (
     LeagueContainer,
     LeagueModel,
@@ -142,6 +143,19 @@ class SleeperClient:
         if not data:
             return None
         return LeagueModel.from_api(data)
+
+    # Fetch the completed picks for one Sleeper draft, including auction costs.
+    def get_draft_picks(self, draft_id: str) -> DraftPickContainer:
+        response = requests.get(
+            f"{self.BASE_URL}/draft/{draft_id}/picks",
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        if not isinstance(data, list):
+            raise TypeError("Sleeper's draft picks response must be a list.")
+        return DraftPickContainer.from_api(data)
 
     # Fetch binary avatar content separately from Sleeper's JSON API.
     def get_avatar(self, avatar_id: str) -> bytes:

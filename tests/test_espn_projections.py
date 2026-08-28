@@ -59,6 +59,41 @@ def test_projection_request_fetches_all_players_and_reuses_disk_cache(
     ]["limit"] == 5000
 
 
+def test_schedule_request_selects_regular_week_and_exact_events(
+    monkeypatch,
+) -> None:
+    requests: list[dict[str, object]] = []
+    response_data = {
+        "events": [{"id": "game-1", "date": "2026-09-10T20:20:00Z"}]
+    }
+
+    def fake_get(
+        url: str,
+        params: dict[str, str | int],
+        timeout: float,
+    ) -> FakeResponse:
+        requests.append({"url": url, "params": params, "timeout": timeout})
+        return FakeResponse(response_data)
+
+    monkeypatch.setattr(espn.requests, "get", fake_get)
+
+    result = EspnClient().get_nfl_schedule("2026", 1, "regular")
+
+    assert result == response_data
+    assert requests == [
+        {
+            "url": EspnClient.SCOREBOARD_URL,
+            "params": {
+                "dates": "2026",
+                "seasontype": 2,
+                "week": 1,
+                "limit": 100,
+            },
+            "timeout": 30.0,
+        }
+    ]
+
+
 # ESPN IDs and raw stat IDs should become Sleeper player and scoring keys.
 def test_weekly_projections_map_to_sleeper_ids_and_stat_names() -> None:
     sleeper_players = {

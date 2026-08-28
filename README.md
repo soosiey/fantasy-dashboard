@@ -24,7 +24,9 @@ stored at `data/nfl_players.json`.
 
 The snapshot collector preserves original provider responses as JSON and writes
 normalized league, roster, matchup, schedule, scoring, projection, and actual
-stat records to `data/fantasy_dashboard.sqlite3`.
+stat records to `data/fantasy_dashboard.sqlite3`. ESPN schedule snapshots supply
+exact UTC kickoff timestamps, and every player statistic is linked to its NFL
+team and game while player identity is versioned for that capture.
 
 Capture projections and league context before games begin:
 

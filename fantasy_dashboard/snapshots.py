@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS game_snapshots (
     away_team TEXT,
     kickoff_at TEXT,
     status TEXT,
+    provider TEXT NOT NULL DEFAULT 'espn',
     game_json TEXT NOT NULL,
     PRIMARY KEY (run_id, game_key)
 );
@@ -124,11 +125,31 @@ CREATE TABLE IF NOT EXISTS players (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS player_identity_snapshots (
+    run_id TEXT NOT NULL REFERENCES snapshot_runs(run_id) ON DELETE CASCADE,
+    player_id TEXT NOT NULL,
+    first_name TEXT,
+    last_name TEXT,
+    position TEXT,
+    nfl_team TEXT,
+    espn_id TEXT,
+    rotoworld_id TEXT,
+    number INTEGER,
+    depth_chart_order INTEGER,
+    injury_status TEXT,
+    active INTEGER,
+    game_key TEXT,
+    player_json TEXT NOT NULL,
+    PRIMARY KEY (run_id, player_id)
+);
+
 CREATE TABLE IF NOT EXISTS player_stat_snapshots (
     run_id TEXT NOT NULL REFERENCES snapshot_runs(run_id) ON DELETE CASCADE,
     player_id TEXT NOT NULL,
     stat_type TEXT NOT NULL,
     provider TEXT NOT NULL,
+    nfl_team TEXT,
+    game_key TEXT,
     fantasy_points REAL NOT NULL,
     stats_json TEXT NOT NULL,
     PRIMARY KEY (run_id, player_id, stat_type, provider)
@@ -152,6 +173,8 @@ CREATE TABLE IF NOT EXISTS snapshot_artifacts (
     PRIMARY KEY (run_id, artifact_name)
 );
 """
+
+TEAM_ABBREVIATION_ALIASES = {"JAC": "JAX", "WSH": "WAS"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,18 +228,68 @@ def _points_from_settings(settings: dict[str, Any], prefix: str) -> float:
     ) / 100
 
 
-def _game_key(game: dict[str, Any], index: int) -> str:
-    identifier = game.get("game_id") or game.get("gameId") or game.get("id")
-    if identifier is not None:
-        return str(identifier)
-    return "-".join(
-        (
-            str(game.get("week") or ""),
-            str(game.get("away") or game.get("away_team") or ""),
-            str(game.get("home") or game.get("home_team") or ""),
-            str(index),
+def _normalized_team(team: Any) -> str | None:
+    if team in (None, ""):
+        return None
+    abbreviation = str(team).upper()
+    return TEAM_ABBREVIATION_ALIASES.get(abbreviation, abbreviation)
+
+
+def _utc_timestamp(value: Any) -> str:
+    parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        raise ValueError("Game kickoff timestamps must include a timezone.")
+    return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _normalize_espn_schedule(
+    schedule_data: dict[str, Any],
+) -> list[dict[str, Any]]:
+    games: list[dict[str, Any]] = []
+    for event in schedule_data.get("events") or []:
+        if not isinstance(event, dict):
+            continue
+        competitions = event.get("competitions") or []
+        competition = competitions[0] if competitions else {}
+        competitors = (
+            competition.get("competitors") or []
+            if isinstance(competition, dict)
+            else []
         )
-    )
+        teams = {
+            competitor.get("homeAway"): _normalized_team(
+                (competitor.get("team") or {}).get("abbreviation")
+            )
+            for competitor in competitors
+            if isinstance(competitor, dict)
+        }
+        status = event.get("status") or {}
+        status_type = status.get("type") or {} if isinstance(status, dict) else {}
+        game_id = event.get("id")
+        kickoff_at = event.get("date")
+        if game_id is None or kickoff_at is None:
+            continue
+        games.append(
+            {
+                "game_key": str(game_id),
+                "home_team": teams.get("home"),
+                "away_team": teams.get("away"),
+                "kickoff_at": _utc_timestamp(kickoff_at),
+                "status": status_type.get("name")
+                or status_type.get("state"),
+                "raw": event,
+            }
+        )
+    return games
+
+
+def _game_keys_by_team(games: list[dict[str, Any]]) -> dict[str, str]:
+    return {
+        str(team): str(game["game_key"])
+        for game in games
+        for team in (game.get("home_team"), game.get("away_team"))
+        if team is not None
+    }
 
 
 class SnapshotCollector:
@@ -274,9 +347,20 @@ class SnapshotCollector:
         users = self._raw_list(f"league/{league_id}/users")
         rosters = self._raw_list(f"league/{league_id}/rosters")
         matchups = self._raw_list(f"league/{league_id}/matchups/{week}")
-        schedule = self.sleeper.get_nfl_schedule(
+        sleeper_schedule = self.sleeper.get_nfl_schedule(
             resolved_season, resolved_season_type
         )
+        espn_schedule = self.espn.get_nfl_schedule(
+            resolved_season,
+            week,
+            resolved_season_type,
+        )
+        games = _normalize_espn_schedule(espn_schedule)
+        if not games:
+            raise ValueError(
+                "ESPN did not return exact kickoff times for the selected week."
+            )
+        game_keys_by_team = _game_keys_by_team(games)
         scoring_settings = league_data.get("scoring_settings") or {}
         if not isinstance(scoring_settings, dict):
             raise TypeError("League scoring settings must be an object.")
@@ -289,7 +373,8 @@ class SnapshotCollector:
             "users": users,
             "rosters": rosters,
             "matchups": matchups,
-            "schedule": schedule,
+            "schedule": sleeper_schedule,
+            "espn_schedule": espn_schedule,
         }
         for artifact_name, value in raw_values.items():
             artifact_path = run_folder / f"{artifact_name}.json"
@@ -341,7 +426,8 @@ class SnapshotCollector:
             users=users,
             rosters=rosters,
             matchups=matchups,
-            schedule=schedule,
+            games=games,
+            game_keys_by_team=game_keys_by_team,
             players=players,
             stats_by_player=stats_by_player,
             stat_type=stat_type,
@@ -360,6 +446,7 @@ class SnapshotCollector:
             "player_catalog": str(catalog_path.relative_to(self.storage_dir)),
             "player_catalog_sha256": catalog_hash,
             "player_stat_count": len(stats_by_player),
+            "game_count": len(games),
             "artifacts": {
                 name: {
                     "file": path.name,
@@ -429,7 +516,8 @@ class SnapshotCollector:
         users: list[dict[str, Any]],
         rosters: list[dict[str, Any]],
         matchups: list[dict[str, Any]],
-        schedule: list[dict[str, Any]],
+        games: list[dict[str, Any]],
+        game_keys_by_team: dict[str, str],
         players: dict[str, dict[str, Any]],
         stats_by_player: dict[str, dict[str, Any]],
         stat_type: str,
@@ -438,7 +526,7 @@ class SnapshotCollector:
     ) -> None:
         database_path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(database_path) as connection:
-            connection.executescript(SCHEMA)
+            self._ensure_schema(connection)
             connection.execute(
                 """
                 INSERT INTO snapshot_runs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -475,7 +563,26 @@ class SnapshotCollector:
             self._save_users(connection, run_id, users)
             self._save_rosters(connection, run_id, rosters)
             self._save_matchups(connection, run_id, matchups)
-            self._save_schedule(connection, run_id, week, schedule)
+            self._save_schedule(connection, run_id, games)
+            referenced_player_ids = {
+                str(player_id)
+                for player_id in stats_by_player
+            } | {
+                str(player_id)
+                for roster in rosters
+                for player_id in roster.get("players") or []
+            } | {
+                str(player_id)
+                for matchup in matchups
+                for player_id in matchup.get("players") or []
+            }
+            self._save_player_identities(
+                connection,
+                run_id,
+                players,
+                referenced_player_ids,
+                game_keys_by_team,
+            )
             self._save_stats(
                 connection,
                 run_id,
@@ -485,6 +592,7 @@ class SnapshotCollector:
                 scoring_settings,
                 stat_type,
                 provider,
+                game_keys_by_team,
             )
             connection.executemany(
                 "INSERT INTO snapshot_artifacts VALUES (?, ?, ?, ?)",
@@ -498,6 +606,50 @@ class SnapshotCollector:
                     for name, path in artifacts.items()
                 ],
             )
+
+    @staticmethod
+    def _ensure_schema(connection: sqlite3.Connection) -> None:
+        connection.executescript(SCHEMA)
+        migrations = {
+            "game_snapshots": {
+                "provider": "TEXT NOT NULL DEFAULT 'sleeper'",
+            },
+            "player_stat_snapshots": {
+                "nfl_team": "TEXT",
+                "game_key": "TEXT",
+            },
+            "player_identity_snapshots": {
+                "rotoworld_id": "TEXT",
+                "number": "INTEGER",
+                "depth_chart_order": "INTEGER",
+                "injury_status": "TEXT",
+                "active": "INTEGER",
+                "game_key": "TEXT",
+                "player_json": "TEXT NOT NULL DEFAULT '{}'",
+            },
+        }
+        for table, columns in migrations.items():
+            existing_columns = {
+                str(row[1])
+                for row in connection.execute(f"PRAGMA table_info({table})")
+            }
+            for column, definition in columns.items():
+                if column not in existing_columns:
+                    connection.execute(
+                        f"ALTER TABLE {table} ADD COLUMN {column} {definition}"
+                    )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_snapshot_runs_context
+            ON snapshot_runs (league_id, season, week, snapshot_type, captured_at)
+            """
+        )
+        connection.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_player_stats_game
+            ON player_stat_snapshots (player_id, game_key, stat_type, provider)
+            """
+        )
 
     @staticmethod
     def _save_scoring_settings(
@@ -627,29 +779,86 @@ class SnapshotCollector:
     def _save_schedule(
         connection: sqlite3.Connection,
         run_id: str,
-        selected_week: int,
-        schedule: list[dict[str, Any]],
+        games: list[dict[str, Any]],
     ) -> None:
-        rows = []
-        for index, game in enumerate(schedule):
-            if int(game.get("week") or 0) != selected_week:
-                continue
-            rows.append(
+        connection.executemany(
+            """
+            INSERT INTO game_snapshots (
+                run_id, game_key, home_team, away_team, kickoff_at,
+                status, provider, game_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
                 (
                     run_id,
-                    _game_key(game, index),
-                    game.get("home") or game.get("home_team"),
-                    game.get("away") or game.get("away_team"),
-                    game.get("date")
-                    or game.get("start_time")
-                    or game.get("kickoff"),
+                    game["game_key"],
+                    game.get("home_team"),
+                    game.get("away_team"),
+                    game["kickoff_at"],
                     game.get("status"),
-                    _json_text(game),
+                    "espn",
+                    _json_text(game["raw"]),
                 )
-            )
+                for game in games
+            ],
+        )
+
+    @staticmethod
+    def _save_player_identities(
+        connection: sqlite3.Connection,
+        run_id: str,
+        players: dict[str, dict[str, Any]],
+        player_ids: set[str],
+        game_keys_by_team: dict[str, str],
+    ) -> None:
         connection.executemany(
-            "INSERT INTO game_snapshots VALUES (?, ?, ?, ?, ?, ?, ?)",
-            rows,
+            """
+            INSERT INTO player_identity_snapshots (
+                run_id, player_id, first_name, last_name, position, nfl_team,
+                espn_id, rotoworld_id, number, depth_chart_order,
+                injury_status, active, game_key, player_json
+            ) VALUES (
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )
+            """,
+            [
+                (
+                    run_id,
+                    player_id,
+                    players.get(player_id, {}).get("first_name"),
+                    players.get(player_id, {}).get("last_name"),
+                    players.get(player_id, {}).get("position"),
+                    _normalized_team(players.get(player_id, {}).get("team")),
+                    (
+                        str(players.get(player_id, {}).get("espn_id"))
+                        if players.get(player_id, {}).get("espn_id") is not None
+                        else None
+                    ),
+                    (
+                        str(players.get(player_id, {}).get("rotoworld_id"))
+                        if players.get(player_id, {}).get("rotoworld_id")
+                        is not None
+                        else None
+                    ),
+                    players.get(player_id, {}).get("number"),
+                    players.get(player_id, {}).get("depth_chart_order"),
+                    players.get(player_id, {}).get("injury_status"),
+                    (
+                        int(bool(players.get(player_id, {}).get("active")))
+                        if players.get(player_id, {}).get("active") is not None
+                        else None
+                    ),
+                    game_keys_by_team.get(
+                        str(
+                            _normalized_team(
+                                players.get(player_id, {}).get("team")
+                            )
+                        )
+                    ),
+                    _json_text(players.get(player_id, {})),
+                )
+                for player_id in sorted(player_ids)
+            ],
         )
 
     @staticmethod
@@ -662,6 +871,7 @@ class SnapshotCollector:
         scoring_settings: dict[str, Any],
         stat_type: str,
         provider: str,
+        game_keys_by_team: dict[str, str],
     ) -> None:
         player_rows: list[tuple[Any, ...]] = []
         stat_rows: list[tuple[Any, ...]] = []
@@ -670,6 +880,10 @@ class SnapshotCollector:
             if not isinstance(stats, dict):
                 continue
             player = players.get(str(player_id), {})
+            nfl_team = _normalized_team(player.get("team"))
+            game_key = (
+                game_keys_by_team.get(nfl_team) if nfl_team is not None else None
+            )
             player_rows.append(
                 (
                     str(player_id),
@@ -689,6 +903,8 @@ class SnapshotCollector:
                     str(player_id),
                     stat_type,
                     provider,
+                    nfl_team,
+                    game_key,
                     calculate_fantasy_points(stats, scoring_settings),
                     _json_text(stats),
                 )
@@ -719,7 +935,12 @@ class SnapshotCollector:
             player_rows,
         )
         connection.executemany(
-            "INSERT INTO player_stat_snapshots VALUES (?, ?, ?, ?, ?, ?)",
+            """
+            INSERT INTO player_stat_snapshots (
+                run_id, player_id, stat_type, provider, nfl_team, game_key,
+                fantasy_points, stats_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
             stat_rows,
         )
         connection.executemany(

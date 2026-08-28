@@ -86,6 +86,33 @@ class FakeSleeperClient:
 
 
 class FakeEspnClient:
+    def get_nfl_schedule(
+        self, season: str, week: int, season_type: str
+    ) -> dict[str, Any]:
+        return {
+            "events": [
+                {
+                    "id": "espn-game-1",
+                    "date": "2026-09-10T20:20:00Z",
+                    "status": {"type": {"name": "STATUS_SCHEDULED"}},
+                    "competitions": [
+                        {
+                            "competitors": [
+                                {
+                                    "homeAway": "home",
+                                    "team": {"abbreviation": "BUF"},
+                                },
+                                {
+                                    "homeAway": "away",
+                                    "team": {"abbreviation": "NYJ"},
+                                },
+                            ]
+                        }
+                    ],
+                }
+            ]
+        }
+
     def get_nfl_projections(
         self, season: str, cache_path: Path
     ) -> dict[str, Any]:
@@ -176,10 +203,30 @@ def test_pre_kickoff_snapshot_archives_and_normalizes_projections(
             FROM roster_player_snapshots ORDER BY player_id
             """
         ).fetchall()
+        game = connection.execute(
+            """
+            SELECT game_key, kickoff_at, provider FROM game_snapshots
+            """
+        ).fetchone()
+        identity = connection.execute(
+            """
+            SELECT player_id, nfl_team, game_key
+            FROM player_identity_snapshots WHERE player_id = 'player-1'
+            """
+        ).fetchone()
+        stat_link = connection.execute(
+            """
+            SELECT nfl_team, game_key FROM player_stat_snapshots
+            """
+        ).fetchone()
 
     assert run == ("pre-kickoff", "2026", 1)
     assert stat == ("projection", "espn", 14.0)
     assert statuses == [("player-1", "starter"), ("player-2", "bench")]
+    assert game == ("espn-game-1", "2026-09-10T20:20:00Z", "espn")
+    assert identity == ("player-1", "BUF", "espn-game-1")
+    assert stat_link == ("BUF", "espn-game-1")
+    assert (result.archive_path / "espn_schedule.json").exists()
 
 
 def test_post_week_snapshot_archives_actual_statistics(
@@ -210,3 +257,66 @@ def test_post_week_snapshot_archives_actual_statistics(
 
     assert stat == ("actual", "sleeper", 18.0)
     assert scoring == [("pass_td", 4.0), ("pass_yd", 0.04)]
+
+
+def test_existing_database_receives_additive_snapshot_migrations(
+    tmp_path: Path, players_path: Path
+) -> None:
+    storage_dir = tmp_path / "storage"
+    storage_dir.mkdir()
+    database_path = storage_dir / "fantasy_dashboard.sqlite3"
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE player_stat_snapshots (
+                run_id TEXT NOT NULL,
+                player_id TEXT NOT NULL,
+                stat_type TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                fantasy_points REAL NOT NULL,
+                stats_json TEXT NOT NULL,
+                PRIMARY KEY (run_id, player_id, stat_type, provider)
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE game_snapshots (
+                run_id TEXT NOT NULL,
+                game_key TEXT NOT NULL,
+                home_team TEXT,
+                away_team TEXT,
+                kickoff_at TEXT,
+                status TEXT,
+                game_json TEXT NOT NULL,
+                PRIMARY KEY (run_id, game_key)
+            )
+            """
+        )
+
+    collector = SnapshotCollector(
+        storage_dir=storage_dir,
+        players_path=players_path,
+        sleeper_client=FakeSleeperClient(),
+        espn_client=FakeEspnClient(),
+    )
+    collector.collect("pre-kickoff", "league-1", 1)
+
+    with sqlite3.connect(database_path) as connection:
+        stat_columns = {
+            row[1]
+            for row in connection.execute(
+                "PRAGMA table_info(player_stat_snapshots)"
+            )
+        }
+        game_columns = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info(game_snapshots)")
+        }
+        identity_count = connection.execute(
+            "SELECT COUNT(*) FROM player_identity_snapshots"
+        ).fetchone()[0]
+
+    assert {"nfl_team", "game_key"}.issubset(stat_columns)
+    assert "provider" in game_columns
+    assert identity_count == 2
