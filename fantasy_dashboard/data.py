@@ -68,6 +68,17 @@ def get_player_stats(
     return get_sleeper_client().get_player_stats(season, season_type, week)
 
 
+@st.cache_data(ttl=300, max_entries=8, show_spinner=False)
+def get_trending_players(
+    trend_type: str,
+    lookback_hours: int = 48,
+    limit: int = 25,
+) -> list[dict[str, int | str]]:
+    return get_sleeper_client().get_trending_players(
+        trend_type, lookback_hours, limit
+    )
+
+
 @st.cache_data(ttl=5, show_spinner=False)
 def get_winners_bracket(league_id: str) -> BracketContainer:
     return get_sleeper_client().get_winners_bracket(league_id)

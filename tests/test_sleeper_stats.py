@@ -53,3 +53,24 @@ def test_get_season_player_stats(monkeypatch) -> None:
         "https://api.sleeper.app/v1/stats/nfl/regular/2026"
     ]
     assert stats == {}
+
+
+def test_get_trending_players_uses_requested_window_and_limit(monkeypatch) -> None:
+    request: dict[str, object] = {}
+
+    def fake_get(
+        url: str, params: dict[str, int], timeout: float
+    ) -> FakeResponse:
+        request.update(url=url, params=params, timeout=timeout)
+        return FakeResponse([{"player_id": "player-1", "count": 12}])
+
+    monkeypatch.setattr(sleeper.requests, "get", fake_get)
+
+    trends = SleeperClient().get_trending_players("add", 48, 25)
+
+    assert request == {
+        "url": "https://api.sleeper.app/v1/players/nfl/trending/add",
+        "params": {"lookback_hours": 48, "limit": 25},
+        "timeout": 10.0,
+    }
+    assert trends == [{"player_id": "player-1", "count": 12}]

@@ -178,6 +178,34 @@ class SleeperClient:
             if isinstance(stats, dict)
         }
 
+    # Fetch the most-added or most-dropped NFL players for a recent window.
+    def get_trending_players(
+        self,
+        trend_type: str,
+        lookback_hours: int = 24,
+        limit: int = 25,
+    ) -> list[dict[str, int | str]]:
+        if trend_type not in {"add", "drop"}:
+            raise ValueError("Trend type must be either 'add' or 'drop'.")
+
+        response = requests.get(
+            f"{self.BASE_URL}/players/nfl/trending/{trend_type}",
+            params={"lookback_hours": lookback_hours, "limit": limit},
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        if not isinstance(data, list):
+            raise TypeError("Sleeper's trending players response must be a list.")
+        return [
+            {"player_id": str(item["player_id"]), "count": int(item["count"])}
+            for item in data
+            if isinstance(item, dict)
+            and item.get("player_id") is not None
+            and item.get("count") is not None
+        ]
+
     def get_all_users(self, league_id: str) -> UserContainer:
         response = requests.get(
             f"{self.BASE_URL}/league/{league_id}/users",

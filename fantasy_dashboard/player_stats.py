@@ -1,7 +1,10 @@
 from numbers import Real
 from typing import Any
+from html import escape
+from urllib.parse import quote
 
 from fantasy_dashboard.models.league import RosterModel
+from fantasy_dashboard.models.user import SleeperTeam
 
 FLEX_POSITIONS = {
     "FLEX": {"RB", "WR", "TE"},
@@ -126,6 +129,56 @@ def get_relevant_stat_labels(position: str) -> set[str]:
     }
 
 
+# Describe each rostered player using the owner's Sleeper display name.
+def build_player_roster_labels(
+    rosters: list[RosterModel], teams: list[SleeperTeam]
+) -> dict[str, str]:
+    teams_by_user_id = {team.user_id: team for team in teams}
+    labels: dict[str, str] = {}
+    for roster in rosters:
+        team = teams_by_user_id.get(roster.user_id)
+        if team is None:
+            continue
+        label = team.display_name
+        labels.update(
+            {
+                str(player_id): label
+                for player_id in roster.players
+                if player_id is not None
+            }
+        )
+    return labels
+
+
+# Render a player and optional owner as one image-backed dataframe cell so each
+# text fragment can retain its own size and color inside Streamlit's data grid.
+def build_player_identity_image(player_name: str, owner_name: str = "") -> str:
+    player_center = 190
+    approximate_player_half_width = len(player_name) * 3.9
+    owner = (
+        f'<text class="owner" x="{player_center + approximate_player_half_width + 6}" '
+        f'y="19">· {escape(owner_name)}</text>'
+        if owner_name
+        else ""
+    )
+    svg = """<svg xmlns="http://www.w3.org/2000/svg" width="380" height="28">
+<style>
+.player {{ fill: #6366f1; font: 600 14px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }}
+.owner {{ fill: #808495; font-size: 11px; }}
+@media (prefers-color-scheme: dark) {{
+  .owner {{ fill: #9ca3af; }}
+}}
+</style>
+<text class="player" x="{player_center}" y="19" text-anchor="middle">{player_name}</text>
+{owner}
+</svg>""".format(
+        player_center=player_center,
+        player_name=escape(player_name),
+        owner=owner,
+    )
+    return f"data:image/svg+xml;utf8,{quote(svg, safe='')}"
+
+
 def _display_position(
     player_data: dict[str, Any], rosterable_positions: set[str]
 ) -> str:
@@ -149,6 +202,7 @@ def build_player_stat_rows(
     rosterable_positions: list[str],
     selected_position: str | None = None,
     available_only: bool = False,
+    roster_labels_by_player_id: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     rostered_player_ids = {
         str(player_id)
@@ -182,6 +236,15 @@ def build_player_stat_rows(
         rows.append(
             {
                 "Player": player_name or str(player_id),
+                **(
+                    {
+                        "Roster": roster_labels_by_player_id.get(
+                            str(player_id), ""
+                        )
+                    }
+                    if roster_labels_by_player_id is not None
+                    else {}
+                ),
                 "Position": position,
                 "Team": str(player_data.get("team") or "FA"),
                 "Availability": "Available" if is_available else "Rostered",

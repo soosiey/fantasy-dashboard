@@ -1,11 +1,33 @@
 from types import SimpleNamespace
 
 from fantasy_dashboard.player_stats import (
+    build_player_identity_image,
+    build_player_roster_labels,
     build_player_stat_rows,
     calculate_fantasy_points,
     get_relevant_stat_labels,
     get_rosterable_positions,
 )
+
+
+def test_player_identity_image_centers_name_independently_from_owner() -> None:
+    identity = build_player_identity_image("Josh Allen", "SleeperUser")
+
+    assert identity.startswith("data:image/svg+xml;utf8,")
+    assert "%C2%B7%20SleeperUser" in identity
+
+
+def test_rostered_players_are_labeled_with_team_and_owner() -> None:
+    roster = SimpleNamespace(user_id="user-1", players=["player-1"])
+    team = SimpleNamespace(
+        user_id="user-1",
+        display_team_name="Sunday Stars",
+        display_name="SleeperUser",
+    )
+
+    assert build_player_roster_labels([roster], [team]) == {
+        "player-1": "SleeperUser"
+    }
 
 
 # Flex slots should expose only their concrete, filterable player positions.
