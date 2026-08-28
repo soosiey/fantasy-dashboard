@@ -2,6 +2,7 @@
 __pycache__/
 *.py[codz]
 *$py.class
+*:Zone.Identifier
 
 # C extensions
 *.so
@@ -216,3 +217,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Locally collected fantasy data, caches, databases, and provider snapshots
+/data/
+/nfl_players.json

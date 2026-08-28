@@ -102,6 +102,19 @@ class SleeperClient:
             raise TypeError("Sleeper's NFL state response must contain a season.")
         return data
 
+    # Preserve unmodified Sleeper payloads for historical snapshot archives.
+    def get_raw_api_data(self, endpoint: str) -> dict[str, Any] | list[Any]:
+        response = requests.get(
+            f"{self.BASE_URL}/{endpoint.lstrip('/')}",
+            timeout=self.timeout,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        if not isinstance(data, (dict, list)):
+            raise TypeError("Sleeper's API response must be an object or list.")
+        return data
+
     def get_leagues(
         self, user_id: str, season: str, sport: str = "nfl"
     ) -> LeagueContainer:
