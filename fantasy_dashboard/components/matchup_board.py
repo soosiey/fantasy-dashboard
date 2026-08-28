@@ -9,6 +9,8 @@ from fantasy_dashboard.matchups import (
     MatchupTeam,
 )
 
+MATCHUP_COLUMN_WIDTHS = [1, 0.12, 1]
+
 
 # Render one team placard with its weekly score on the outside edge.
 def _render_team_placard(team: MatchupTeam, side: str) -> str:
@@ -54,14 +56,8 @@ def render_matchup_board(
     st.markdown(
         dedent("""
         <style>
-            .matchup-card {
-                margin: 0 0 0.65rem;
-            }
-            .matchup-header {
-                align-items: center;
-                display: grid;
-                gap: 1rem;
-                grid-template-columns: minmax(0, 1fr) 3rem minmax(0, 1fr);
+            [class*="st-key-matchup-header-"] {
+                margin-bottom: 0.65rem;
             }
             .matchup-placard {
                 align-items: center;
@@ -192,8 +188,10 @@ def render_matchup_board(
                 font-size: 0.58rem;
                 font-weight: 800;
                 justify-content: center;
-                margin: auto;
+                left: 50%;
+                position: relative;
                 text-align: center;
+                transform: translateX(-50%);
                 width: 2.35rem;
             }
         </style>
@@ -203,14 +201,26 @@ def render_matchup_board(
 
     selected_player_id = None
     for matchup_index, matchup in enumerate(matchups):
-        header = (
-            '<section class="matchup-card"><div class="matchup-header">'
-            f"{_render_team_placard(matchup.left_team, 'left')}"
-            '<div class="matchup-versus">VS</div>'
-            f"{_render_team_placard(matchup.right_team, 'right')}"
-            "</div></section>"
-        )
-        st.markdown(header, unsafe_allow_html=True)
+        with st.container(
+            key=f"matchup-header-{context_key}-{matchup_index}"
+        ):
+            left_header, versus_header, right_header = st.columns(
+                MATCHUP_COLUMN_WIDTHS,
+                vertical_alignment="center",
+                gap="medium",
+            )
+            left_header.markdown(
+                _render_team_placard(matchup.left_team, "left"),
+                unsafe_allow_html=True,
+            )
+            versus_header.markdown(
+                '<div class="matchup-versus">VS</div>',
+                unsafe_allow_html=True,
+            )
+            right_header.markdown(
+                _render_team_placard(matchup.right_team, "right"),
+                unsafe_allow_html=True,
+            )
 
         for row_index, row in enumerate(matchup.lineup):
             shade = "odd" if row_index % 2 == 0 else "even"
@@ -221,7 +231,9 @@ def render_matchup_board(
             )
             with st.container(key=row_key):
                 left_column, position_column, right_column = st.columns(
-                    [1, 0.12, 1], vertical_alignment="center", gap="medium"
+                    MATCHUP_COLUMN_WIDTHS,
+                    vertical_alignment="center",
+                    gap="medium",
                 )
                 for side, column, player in (
                     ("left", left_column, row.left_player),

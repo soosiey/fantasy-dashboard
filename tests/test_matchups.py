@@ -187,6 +187,7 @@ def test_matchup_board_marks_bench_rows(monkeypatch) -> None:
     assert "border-top" in rendered_markup[0]
     assert "matchup-player-click" in rendered_markup[0]
     assert ':has([data-testid="stButton"])' in rendered_markup[0]
+    assert "transform: translateX(-50%)" in rendered_markup[0]
     assert any('class="matchup-position">QB</div>' in markup for markup in rendered_markup)
 
 
