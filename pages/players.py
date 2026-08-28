@@ -5,14 +5,17 @@ import streamlit as st
 from fantasy_dashboard.components.player_details import show_player_details
 from fantasy_dashboard.data import (
     clear_player_data,
+    clear_projected_player_data,
     get_league,
     get_league_users,
     get_nfl_players,
     get_player_stats,
+    get_projected_player_stats,
     get_rosters,
     get_trending_players,
 )
 from fantasy_dashboard.player_stats import (
+    ALL_STATS,
     build_player_identity_image,
     build_player_roster_labels,
     build_player_stat_rows,
@@ -64,7 +67,7 @@ with refresh_column:
     force_refresh = st.button(
         "↻",
         key="refresh-players",
-        help="Reload player availability and statistics from Sleeper",
+        help="Reload player availability and cached statistics",
         width="content",
     )
 
@@ -75,6 +78,12 @@ with players_list_tab:
     availability_column, position_column, period_column, week_column = st.columns(4)
     with availability_column:
         available_only = st.toggle("Available players only")
+        stats_source = st.segmented_control(
+            "Stat type",
+            ["Actual", "Predicted"],
+            default="Actual",
+            width="stretch",
+        )
     with position_column:
         selected_position_label = st.selectbox(
             "Position",
@@ -82,7 +91,7 @@ with players_list_tab:
         )
     with period_column:
         stats_period = st.segmented_control(
-            "Statistics",
+            "Period",
             ["Season", "Week"],
             default="Season",
             width="stretch",
@@ -105,18 +114,27 @@ with players_list_tab:
 
     if force_refresh:
         clear_player_data(league_id, season, season_type, selected_week)
+        if stats_source == "Predicted":
+            clear_projected_player_data(season, selected_week)
         st.rerun()
 
-    # Load the selected aggregate and join it to current league ownership.
+    # Load actual or projected aggregates and join them to league ownership.
     try:
-        stats_by_player_id = get_player_stats(
-            season,
-            season_type,
-            selected_week,
-        )
+        if stats_source == "Predicted":
+            stats_by_player_id = get_projected_player_stats(
+                season,
+                selected_week,
+            )
+        else:
+            stats_by_player_id = get_player_stats(
+                season,
+                season_type,
+                selected_week,
+            )
     except (requests.RequestException, TypeError, ValueError):
         stats_by_player_id = {}
-        st.warning("Player statistics could not be loaded; values default to zero.")
+        source_name = "ESPN projections" if stats_source == "Predicted" else "Player statistics"
+        st.warning(f"{source_name} could not be loaded; values default to zero.")
 
     selected_position = (
         None
@@ -143,8 +161,9 @@ with players_list_tab:
         ]
 
     st.caption(
-        f"{len(player_rows):,} players · Availability reflects the league's current "
-        "rosters, regardless of the selected statistics week."
+        f"{len(player_rows):,} players · "
+        f"{'Predictions provided by ESPN' if stats_source == 'Predicted' else 'Actual statistics provided by Sleeper'}"
+        " · Availability reflects the league's current rosters."
     )
     if not player_rows:
         st.info("No players match the selected filters.")
@@ -176,6 +195,14 @@ with players_list_tab:
         st.dataframe(
             styled_player_table,
             column_config={
+                **{
+                    label: st.column_config.NumberColumn(
+                        label,
+                        format="%.2f",
+                        width="small",
+                    )
+                    for label, _ in ALL_STATS
+                },
                 "Player ID": None,
                 "Player": st.column_config.ImageColumn("Player", width=260),
                 "Details": st.column_config.ButtonColumn(

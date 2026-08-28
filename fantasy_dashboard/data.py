@@ -4,6 +4,10 @@ from typing import Any
 
 import streamlit as st
 
+from fantasy_dashboard.clients.espn import (
+    EspnClient,
+    map_projections_to_sleeper,
+)
 from fantasy_dashboard.clients.sleeper import SleeperClient
 from fantasy_dashboard.models.bracket import BracketContainer
 from fantasy_dashboard.models.league import (
@@ -13,7 +17,7 @@ from fantasy_dashboard.models.league import (
 )
 from fantasy_dashboard.models.matchup import WeeklyMatchupContainer
 from fantasy_dashboard.models.user import SleeperUser, UserContainer
-from fantasy_dashboard.paths import NFL_PLAYERS_PATH
+from fantasy_dashboard.paths import ESPN_PROJECTIONS_CACHE_DIR, NFL_PLAYERS_PATH
 
 
 # Share the stateless Sleeper client across sessions and page reruns.
@@ -126,6 +130,25 @@ def get_nfl_players() -> dict[str, dict[str, Any]]:
     )
 
 
+# Cache normalized ESPN projections in memory and on disk for one hour.
+@st.cache_data(ttl=3600, max_entries=32, show_spinner=False)
+def get_projected_player_stats(
+    season: str,
+    week: int | None,
+) -> dict[str, dict[str, float]]:
+    cache_path = ESPN_PROJECTIONS_CACHE_DIR / f"{season}.json"
+    projection_data = EspnClient().get_nfl_projections(
+        season,
+        cache_path,
+    )
+    return map_projections_to_sleeper(
+        projection_data,
+        get_nfl_players(),
+        season,
+        week,
+    )
+
+
 # Clear related cache entries when a user explicitly requests fresh league data.
 def clear_league_data(league_id: str) -> None:
     get_league.clear(league_id)
@@ -164,3 +187,7 @@ def clear_player_data(
     get_league.clear(league_id)
     get_rosters.clear(league_id)
     get_player_stats.clear(season, season_type, week)
+
+
+def clear_projected_player_data(season: str, week: int | None) -> None:
+    get_projected_player_stats.clear(season, week)

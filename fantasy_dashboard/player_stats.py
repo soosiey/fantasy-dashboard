@@ -1,4 +1,5 @@
 from html import escape
+from math import trunc
 from numbers import Real
 from typing import Any
 from urllib.parse import quote
@@ -53,6 +54,12 @@ POSITION_STATS = {
     "K": [
         ("FG Att", "fga"),
         ("FG Made", "fgm"),
+        ("FG Made 0–19", "fgm_0_19"),
+        ("FG Made 20–29", "fgm_20_29"),
+        ("FG Made 30–39", "fgm_30_39"),
+        ("FG Made 40–49", "fgm_40_49"),
+        ("FG Made 50–59", "fgm_50_59"),
+        ("FG Made 60+", "fgm_60p"),
         ("XP Att", "xpa"),
         ("XP Made", "xpm"),
     ],
@@ -94,6 +101,13 @@ ALL_STATS = list(
 )
 
 
+# Limit displayed statistics without rounding projected fractional values upward.
+def truncate_decimal(value: Any, decimal_places: int = 2) -> float:
+    numeric_value = float(value) if isinstance(value, Real) else 0.0
+    scale = 10**decimal_places
+    return trunc(numeric_value * scale) / scale
+
+
 # Expand league flex slots into the concrete positions users can filter by.
 def get_rosterable_positions(roster_positions: list[str]) -> list[str]:
     positions: set[str] = set()
@@ -118,7 +132,7 @@ def calculate_fantasy_points(
         stat_value = stats.get(stat_name)
         if isinstance(stat_value, Real) and isinstance(multiplier, Real):
             points += float(stat_value) * float(multiplier)
-    return round(points, 2)
+    return truncate_decimal(points)
 
 
 # Return the shared, ordered stat fields relevant to one or more positions.
@@ -188,6 +202,22 @@ def build_player_identity_image(player_name: str, owner_name: str = "") -> str:
     return f"data:image/svg+xml;utf8,{quote(svg, safe='')}"
 
 
+# Shape one selected week's stats using the same columns as the player browser.
+def build_player_stat_row(
+    stats: dict[str, Any],
+    scoring_settings: dict[str, Any],
+    week: int,
+) -> dict[str, Any]:
+    return {
+        "Week": week,
+        "Fantasy Points": calculate_fantasy_points(stats, scoring_settings),
+        **{
+            label: truncate_decimal(stats.get(stat_name, 0) or 0)
+            for label, stat_name in ALL_STATS
+        },
+    }
+
+
 # Shape an 18-week player game log using the same stat columns as the browser.
 def build_player_weekly_stat_rows(
     weekly_stats: dict[int, dict[str, Any]],
@@ -200,19 +230,9 @@ def build_player_weekly_stat_rows(
         opponent = str(record.get("opponent") or "—")
         if opponent != "—":
             opponent = f"@ {opponent}" if record.get("is_away_team") else f"vs {opponent}"
-        rows.append(
-            {
-                "Week": week,
-                "Opponent": opponent,
-                "Fantasy Points": calculate_fantasy_points(
-                    stats, scoring_settings
-                ),
-                **{
-                    label: stats.get(stat_name, 0) or 0
-                    for label, stat_name in ALL_STATS
-                },
-            }
-        )
+        row = build_player_stat_row(stats, scoring_settings, week)
+        row["Opponent"] = opponent
+        rows.append(row)
     return rows
 
 
@@ -286,11 +306,13 @@ def build_player_stat_rows(
                 "Position": position,
                 "Team": str(player_data.get("team") or "FA"),
                 "Availability": "Available" if is_available else "Rostered",
-                "Fantasy Points": calculate_fantasy_points(
-                    player_stats, scoring_settings
+                "Fantasy Points": truncate_decimal(
+                    calculate_fantasy_points(player_stats, scoring_settings)
                 ),
                 **{
-                    label: player_stats.get(stat_name, 0) or 0
+                    label: truncate_decimal(
+                        player_stats.get(stat_name, 0) or 0
+                    )
                     for label, stat_name in ALL_STATS
                 },
             }

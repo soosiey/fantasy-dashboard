@@ -6,6 +6,8 @@ import streamlit as st
 
 from fantasy_dashboard.data import get_player_weekly_stats
 from fantasy_dashboard.player_stats import (
+    ALL_STATS,
+    build_player_stat_row,
     build_player_weekly_stat_rows,
     get_relevant_stat_labels,
 )
@@ -19,6 +21,10 @@ def show_player_details(
     season: str,
     season_type: str,
     scoring_settings: dict[str, Any],
+    *,
+    selected_stats: dict[str, Any] | None = None,
+    selected_week: int | None = None,
+    stats_source: str | None = None,
 ) -> None:
     player_name = (
         f"{player.get('first_name') or ''} {player.get('last_name') or ''}"
@@ -33,18 +39,34 @@ def show_player_details(
         details.append(f"#{number}")
     st.caption(" · ".join(details))
 
-    try:
-        with st.spinner("Loading weekly statistics..."):
-            weekly_stats = get_player_weekly_stats(
-                player_id, season, season_type
-            )
-    except (requests.RequestException, TypeError, ValueError):
-        st.warning("Weekly player statistics could not be loaded.")
-        return
+    # Matchup dialogs use the selected week's already-loaded source, while the
+    # player browser retains its full actual-stat game log.
+    if selected_stats is not None and selected_week is not None:
+        st.caption(f"{stats_source or 'Statistics'} · Week {selected_week}")
+        weekly_table = pd.DataFrame(
+            [
+                build_player_stat_row(
+                    selected_stats,
+                    scoring_settings,
+                    selected_week,
+                )
+            ]
+        )
+        table_height = 150
+    else:
+        try:
+            with st.spinner("Loading weekly statistics..."):
+                weekly_stats = get_player_weekly_stats(
+                    player_id, season, season_type
+                )
+        except (requests.RequestException, TypeError, ValueError):
+            st.warning("Weekly player statistics could not be loaded.")
+            return
 
-    weekly_table = pd.DataFrame(
-        build_player_weekly_stat_rows(weekly_stats, scoring_settings)
-    )
+        weekly_table = pd.DataFrame(
+            build_player_weekly_stat_rows(weekly_stats, scoring_settings)
+        )
+        table_height = 650
 
     def highlight_relevant_stats(row: pd.Series) -> list[str]:
         relevant_columns = get_relevant_stat_labels(position)
@@ -58,6 +80,14 @@ def show_player_details(
     st.dataframe(
         weekly_table.style.apply(highlight_relevant_stats, axis=1),
         column_config={
+            **{
+                label: st.column_config.NumberColumn(
+                    label,
+                    format="%.2f",
+                    width="small",
+                )
+                for label, _ in ALL_STATS
+            },
             "Week": st.column_config.NumberColumn("Week", width="small"),
             "Opponent": st.column_config.TextColumn("Opponent", width="small"),
             "Fantasy Points": st.column_config.NumberColumn(
@@ -65,6 +95,6 @@ def show_player_details(
             ),
         },
         hide_index=True,
-        height=650,
+        height=table_height,
         width="stretch",
     )

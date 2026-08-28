@@ -7,6 +7,7 @@ import streamlit as st
 from fantasy_dashboard.player_stats import (
     calculate_fantasy_points,
     get_relevant_stat_fields,
+    truncate_decimal,
 )
 
 LOWER_IS_BETTER = {"Pass INT", "Pts Allowed", "Yds Allowed"}
@@ -53,6 +54,8 @@ def _render_comparison_table(
         numeric_right = (
             float(right_value) if isinstance(right_value, Real) else 0.0
         )
+        displayed_left = truncate_decimal(numeric_left)
+        displayed_right = truncate_decimal(numeric_right)
         left_wins = (
             numeric_left < numeric_right
             if label in LOWER_IS_BETTER
@@ -68,10 +71,10 @@ def _render_comparison_table(
         rows.append(
             "<tr>"
             f'<td class="comparison-stat-value comparison-stat-left{left_class}">'
-            f"{numeric_left:g}</td>"
+            f"{displayed_left:.2f}</td>"
             f'<td class="comparison-stat-label">{escape(label)}</td>'
             f'<td class="comparison-stat-value comparison-stat-right{right_class}">'
-            f"{numeric_right:g}</td>"
+            f"{displayed_right:.2f}</td>"
             "</tr>"
         )
 
@@ -110,6 +113,9 @@ def show_player_comparison(
     players: dict[str, dict[str, Any]],
     stats_by_player_id: dict[str, dict[str, Any]],
     scoring_settings: dict[str, Any],
+    *,
+    stats_source: str | None = None,
+    selected_week: int | None = None,
 ) -> None:
     left_player = players.get(str(left_player_id), {}) if left_player_id else {}
     right_player = players.get(str(right_player_id), {}) if right_player_id else {}
@@ -123,6 +129,9 @@ def show_player_comparison(
         _get_player_position(left_player),
         _get_player_position(right_player),
     )
+
+    if stats_source is not None and selected_week is not None:
+        st.caption(f"{stats_source} · Week {selected_week}")
 
     st.markdown(
         """

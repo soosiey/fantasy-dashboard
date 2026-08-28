@@ -32,15 +32,15 @@ def test_comparison_table_marks_better_stat_cells() -> None:
     assert "Right Quarterback" in table
     assert (
         '<td class="comparison-stat-value comparison-stat-left comparison-stat-winner">'
-        "300</td>"
+        "300.00</td>"
         '<td class="comparison-stat-label">Pass Yds</td>'
-        '<td class="comparison-stat-value comparison-stat-right">200</td>'
+        '<td class="comparison-stat-value comparison-stat-right">200.00</td>'
     ) in table
     assert (
         '<td class="comparison-stat-value comparison-stat-left comparison-stat-winner">'
-        "1</td>"
+        "1.00</td>"
         '<td class="comparison-stat-label">Pass INT</td>'
-        '<td class="comparison-stat-value comparison-stat-right">2</td>'
+        '<td class="comparison-stat-value comparison-stat-right">2.00</td>'
     ) in table
 
 
@@ -50,3 +50,18 @@ def test_relevant_comparison_fields_union_both_positions() -> None:
 
     assert {"Fantasy Points", "Games", "Carries", "Targets", "Rec Yds"} <= labels
     assert "FG Made" not in labels
+
+
+def test_kicker_comparison_includes_every_made_field_goal_distance() -> None:
+    labels = {
+        label for label, _ in get_relevant_stat_fields("K")
+    }
+
+    assert {
+        "FG Made 0–19",
+        "FG Made 20–29",
+        "FG Made 30–39",
+        "FG Made 40–49",
+        "FG Made 50–59",
+        "FG Made 60+",
+    }.issubset(labels)

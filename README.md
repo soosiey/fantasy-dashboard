@@ -15,3 +15,6 @@ Run
 ```streamlit run app.py```
 
 from the root directory.
+
+Player projections are retrieved from ESPN and cached for one hour in memory
+and under `.cache/espn_projections/`.
