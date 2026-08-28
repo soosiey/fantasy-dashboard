@@ -1,6 +1,6 @@
+from html import escape
 from numbers import Real
 from typing import Any
-from html import escape
 from urllib.parse import quote
 
 from fantasy_dashboard.models.league import RosterModel
@@ -161,7 +161,7 @@ def build_player_identity_image(player_name: str, owner_name: str = "") -> str:
         if owner_name
         else ""
     )
-    svg = """<svg xmlns="http://www.w3.org/2000/svg" width="260" height="28">
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" width="260" height="28">
 <style>
 .player {{ fill: #6366f1; font: 600 14px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }}
 .owner {{ fill: #808495; font-size: 11px; }}
@@ -169,13 +169,9 @@ def build_player_identity_image(player_name: str, owner_name: str = "") -> str:
   .owner {{ fill: #9ca3af; }}
 }}
 </style>
-<text class="player" x="{player_center}" y="19" text-anchor="middle">{player_name}</text>
+<text class="player" x="{player_center}" y="19" text-anchor="middle">{escape(player_name)}</text>
 {owner}
-</svg>""".format(
-        player_center=player_center,
-        player_name=escape(player_name),
-        owner=owner,
-    )
+</svg>"""
     return f"data:image/svg+xml;utf8,{quote(svg, safe='')}"
 
 

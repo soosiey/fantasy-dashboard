@@ -1,8 +1,8 @@
 import requests
 import streamlit as st
 
-from fantasy_dashboard.components.player_details import show_player_details
 from fantasy_dashboard.components.matchup_board import render_matchup_carousel
+from fantasy_dashboard.components.player_details import show_player_details
 from fantasy_dashboard.data import (
     clear_matchup_data,
     get_league,

@@ -52,18 +52,18 @@ def render_matchup_board(
         return None
 
     st.markdown(
-        dedent(f"""
+        dedent("""
         <style>
-            .matchup-card {{
+            .matchup-card {
                 margin: 0 0 0.65rem;
-            }}
-            .matchup-header {{
+            }
+            .matchup-header {
                 align-items: center;
                 display: grid;
                 gap: 1rem;
                 grid-template-columns: minmax(0, 1fr) 3rem minmax(0, 1fr);
-            }}
-            .matchup-placard {{
+            }
+            .matchup-placard {
                 align-items: center;
                 background: rgba(128, 128, 128, 0.09);
                 border-radius: 0.65rem;
@@ -71,112 +71,118 @@ def render_matchup_board(
                 justify-content: space-between;
                 min-height: 4.5rem;
                 padding: 0.75rem 1rem;
-            }}
-            .matchup-team-identity {{
+            }
+            .matchup-team-identity {
                 min-width: 0;
-            }}
-            .matchup-placard-left .matchup-team-identity {{
+            }
+            .matchup-placard-left .matchup-team-identity {
                 text-align: right;
-            }}
-            .matchup-team-name {{
+            }
+            .matchup-team-name {
                 font-size: 1rem;
                 font-weight: 700;
-            }}
-            .matchup-owner {{
+            }
+            .matchup-owner {
                 color: #808495;
                 font-size: 0.72rem;
                 margin-top: 0.1rem;
-            }}
-            .matchup-score {{
+            }
+            .matchup-score {
                 font-size: 1.15rem;
                 font-variant-numeric: tabular-nums;
                 font-weight: 800;
-            }}
-            .matchup-placard-left .matchup-score {{
+            }
+            .matchup-placard-left .matchup-score {
                 margin-right: 0.75rem;
-            }}
-            .matchup-placard-right .matchup-score {{
+            }
+            .matchup-placard-right .matchup-score {
                 margin-left: 0.75rem;
-            }}
-            .matchup-versus {{
+            }
+            .matchup-versus {
                 color: #808495;
                 font-size: 0.72rem;
                 font-weight: 800;
                 text-align: center;
-            }}
-            .matchup-lineup {{
+            }
+            .matchup-lineup {
                 margin-top: 0.65rem;
-            }}
-            [class*="st-key-matchup-lineup-row-"] {{
+            }
+            [class*="st-key-matchup-lineup-row-"] {
                 border-radius: 0.2rem;
                 min-height: 3.25rem;
                 padding: 0.35rem 1rem;
-            }}
-            [class*="st-key-matchup-lineup-row-odd-"] {{
+            }
+            [class*="st-key-matchup-lineup-row-odd-"] {
                 background: rgba(128, 128, 128, 0.08);
-            }}
-            [class*="st-key-matchup-lineup-row-even-"] {{
+            }
+            [class*="st-key-matchup-lineup-row-even-"] {
                 background: rgba(128, 128, 128, 0.025);
-            }}
-            [class*="st-key-matchup-lineup-row-bench-"] {{
+            }
+            [class*="st-key-matchup-lineup-row-bench-"] {
                 border-top: 1px solid rgba(128, 128, 128, 0.35);
                 margin-top: 0.4rem;
                 padding-top: 0.75rem;
-            }}
-            .matchup-player {{
+            }
+            .matchup-player {
                 align-items: center;
                 display: flex;
                 font-size: 0.88rem;
                 font-weight: 600;
                 justify-content: space-between;
                 min-width: 0;
-            }}
-            [class*="st-key-matchup-player-click-"] {{
+            }
+            [class*="st-key-matchup-player-click-"] {
                 border-radius: 0.35rem;
                 cursor: pointer;
+                min-height: 2.7rem;
                 padding: 0.35rem 0.45rem;
                 position: relative;
                 transition: background-color 120ms ease;
-            }}
-            [class*="st-key-matchup-player-click-"]:hover {{
+            }
+            [class*="st-key-matchup-player-click-"]:hover {
                 background: rgba(99, 102, 241, 0.13);
-            }}
-            [class*="st-key-matchup-player-click-"] [data-testid="stButton"] {{
+            }
+            [class*="st-key-matchup-player-click-"]
+                [data-testid="stElementContainer"]:has([data-testid="stButton"]) {
                 inset: 0;
-                position: absolute;
+                position: absolute !important;
                 z-index: 2;
-            }}
-            [class*="st-key-matchup-player-click-"] [data-testid="stButton"] button {{
+            }
+            [class*="st-key-matchup-player-click-"] [data-testid="stButton"] {
+                height: 100%;
+                width: 100%;
+            }
+            [class*="st-key-matchup-player-click-"] [data-testid="stButton"] button {
                 height: 100%;
                 opacity: 0;
                 width: 100%;
-            }}
-            .matchup-player-left {{
+            }
+            .matchup-player-left {
                 text-align: right;
-            }}
-            .matchup-player-right {{
+            }
+            .matchup-player-right {
                 text-align: left;
-            }}
-            .matchup-player-identity {{
+            }
+            .matchup-player-identity {
                 min-width: 0;
-            }}
-            .matchup-player-score {{
+            }
+            .matchup-player-score {
                 font-variant-numeric: tabular-nums;
                 font-weight: 700;
-            }}
-            .matchup-player-left .matchup-player-score {{
+            }
+            .matchup-player-left .matchup-player-score {
                 margin-right: 0.75rem;
-            }}
-            .matchup-player-right .matchup-player-score {{
+            }
+            .matchup-player-right .matchup-player-score {
                 margin-left: 0.75rem;
-            }}
-            .matchup-player-team {{
+            }
+            .matchup-player-team {
                 color: #808495;
                 font-size: 0.68rem;
                 font-weight: 400;
                 margin-top: 0.05rem;
-            }}
-            .matchup-position {{
+            }
+            .matchup-position {
                 align-items: center;
                 aspect-ratio: 1;
                 background: rgba(37, 99, 235, 0.14);
@@ -189,7 +195,7 @@ def render_matchup_board(
                 margin: auto;
                 text-align: center;
                 width: 2.35rem;
-            }}
+            }
         </style>
         """),
         unsafe_allow_html=True,
