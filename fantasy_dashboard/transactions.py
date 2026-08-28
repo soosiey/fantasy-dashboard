@@ -42,9 +42,7 @@ def build_transaction_rows(
         TransactionRow(
             transaction_id=transaction.transaction_id,
             transaction_type=_transaction_type_label(transaction),
-            user=display_names_by_user_id.get(
-                transaction.creator_id, "Unknown User"
-            ),
+            user=display_names_by_user_id.get(transaction.creator_id, "Unknown User"),
         )
         for transaction in transactions
     ]
@@ -95,9 +93,7 @@ def build_transaction_detail_rows(
             TransactionDetailRow(
                 action="Trade",
                 player_name=_player_name(str(player_id), players),
-                user=display_names_by_roster_id.get(
-                    int(roster_id), "Unknown User"
-                ),
+                user=display_names_by_roster_id.get(int(roster_id), "Unknown User"),
             )
             for player_id, roster_id in adds.items()
         ]
@@ -106,9 +102,7 @@ def build_transaction_detail_rows(
     rows = [
         TransactionDetailRow(
             action=(
-                "Waiver Add"
-                if transaction.transaction_type == "waiver"
-                else "Add"
+                "Waiver Add" if transaction.transaction_type == "waiver" else "Add"
             ),
             player_name=_player_name(str(player_id), players),
             faab=waiver_bid,

@@ -37,6 +37,7 @@ def open_player_from_button(click_key: str, player_ids: list[str]) -> None:
     if 0 <= selected_row < len(player_ids):
         st.session_state["_selected_player_id"] = player_ids[selected_row]
 
+
 # Give the player browser room for its identity, availability, and stat columns.
 st.markdown(
     "<style>[data-testid='stMainBlockContainer'] { max-width: 95rem; }</style>",
@@ -142,13 +143,13 @@ with players_list_tab:
             )
     except (requests.RequestException, TypeError, ValueError):
         stats_by_player_id = {}
-        source_name = "ESPN projections" if stats_source == "Predicted" else "Player statistics"
+        source_name = (
+            "ESPN projections" if stats_source == "Predicted" else "Player statistics"
+        )
         st.warning(f"{source_name} could not be loaded; values default to zero.")
 
     selected_position = (
-        None
-        if selected_position_label == "All Positions"
-        else selected_position_label
+        None if selected_position_label == "All Positions" else selected_position_label
     )
     nfl_players = get_nfl_players()
     player_rows = build_player_stat_rows(
@@ -164,9 +165,7 @@ with players_list_tab:
     search_query = player_search.strip().casefold()
     if search_query:
         player_rows = [
-            row
-            for row in player_rows
-            if search_query in str(row["Player"]).casefold()
+            row for row in player_rows if search_query in str(row["Player"]).casefold()
         ]
 
     st.caption(
@@ -181,9 +180,7 @@ with players_list_tab:
         player_ids = player_table["Player ID"].astype(str).tolist()
         player_table["Player"] = [
             build_player_identity_image(player, owner)
-            for player, owner in zip(
-                player_table["Player"], player_table["Roster"]
-            )
+            for player, owner in zip(player_table["Player"], player_table["Roster"])
         ]
         player_table = player_table.drop(columns="Roster")
         player_table.insert(2, "Details", "View")
@@ -192,15 +189,15 @@ with players_list_tab:
         def highlight_relevant_stats(row: pd.Series) -> list[str]:
             relevant_columns = get_relevant_stat_labels(str(row["Position"]))
             return [
-                "background-color: rgba(59, 130, 246, 0.10)"
-                if column in relevant_columns
-                else ""
+                (
+                    "background-color: rgba(59, 130, 246, 0.10)"
+                    if column in relevant_columns
+                    else ""
+                )
                 for column in row.index
             ]
 
-        styled_player_table = player_table.style.apply(
-            highlight_relevant_stats, axis=1
-        )
+        styled_player_table = player_table.style.apply(highlight_relevant_stats, axis=1)
         st.dataframe(
             styled_player_table,
             column_config={
@@ -242,9 +239,7 @@ with players_list_tab:
     stats_update = (
         get_data_update("projected_player_stats", season, selected_week)
         if stats_source == "Predicted"
-        else get_data_update(
-            "player_stats", season, season_type, selected_week
-        )
+        else get_data_update("player_stats", season, season_type, selected_week)
     )
     render_data_disclaimer(
         stats_update,
@@ -280,9 +275,7 @@ with trends_tab:
             add_player_ids = adds_frame["Player ID"].tolist()
             adds_frame["Player"] = [
                 build_player_identity_image(player, owner)
-                for player, owner in zip(
-                    adds_frame["Player"], adds_frame["Roster"]
-                )
+                for player, owner in zip(adds_frame["Player"], adds_frame["Roster"])
             ]
             adds_frame = adds_frame.drop(columns="Roster")
             adds_frame.insert(1, "Details", "View")
@@ -326,9 +319,7 @@ with trends_tab:
             drop_player_ids = drops_frame["Player ID"].tolist()
             drops_frame["Player"] = [
                 build_player_identity_image(player, owner)
-                for player, owner in zip(
-                    drops_frame["Player"], drops_frame["Roster"]
-                )
+                for player, owner in zip(drops_frame["Player"], drops_frame["Roster"])
             ]
             drops_frame = drops_frame.drop(columns="Roster")
             drops_frame.insert(1, "Details", "View")

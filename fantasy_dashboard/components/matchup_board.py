@@ -75,9 +75,7 @@ def _render_player(
         " matchup-player-attention"
         if is_starter
         and (
-            player.player_id is None
-            or player.is_inactive
-            or bool(player.injury_status)
+            player.player_id is None or player.is_inactive or bool(player.injury_status)
         )
         else ""
     )

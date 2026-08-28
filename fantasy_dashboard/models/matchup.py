@@ -61,6 +61,4 @@ class WeeklyMatchupContainer:
 
     @classmethod
     def from_api(cls, data: list[dict[str, Any]]) -> "WeeklyMatchupContainer":
-        return cls(
-            matchups=[WeeklyMatchupModel.from_json(matchup) for matchup in data]
-        )
+        return cls(matchups=[WeeklyMatchupModel.from_json(matchup) for matchup in data])

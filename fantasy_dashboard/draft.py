@@ -44,9 +44,7 @@ def build_draft_result_rows(
             DraftResultRow(
                 pick_number=pick.pick_number,
                 player_name=player_name,
-                drafted_by=display_names_by_user_id.get(
-                    pick.picked_by, "Unknown User"
-                ),
+                drafted_by=display_names_by_user_id.get(pick.picked_by, "Unknown User"),
                 amount=pick.amount,
             )
         )

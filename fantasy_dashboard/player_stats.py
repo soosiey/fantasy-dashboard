@@ -140,9 +140,7 @@ def get_relevant_stat_fields(
     *positions: str,
 ) -> list[tuple[str, str | None]]:
     relevant_labels = {
-        label
-        for position in positions
-        for label, _ in POSITION_STATS.get(position, [])
+        label for position in positions for label, _ in POSITION_STATS.get(position, [])
     }
     return [
         ("Fantasy Points", None),
@@ -229,7 +227,9 @@ def build_player_weekly_stat_rows(
         stats = record.get("stats") if isinstance(record.get("stats"), dict) else {}
         opponent = str(record.get("opponent") or "—")
         if opponent != "—":
-            opponent = f"@ {opponent}" if record.get("is_away_team") else f"vs {opponent}"
+            opponent = (
+                f"@ {opponent}" if record.get("is_away_team") else f"vs {opponent}"
+            )
         row = build_player_stat_row(stats, scoring_settings, week)
         row["Opponent"] = opponent
         rows.append(row)
@@ -295,11 +295,7 @@ def build_player_stat_rows(
                 "Player ID": str(player_id),
                 "Player": player_name or str(player_id),
                 **(
-                    {
-                        "Roster": roster_labels_by_player_id.get(
-                            str(player_id), ""
-                        )
-                    }
+                    {"Roster": roster_labels_by_player_id.get(str(player_id), "")}
                     if roster_labels_by_player_id is not None
                     else {}
                 ),
@@ -310,9 +306,7 @@ def build_player_stat_rows(
                     calculate_fantasy_points(player_stats, scoring_settings)
                 ),
                 **{
-                    label: truncate_decimal(
-                        player_stats.get(stat_name, 0) or 0
-                    )
+                    label: truncate_decimal(player_stats.get(stat_name, 0) or 0)
                     for label, stat_name in ALL_STATS
                 },
             }

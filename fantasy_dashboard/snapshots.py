@@ -223,9 +223,10 @@ def _numeric(value: Any) -> float:
 
 
 def _points_from_settings(settings: dict[str, Any], prefix: str) -> float:
-    return _numeric(settings.get(prefix)) + _numeric(
-        settings.get(f"{prefix}_decimal")
-    ) / 100
+    return (
+        _numeric(settings.get(prefix))
+        + _numeric(settings.get(f"{prefix}_decimal")) / 100
+    )
 
 
 def _normalized_team(team: Any) -> str | None:
@@ -275,8 +276,7 @@ def _normalize_espn_schedule(
                 "home_team": teams.get("home"),
                 "away_team": teams.get("away"),
                 "kickoff_at": _utc_timestamp(kickoff_at),
-                "status": status_type.get("name")
-                or status_type.get("state"),
+                "status": status_type.get("name") or status_type.get("state"),
                 "raw": event,
             }
         )
@@ -564,18 +564,19 @@ class SnapshotCollector:
             self._save_rosters(connection, run_id, rosters)
             self._save_matchups(connection, run_id, matchups)
             self._save_schedule(connection, run_id, games)
-            referenced_player_ids = {
-                str(player_id)
-                for player_id in stats_by_player
-            } | {
-                str(player_id)
-                for roster in rosters
-                for player_id in roster.get("players") or []
-            } | {
-                str(player_id)
-                for matchup in matchups
-                for player_id in matchup.get("players") or []
-            }
+            referenced_player_ids = (
+                {str(player_id) for player_id in stats_by_player}
+                | {
+                    str(player_id)
+                    for roster in rosters
+                    for player_id in roster.get("players") or []
+                }
+                | {
+                    str(player_id)
+                    for matchup in matchups
+                    for player_id in matchup.get("players") or []
+                }
+            )
             self._save_player_identities(
                 connection,
                 run_id,
@@ -630,26 +631,21 @@ class SnapshotCollector:
         }
         for table, columns in migrations.items():
             existing_columns = {
-                str(row[1])
-                for row in connection.execute(f"PRAGMA table_info({table})")
+                str(row[1]) for row in connection.execute(f"PRAGMA table_info({table})")
             }
             for column, definition in columns.items():
                 if column not in existing_columns:
                     connection.execute(
                         f"ALTER TABLE {table} ADD COLUMN {column} {definition}"
                     )
-        connection.execute(
-            """
+        connection.execute("""
             CREATE INDEX IF NOT EXISTS idx_snapshot_runs_context
             ON snapshot_runs (league_id, season, week, snapshot_type, captured_at)
-            """
-        )
-        connection.execute(
-            """
+            """)
+        connection.execute("""
             CREATE INDEX IF NOT EXISTS idx_player_stats_game
             ON player_stat_snapshots (player_id, game_key, stat_type, provider)
-            """
-        )
+            """)
 
     @staticmethod
     def _save_scoring_settings(
@@ -718,9 +714,7 @@ class SnapshotCollector:
                 status = (
                     "starter"
                     if normalized_id in starters
-                    else "reserve"
-                    if normalized_id in reserves
-                    else "bench"
+                    else "reserve" if normalized_id in reserves else "bench"
                 )
                 player_rows.append((run_id, roster_id, normalized_id, status))
         connection.executemany(
@@ -751,9 +745,7 @@ class SnapshotCollector:
                     matchup.get("custom_points"),
                 )
             )
-            starters = {
-                str(player) for player in matchup.get("starters") or []
-            }
+            starters = {str(player) for player in matchup.get("starters") or []}
             points = matchup.get("players_points") or {}
             for player_id in matchup.get("players") or []:
                 normalized_id = str(player_id)
@@ -836,8 +828,7 @@ class SnapshotCollector:
                     ),
                     (
                         str(players.get(player_id, {}).get("rotoworld_id"))
-                        if players.get(player_id, {}).get("rotoworld_id")
-                        is not None
+                        if players.get(player_id, {}).get("rotoworld_id") is not None
                         else None
                     ),
                     players.get(player_id, {}).get("number"),
@@ -849,11 +840,7 @@ class SnapshotCollector:
                         else None
                     ),
                     game_keys_by_team.get(
-                        str(
-                            _normalized_team(
-                                players.get(player_id, {}).get("team")
-                            )
-                        )
+                        str(_normalized_team(players.get(player_id, {}).get("team")))
                     ),
                     _json_text(players.get(player_id, {})),
                 )
@@ -881,9 +868,7 @@ class SnapshotCollector:
                 continue
             player = players.get(str(player_id), {})
             nfl_team = _normalized_team(player.get("team"))
-            game_key = (
-                game_keys_by_team.get(nfl_team) if nfl_team is not None else None
-            )
+            game_key = game_keys_by_team.get(nfl_team) if nfl_team is not None else None
             player_rows.append(
                 (
                     str(player_id),
@@ -891,9 +876,11 @@ class SnapshotCollector:
                     player.get("last_name"),
                     player.get("position"),
                     player.get("team"),
-                    str(player.get("espn_id"))
-                    if player.get("espn_id") is not None
-                    else None,
+                    (
+                        str(player.get("espn_id"))
+                        if player.get("espn_id") is not None
+                        else None
+                    ),
                     captured_at,
                 )
             )

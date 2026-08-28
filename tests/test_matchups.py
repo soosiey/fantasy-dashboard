@@ -276,9 +276,7 @@ def test_matchup_board_marks_bench_rows(monkeypatch) -> None:
             "player_id": player_id,
             "first_name": player_id.title(),
             "team": "KC",
-            "injury_status": (
-                "Questionable" if player_id == "starter" else None
-            ),
+            "injury_status": ("Questionable" if player_id == "starter" else None),
         }
         for player_id in ("starter", "bench")
     }

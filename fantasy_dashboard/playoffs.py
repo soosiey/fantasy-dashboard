@@ -41,9 +41,7 @@ def _add_opening_round_byes(
         for matchup in matchups
         if matchup.round == opening_round
     }
-    opening_views = {
-        matchup.matchup_id: matchup for matchup in rounds[opening_round]
-    }
+    opening_views = {matchup.matchup_id: matchup for matchup in rounds[opening_round]}
     opening_roster_ids = {
         roster_id
         for matchup in opening_matchups.values()

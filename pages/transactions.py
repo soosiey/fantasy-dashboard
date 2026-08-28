@@ -30,9 +30,8 @@ def open_transaction_from_button(
         return
     selected_row = int(click["row"])
     if 0 <= selected_row < len(transaction_ids):
-        st.session_state["_selected_transaction_id"] = transaction_ids[
-            selected_row
-        ]
+        st.session_state["_selected_transaction_id"] = transaction_ids[selected_row]
+
 
 # Resolve league context consistently across direct links and page navigation.
 league_id = st.query_params.get("league_id")
@@ -69,9 +68,11 @@ try:
 except (requests.RequestException, TypeError, ValueError) as error:
     st.warning(f"Transactions could not be loaded: {error}")
 else:
-    display_names_by_user_id = {
-        user.user_id: user.display_name for user in league_users.users
-    } if league_users is not None else {}
+    display_names_by_user_id = (
+        {user.user_id: user.display_name for user in league_users.users}
+        if league_users is not None
+        else {}
+    )
     rows = build_transaction_rows(
         transactions.transactions,
         display_names_by_user_id,
@@ -115,9 +116,7 @@ else:
             key="transactions-table",
         )
 
-        selected_transaction_id = st.session_state.pop(
-            "_selected_transaction_id", None
-        )
+        selected_transaction_id = st.session_state.pop("_selected_transaction_id", None)
         if selected_transaction_id is not None:
             selected_transaction = next(
                 (
@@ -128,20 +127,20 @@ else:
                 None,
             )
             selected_row = next(
-                (
-                    row
-                    for row in rows
-                    if row.transaction_id == selected_transaction_id
-                ),
+                (row for row in rows if row.transaction_id == selected_transaction_id),
                 None,
             )
             if selected_transaction is not None and selected_row is not None:
-                display_names_by_roster_id = {
-                    roster.roster_id: display_names_by_user_id.get(
-                        roster.user_id, "Unknown User"
-                    )
-                    for roster in rosters.rosters
-                } if rosters is not None else {}
+                display_names_by_roster_id = (
+                    {
+                        roster.roster_id: display_names_by_user_id.get(
+                            roster.user_id, "Unknown User"
+                        )
+                        for roster in rosters.rosters
+                    }
+                    if rosters is not None
+                    else {}
+                )
                 detail_rows = build_transaction_detail_rows(
                     selected_transaction,
                     get_nfl_players(),
@@ -152,9 +151,7 @@ else:
                     detail_rows,
                 )
 
-    render_data_disclaimer(
-        get_data_update("league_transactions", league_id)
-    )
+    render_data_disclaimer(get_data_update("league_transactions", league_id))
 
 # Keep league and account navigation available below the transactions table.
 with st.bottom:

@@ -62,9 +62,7 @@ class FakeSleeperClient:
     def get_nfl_state(self) -> dict[str, Any]:
         return {"season": "2026", "week": 1, "season_type": "regular"}
 
-    def get_nfl_schedule(
-        self, season: str, season_type: str
-    ) -> list[dict[str, Any]]:
+    def get_nfl_schedule(self, season: str, season_type: str) -> list[dict[str, Any]]:
         return [
             {
                 "game_id": "game-1",
@@ -113,9 +111,7 @@ class FakeEspnClient:
             ]
         }
 
-    def get_nfl_projections(
-        self, season: str, cache_path: Path
-    ) -> dict[str, Any]:
+    def get_nfl_projections(self, season: str, cache_path: Path) -> dict[str, Any]:
         data = {
             "players": [
                 {
@@ -178,9 +174,7 @@ def _collector(tmp_path: Path, players_path: Path) -> SnapshotCollector:
 def test_pre_kickoff_snapshot_archives_and_normalizes_projections(
     tmp_path: Path, players_path: Path
 ) -> None:
-    result = _collector(tmp_path, players_path).collect(
-        "pre-kickoff", "league-1", 1
-    )
+    result = _collector(tmp_path, players_path).collect("pre-kickoff", "league-1", 1)
 
     assert (result.archive_path / "manifest.json").exists()
     assert (result.archive_path / "espn_projections.json").exists()
@@ -191,34 +185,24 @@ def test_pre_kickoff_snapshot_archives_and_normalizes_projections(
         run = connection.execute(
             "SELECT snapshot_type, season, week FROM snapshot_runs"
         ).fetchone()
-        stat = connection.execute(
-            """
+        stat = connection.execute("""
             SELECT stat_type, provider, fantasy_points
             FROM player_stat_snapshots
-            """
-        ).fetchone()
-        statuses = connection.execute(
-            """
+            """).fetchone()
+        statuses = connection.execute("""
             SELECT player_id, roster_status
             FROM roster_player_snapshots ORDER BY player_id
-            """
-        ).fetchall()
-        game = connection.execute(
-            """
+            """).fetchall()
+        game = connection.execute("""
             SELECT game_key, kickoff_at, provider FROM game_snapshots
-            """
-        ).fetchone()
-        identity = connection.execute(
-            """
+            """).fetchone()
+        identity = connection.execute("""
             SELECT player_id, nfl_team, game_key
             FROM player_identity_snapshots WHERE player_id = 'player-1'
-            """
-        ).fetchone()
-        stat_link = connection.execute(
-            """
+            """).fetchone()
+        stat_link = connection.execute("""
             SELECT nfl_team, game_key FROM player_stat_snapshots
-            """
-        ).fetchone()
+            """).fetchone()
 
     assert run == ("pre-kickoff", "2026", 1)
     assert stat == ("projection", "espn", 14.0)
@@ -232,9 +216,7 @@ def test_pre_kickoff_snapshot_archives_and_normalizes_projections(
 def test_post_week_snapshot_archives_actual_statistics(
     tmp_path: Path, players_path: Path
 ) -> None:
-    result = _collector(tmp_path, players_path).collect(
-        "post-week", "league-1", 1
-    )
+    result = _collector(tmp_path, players_path).collect("post-week", "league-1", 1)
 
     actual_path = result.archive_path / "sleeper_player_stats.json"
     assert json.loads(actual_path.read_text(encoding="utf-8")) == {
@@ -242,18 +224,14 @@ def test_post_week_snapshot_archives_actual_statistics(
     }
 
     with sqlite3.connect(result.database_path) as connection:
-        stat = connection.execute(
-            """
+        stat = connection.execute("""
             SELECT stat_type, provider, fantasy_points
             FROM player_stat_snapshots
-            """
-        ).fetchone()
-        scoring = connection.execute(
-            """
+            """).fetchone()
+        scoring = connection.execute("""
             SELECT stat_name, points FROM scoring_setting_snapshots
             ORDER BY stat_name
-            """
-        ).fetchall()
+            """).fetchall()
 
     assert stat == ("actual", "sleeper", 18.0)
     assert scoring == [("pass_td", 4.0), ("pass_yd", 0.04)]
@@ -266,8 +244,7 @@ def test_existing_database_receives_additive_snapshot_migrations(
     storage_dir.mkdir()
     database_path = storage_dir / "fantasy_dashboard.sqlite3"
     with sqlite3.connect(database_path) as connection:
-        connection.execute(
-            """
+        connection.execute("""
             CREATE TABLE player_stat_snapshots (
                 run_id TEXT NOT NULL,
                 player_id TEXT NOT NULL,
@@ -277,10 +254,8 @@ def test_existing_database_receives_additive_snapshot_migrations(
                 stats_json TEXT NOT NULL,
                 PRIMARY KEY (run_id, player_id, stat_type, provider)
             )
-            """
-        )
-        connection.execute(
-            """
+            """)
+        connection.execute("""
             CREATE TABLE game_snapshots (
                 run_id TEXT NOT NULL,
                 game_key TEXT NOT NULL,
@@ -291,8 +266,7 @@ def test_existing_database_receives_additive_snapshot_migrations(
                 game_json TEXT NOT NULL,
                 PRIMARY KEY (run_id, game_key)
             )
-            """
-        )
+            """)
 
     collector = SnapshotCollector(
         storage_dir=storage_dir,
@@ -305,13 +279,10 @@ def test_existing_database_receives_additive_snapshot_migrations(
     with sqlite3.connect(database_path) as connection:
         stat_columns = {
             row[1]
-            for row in connection.execute(
-                "PRAGMA table_info(player_stat_snapshots)"
-            )
+            for row in connection.execute("PRAGMA table_info(player_stat_snapshots)")
         }
         game_columns = {
-            row[1]
-            for row in connection.execute("PRAGMA table_info(game_snapshots)")
+            row[1] for row in connection.execute("PRAGMA table_info(game_snapshots)")
         }
         identity_count = connection.execute(
             "SELECT COUNT(*) FROM player_identity_snapshots"

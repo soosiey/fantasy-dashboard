@@ -89,9 +89,7 @@ class LeagueModel:
         object.__setattr__(self, "loser_bracket_id", str(self.loser_bracket_id))
         object.__setattr__(self, "avatar_id", str(self.avatar_id))
         object.__setattr__(self, "season", str(self.season or ""))
-        object.__setattr__(
-            self, "season_type", str(self.season_type or "regular")
-        )
+        object.__setattr__(self, "season_type", str(self.season_type or "regular"))
 
     @classmethod
     def from_json(cls, data: dict[str, Any]) -> "LeagueModel":

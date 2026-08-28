@@ -52,9 +52,11 @@ else:
     except (requests.RequestException, TypeError, ValueError) as error:
         st.warning(f"Draft results could not be loaded: {error}")
     else:
-        display_names_by_user_id = {
-            user.user_id: user.display_name for user in league_users.users
-        } if league_users is not None else {}
+        display_names_by_user_id = (
+            {user.user_id: user.display_name for user in league_users.users}
+            if league_users is not None
+            else {}
+        )
 
         # Filter picks by player name or the stable ID of the drafting user.
         search_column, drafter_column = st.columns(2)

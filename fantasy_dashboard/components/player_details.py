@@ -36,9 +36,7 @@ def show_player_details(
     number = player.get("number")
 
     if show_news_button:
-        name_column, news_column = st.columns(
-            [3, 1], vertical_alignment="center"
-        )
+        name_column, news_column = st.columns([3, 1], vertical_alignment="center")
         with name_column:
             st.header(player_name or player_id)
         with news_column:
@@ -73,9 +71,7 @@ def show_player_details(
     else:
         try:
             with st.spinner("Loading weekly statistics..."):
-                weekly_stats = get_player_weekly_stats(
-                    player_id, season, season_type
-                )
+                weekly_stats = get_player_weekly_stats(player_id, season, season_type)
         except (requests.RequestException, TypeError, ValueError):
             st.warning("Weekly player statistics could not be loaded.")
             return
@@ -111,9 +107,11 @@ def show_player_details(
 
     def highlight_relevant_stats(row: pd.Series) -> list[str]:
         return [
-            "background-color: rgba(59, 130, 246, 0.10)"
-            if column in relevant_columns
-            else ""
+            (
+                "background-color: rgba(59, 130, 246, 0.10)"
+                if column in relevant_columns
+                else ""
+            )
             for column in row.index
         ]
 

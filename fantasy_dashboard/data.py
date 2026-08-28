@@ -93,10 +93,7 @@ def get_current_nfl_week() -> int:
 
 def get_default_nfl_week(season: str) -> int:
     state = get_nfl_state()
-    if (
-        str(season) != str(state["season"])
-        or state.get("season_type") == "pre"
-    ):
+    if str(season) != str(state["season"]) or state.get("season_type") == "pre":
         return 1
     week = int(state.get("display_week") or state.get("week"))
     return min(max(week, 1), 18)
@@ -134,14 +131,10 @@ def get_league_transactions(league_id: str) -> TransactionContainer:
     _clear_data_update("league_transactions", league_id)
     transactions_by_id = {}
     for week in range(1, 19):
-        weekly_transactions = get_sleeper_client().get_transactions(
-            league_id, week
-        )
+        weekly_transactions = get_sleeper_client().get_transactions(league_id, week)
         for transaction in weekly_transactions.transactions:
             transactions_by_id[transaction.transaction_id] = transaction
-    transactions = TransactionContainer.from_models(
-        list(transactions_by_id.values())
-    )
+    transactions = TransactionContainer.from_models(list(transactions_by_id.values()))
     _record_data_update("Sleeper", "league_transactions", league_id)
     return transactions
 
@@ -200,12 +193,8 @@ def get_player_weekly_stats(
     season: str,
     season_type: str = "regular",
 ) -> dict[int, dict]:
-    _clear_data_update(
-        "player_weekly_stats", player_id, season, season_type
-    )
-    stats = get_sleeper_client().get_player_weekly_stats(
-        player_id, season, season_type
-    )
+    _clear_data_update("player_weekly_stats", player_id, season, season_type)
+    stats = get_sleeper_client().get_player_weekly_stats(player_id, season, season_type)
     _record_data_update(
         "Sleeper", "player_weekly_stats", player_id, season, season_type
     )
@@ -218,9 +207,7 @@ def get_trending_players(
     lookback_hours: int = 48,
     limit: int = 25,
 ) -> list[dict[str, int | str]]:
-    _clear_data_update(
-        "trending_players", trend_type, lookback_hours, limit
-    )
+    _clear_data_update("trending_players", trend_type, lookback_hours, limit)
     players = get_sleeper_client().get_trending_players(
         trend_type, lookback_hours, limit
     )

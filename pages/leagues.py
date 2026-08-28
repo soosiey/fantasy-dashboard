@@ -60,9 +60,7 @@ else:
             width="stretch",
         )
 
-render_data_disclaimer(
-    get_data_update("leagues", user_id, selected_season, "nfl")
-)
+render_data_disclaimer(get_data_update("leagues", user_id, selected_season, "nfl"))
 
 # Keep account-level actions anchored at the bottom of the page.
 with st.bottom:

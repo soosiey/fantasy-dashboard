@@ -44,8 +44,6 @@ class DraftPickContainer:
     @classmethod
     def from_api(cls, data: list[dict[str, Any]]) -> "DraftPickContainer":
         picks = [
-            DraftPickModel.from_api(pick)
-            for pick in data
-            if isinstance(pick, dict)
+            DraftPickModel.from_api(pick) for pick in data if isinstance(pick, dict)
         ]
         return cls(picks=sorted(picks, key=lambda pick: pick.pick_number))

@@ -48,9 +48,7 @@ def show_transaction_details(
     optional_header = (
         "<th>Traded To</th>"
         if show_destination
-        else "<th>FAAB Spent</th>"
-        if show_faab
-        else ""
+        else "<th>FAAB Spent</th>" if show_faab else ""
     )
 
     st.markdown(

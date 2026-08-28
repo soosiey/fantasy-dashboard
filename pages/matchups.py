@@ -49,15 +49,11 @@ except (requests.RequestException, KeyError, TypeError, ValueError):
 
 # Group the matchup filters opposite the title with enough room for the
 # Actual/Predicted selector to remain on one horizontal line.
-title_column, filter_column = st.columns(
-    [6, 3], vertical_alignment="center"
-)
+title_column, filter_column = st.columns([6, 3], vertical_alignment="center")
 with title_column:
     st.title("Matchups")
 with filter_column:
-    week_column, refresh_column = st.columns(
-        [5, 1], vertical_alignment="bottom"
-    )
+    week_column, refresh_column = st.columns([5, 1], vertical_alignment="bottom")
     with week_column:
         selected_week = st.selectbox(
             "Week",
@@ -111,9 +107,7 @@ try:
 except (requests.RequestException, TypeError, ValueError):
     stats_by_player_id = {}
     source_name = (
-        "ESPN projections"
-        if stats_source == "Predicted"
-        else "Player statistics"
+        "ESPN projections" if stats_source == "Predicted" else "Player statistics"
     )
     st.warning(f"{source_name} could not be loaded; scores default to zero.")
 

@@ -21,13 +21,9 @@ def test_trends_are_resolved_to_player_table_rows() -> None:
 
 
 def test_unknown_trending_player_uses_safe_fallbacks() -> None:
-    rows = build_player_trend_rows(
-        [{"player_id": "unknown", "count": 3}], {}, "Drops"
-    )
+    rows = build_player_trend_rows([{"player_id": "unknown", "count": 3}], {}, "Drops")
 
-    assert rows == [
-        {"Player": "unknown", "Position": "—", "Team": "FA", "Drops": 3}
-    ]
+    assert rows == [{"Player": "unknown", "Position": "—", "Team": "FA", "Drops": 3}]
 
 
 def test_trending_rostered_player_includes_roster_label() -> None:

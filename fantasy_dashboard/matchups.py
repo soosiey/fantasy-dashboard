@@ -144,9 +144,11 @@ def _get_matchup_team(
     roster = rosters_by_id.get(matchup.roster_id)
     team = teams_by_user_id.get(roster.user_id) if roster is not None else None
     return MatchupTeam(
-        team_name=team.display_team_name
-        if team is not None
-        else f"Roster {matchup.roster_id}",
+        team_name=(
+            team.display_team_name
+            if team is not None
+            else f"Roster {matchup.roster_id}"
+        ),
         display_name=team.display_name if team is not None else "",
         points=(matchup.displayed_points if starter_points is None else starter_points),
         user_id=team.user_id if team is not None else None,

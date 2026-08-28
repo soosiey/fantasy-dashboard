@@ -20,9 +20,7 @@ def _get_player_position(player: dict[str, Any]) -> str:
 
 
 def _get_player_name(player_id: str | None, player: dict[str, Any]) -> str:
-    name = (
-        f"{player.get('first_name') or ''} {player.get('last_name') or ''}"
-    ).strip()
+    name = (f"{player.get('first_name') or ''} {player.get('last_name') or ''}").strip()
     return name or player_id or "Empty"
 
 
@@ -46,14 +44,10 @@ def _render_comparison_table(
             left_points if stat_name is None else left_stats.get(stat_name, 0) or 0
         )
         right_value = (
-            right_points
-            if stat_name is None
-            else right_stats.get(stat_name, 0) or 0
+            right_points if stat_name is None else right_stats.get(stat_name, 0) or 0
         )
         numeric_left = float(left_value) if isinstance(left_value, Real) else 0.0
-        numeric_right = (
-            float(right_value) if isinstance(right_value, Real) else 0.0
-        )
+        numeric_right = float(right_value) if isinstance(right_value, Real) else 0.0
         displayed_left = truncate_decimal(numeric_left)
         displayed_right = truncate_decimal(numeric_right)
         left_wins = (
@@ -92,11 +86,11 @@ def _render_comparison_table(
         '<section class="comparison-wrapper">'
         '<div class="comparison-player-header">'
         '<div class="comparison-player comparison-player-left">'
-        f'<h3>{escape(left_name)}</h3>'
+        f"<h3>{escape(left_name)}</h3>"
         f'<div class="comparison-player-meta">{escape(left_meta)}</div></div>'
-        '<div></div>'
+        "<div></div>"
         '<div class="comparison-player comparison-player-right">'
-        f'<h3>{escape(right_name)}</h3>'
+        f"<h3>{escape(right_name)}</h3>"
         f'<div class="comparison-player-meta">{escape(right_meta)}</div></div>'
         "</div>"
         '<table class="comparison-table"><tbody>'

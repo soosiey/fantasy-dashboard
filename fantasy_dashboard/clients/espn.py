@@ -155,9 +155,7 @@ ESPN_STAT_MAP = {
 
 
 def _normalized_name(name: str) -> str:
-    without_suffix = re.sub(
-        r"\b(jr|sr|ii|iii|iv)\b", "", name.casefold()
-    )
+    without_suffix = re.sub(r"\b(jr|sr|ii|iii|iv)\b", "", name.casefold())
     return re.sub(r"[^a-z0-9]", "", without_suffix)
 
 
@@ -190,9 +188,7 @@ def _normalized_stats(record: dict[str, Any]) -> dict[str, float]:
         if not isinstance(value, (int, float)):
             continue
         for sleeper_name in ESPN_STAT_MAP.get(str(stat_id), ()):
-            normalized[sleeper_name] = (
-                normalized.get(sleeper_name, 0) + float(value)
-            )
+            normalized[sleeper_name] = normalized.get(sleeper_name, 0) + float(value)
     return normalized
 
 
@@ -211,26 +207,18 @@ def map_projections_to_sleeper(
     sleeper_ids_by_identity: dict[tuple[str, str], str] = {}
     for player_id, player in sleeper_players.items():
         name = (
-            f"{player.get('first_name') or ''} "
-            f"{player.get('last_name') or ''}"
+            f"{player.get('first_name') or ''} " f"{player.get('last_name') or ''}"
         ).strip()
         positions = {
             str(player.get("position") or ""),
-            *(
-                str(position)
-                for position in player.get("fantasy_positions") or []
-            ),
+            *(str(position) for position in player.get("fantasy_positions") or []),
         }
         for position in positions:
-            sleeper_ids_by_identity[(_normalized_name(name), position)] = str(
-                player_id
-            )
+            sleeper_ids_by_identity[(_normalized_name(name), position)] = str(player_id)
 
     mapped: dict[str, dict[str, float]] = {}
     for entry in projection_data.get("players") or []:
-        if not isinstance(entry, dict) or not isinstance(
-            entry.get("player"), dict
-        ):
+        if not isinstance(entry, dict) or not isinstance(entry.get("player"), dict):
             continue
         player = entry["player"]
         position = ESPN_POSITION_MAP.get(player.get("defaultPositionId"), "")
@@ -295,12 +283,8 @@ class EspnClient:
             )
             response.raise_for_status()
             data = response.json()
-            if not isinstance(data, dict) or not isinstance(
-                data.get("players"), list
-            ):
-                raise TypeError(
-                    "ESPN projections response must contain players."
-                )
+            if not isinstance(data, dict) or not isinstance(data.get("players"), list):
+                raise TypeError("ESPN projections response must contain players.")
         except (requests.RequestException, TypeError, ValueError):
             if cached_data is not None:
                 return cached_data

@@ -50,22 +50,19 @@ def test_projection_request_fetches_all_players_and_reuses_disk_cache(
     assert first == response_data
     assert second == response_data
     assert len(requests) == 1
-    assert requests[0]["url"].endswith(
-        "/seasons/2026/segments/0/leaguedefaults/1"
-    )
+    assert requests[0]["url"].endswith("/seasons/2026/segments/0/leaguedefaults/1")
     assert requests[0]["params"] == {"view": "kona_player_info"}
-    assert json.loads(requests[0]["headers"]["x-fantasy-filter"])[
-        "players"
-    ]["limit"] == 5000
+    assert (
+        json.loads(requests[0]["headers"]["x-fantasy-filter"])["players"]["limit"]
+        == 5000
+    )
 
 
 def test_schedule_request_selects_regular_week_and_exact_events(
     monkeypatch,
 ) -> None:
     requests: list[dict[str, object]] = []
-    response_data = {
-        "events": [{"id": "game-1", "date": "2026-09-10T20:20:00Z"}]
-    }
+    response_data = {"events": [{"id": "game-1", "date": "2026-09-10T20:20:00Z"}]}
 
     def fake_get(
         url: str,
@@ -161,9 +158,7 @@ def test_weekly_projections_map_to_sleeper_ids_and_stat_names() -> None:
         ]
     }
 
-    mapped = map_projections_to_sleeper(
-        projection_data, sleeper_players, "2026", 1
-    )
+    mapped = map_projections_to_sleeper(projection_data, sleeper_players, "2026", 1)
 
     assert mapped == {
         "player-1": {"pass_yd": 275.5, "pass_td": 2.1, "pass_int": 0.7},
@@ -207,10 +202,6 @@ def test_season_projection_uses_current_season_aggregate() -> None:
         ]
     }
 
-    mapped = map_projections_to_sleeper(
-        projection_data, sleeper_players, "2026", None
-    )
+    mapped = map_projections_to_sleeper(projection_data, sleeper_players, "2026", None)
 
-    assert mapped == {
-        "player-1": {"rush_att": 250, "rush_yd": 1100, "gp": 17}
-    }
+    assert mapped == {"player-1": {"rush_att": 250, "rush_yd": 1100, "gp": 17}}

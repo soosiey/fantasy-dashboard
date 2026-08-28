@@ -53,9 +53,7 @@ def test_relevant_comparison_fields_union_both_positions() -> None:
 
 
 def test_kicker_comparison_includes_every_made_field_goal_distance() -> None:
-    labels = {
-        label for label, _ in get_relevant_stat_fields("K")
-    }
+    labels = {label for label, _ in get_relevant_stat_fields("K")}
 
     assert {
         "FG Made 0–19",

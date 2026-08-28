@@ -68,9 +68,7 @@ def test_rostered_players_are_labeled_with_team_and_owner() -> None:
         display_name="SleeperUser",
     )
 
-    assert build_player_roster_labels([roster], [team]) == {
-        "player-1": "SleeperUser"
-    }
+    assert build_player_roster_labels([roster], [team]) == {"player-1": "SleeperUser"}
 
 
 # Flex slots should expose only their concrete, filterable player positions.

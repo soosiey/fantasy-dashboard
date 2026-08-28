@@ -9,9 +9,7 @@ from fantasy_dashboard.data import DataUpdate
 # Format provider-fetch times in the user's application timezone.
 def _format_update_time(updated_at: datetime) -> str:
     local_time = updated_at.astimezone(ZoneInfo("America/New_York"))
-    return local_time.strftime("%B %d, %Y at %I:%M:%S %p %Z").replace(
-        " 0", " "
-    )
+    return local_time.strftime("%B %d, %Y at %I:%M:%S %p %Z").replace(" 0", " ")
 
 
 # Render a small data-provenance footer for every successful provider source.

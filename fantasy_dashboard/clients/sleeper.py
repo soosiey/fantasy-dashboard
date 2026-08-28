@@ -159,9 +159,7 @@ class SleeperClient:
         return DraftPickContainer.from_api(data)
 
     # Fetch free-agent moves, waivers, and trades assigned to one league week.
-    def get_transactions(
-        self, league_id: str, week: int
-    ) -> TransactionContainer:
+    def get_transactions(self, league_id: str, week: int) -> TransactionContainer:
         response = requests.get(
             f"{self.BASE_URL}/league/{league_id}/transactions/{week}",
             timeout=self.timeout,

@@ -18,7 +18,7 @@ def _render_slot(slot: PlayoffSlot) -> str:
     return (
         f'<div class="bracket-slot{css_class}">'
         '<span class="bracket-team-label">'
-        f'<span>{escape(slot.label)}</span>{seed}</span>{winner_icon}</div>'
+        f"<span>{escape(slot.label)}</span>{seed}</span>{winner_icon}</div>"
     )
 
 
