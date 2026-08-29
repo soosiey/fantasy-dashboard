@@ -272,6 +272,10 @@ def render_matchup_board(
                 top: 50%;
                 transform: translateY(-50%);
             }
+            .matchup-player-right .matchup-player-name .injury-status {
+                left: calc(100% + 0.35rem);
+                right: auto;
+            }
             .matchup-player-name .injury-questionable { background: #f59e0b; }
             .matchup-player-name .injury-doubtful { background: #ca8a04; }
             .matchup-player-name .injury-out,
