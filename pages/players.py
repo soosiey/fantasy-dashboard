@@ -2,8 +2,14 @@ import pandas as pd
 import requests
 import streamlit as st
 
+from fantasy_dashboard.components.comparison_selection import (
+    COMPARISON_COLUMN,
+    add_comparison_column,
+    save_comparison_selection,
+)
 from fantasy_dashboard.components.data_disclaimer import render_data_disclaimer
 from fantasy_dashboard.components.player_details import show_player_details
+from fantasy_dashboard.components.player_news import show_player_news
 from fantasy_dashboard.data import (
     clear_player_data,
     clear_projected_player_data,
@@ -26,7 +32,9 @@ from fantasy_dashboard.player_stats import (
     get_rosterable_positions,
 )
 from fantasy_dashboard.player_trends import build_player_trend_rows
+from fantasy_dashboard.roster import get_player_by_id
 from fantasy_dashboard.routing import (
+    ANALYSIS_MODE_KEY,
     require_authentication,
     resolve_league_id,
     sync_query_params,
@@ -34,13 +42,17 @@ from fantasy_dashboard.routing import (
 
 
 # Resolve a dataframe button click to the player ID at the same row position.
-def open_player_from_button(click_key: str, player_ids: list[str]) -> None:
+def open_player_from_button(
+    click_key: str,
+    player_ids: list[str],
+    state_key: str = "_selected_player_id",
+) -> None:
     click = st.session_state.get(click_key)
     if not click:
         return
     selected_row = int(click["row"])
     if 0 <= selected_row < len(player_ids):
-        st.session_state["_selected_player_id"] = player_ids[selected_row]
+        st.session_state[state_key] = player_ids[selected_row]
 
 
 # Give the player browser room for its identity, availability, and stat columns.
@@ -55,6 +67,8 @@ league_id = resolve_league_id()
 if league_id is None:
     st.warning("Select a league first.")
     st.switch_page("pages/leagues.py")
+
+analysis_mode = bool(st.session_state.get(ANALYSIS_MODE_KEY))
 
 # Load stable league context before presenting league-specific player filters.
 league = get_league(league_id)
@@ -237,6 +251,17 @@ with players_list_tab:
         ]
         player_table = player_table.drop(columns="Roster")
         player_table.insert(2, "Details", "View")
+        player_table.insert(
+            player_table.columns.get_loc("Fantasy Points"),
+            "News",
+            "View",
+        )
+        if analysis_mode:
+            player_table = add_comparison_column(
+                player_table,
+                player_ids,
+                league_id,
+            )
 
         # Subtly emphasize each row's position-relevant statistics.
         def highlight_relevant_stats(row: pd.Series) -> list[str]:
@@ -251,43 +276,84 @@ with players_list_tab:
             ]
 
         styled_player_table = player_table.style.apply(highlight_relevant_stats, axis=1)
-        st.dataframe(
-            styled_player_table,
-            column_config={
-                **{
-                    label: st.column_config.NumberColumn(
-                        label,
-                        format="%.2f",
+        player_column_config = {
+            **(
+                {
+                    COMPARISON_COLUMN: st.column_config.CheckboxColumn(
+                        COMPARISON_COLUMN,
                         width="small",
                     )
-                    for label, _ in ALL_STATS
-                },
-                "Player ID": None,
-                "Player": st.column_config.ImageColumn("Player", width=260),
-                "Details": st.column_config.ButtonColumn(
-                    "",
-                    width="small",
-                    type="secondary",
-                    on_click=open_player_from_button,
-                    args=("players-list-click", player_ids),
-                    key="players-list-click",
-                ),
-                "Position": st.column_config.TextColumn("Pos", width="small"),
-                "Team": st.column_config.TextColumn("Team", width="small"),
-                "Availability": st.column_config.TextColumn(
-                    "Availability", width="small"
-                ),
-                "Fantasy Points": st.column_config.NumberColumn(
-                    "Fantasy Points",
+                }
+                if analysis_mode
+                else {}
+            ),
+            **{
+                label: st.column_config.NumberColumn(
+                    label,
                     format="%.2f",
                     width="small",
-                ),
+                )
+                for label, _ in ALL_STATS
             },
-            hide_index=True,
-            height=700,
-            width="stretch",
-            key="players-list-table",
-        )
+            "Player ID": None,
+            "Player": st.column_config.ImageColumn("Player", width=260),
+            "Details": st.column_config.ButtonColumn(
+                "",
+                width="small",
+                type="secondary",
+                on_click=open_player_from_button,
+                args=("players-list-click", player_ids),
+                key="players-list-click",
+            ),
+            "News": st.column_config.ButtonColumn(
+                "Recent News",
+                width="small",
+                type="secondary",
+                on_click=open_player_from_button,
+                args=(
+                    "players-news-click",
+                    player_ids,
+                    "_selected_news_player_id",
+                ),
+                key="players-news-click",
+            ),
+            "Position": st.column_config.TextColumn("Pos", width="small"),
+            "Team": st.column_config.TextColumn("Team", width="small"),
+            "Availability": st.column_config.TextColumn("Availability", width="small"),
+            "Fantasy Points": st.column_config.NumberColumn(
+                "Fantasy Points",
+                format="%.2f",
+                width="small",
+            ),
+        }
+        if analysis_mode:
+            edited_player_table = st.data_editor(
+                styled_player_table,
+                column_config=player_column_config,
+                disabled=[
+                    column
+                    for column in player_table.columns
+                    if column not in {COMPARISON_COLUMN, "Details", "News"}
+                ],
+                hide_index=True,
+                height=700,
+                width="stretch",
+                key="analysis-players-list-table",
+            )
+            save_comparison_selection(
+                edited_player_table,
+                player_ids,
+                league_id,
+            )
+        else:
+            st.dataframe(
+                styled_player_table,
+                column_config=player_column_config,
+                hide_index=True,
+                height=700,
+                width="stretch",
+                key="players-list-table",
+            )
 
     stats_update = (
         get_data_update("projected_player_stats", season, selected_week)
@@ -422,18 +488,35 @@ if selected_player_id:
             league.scoring_settings,
         )
 
-# Keep league and account navigation available beneath the player browser.
-with st.bottom:
-    league_change = st.button("Switch Leagues")
-    reset = st.button("Log Out")
+selected_news_player_id = st.session_state.pop("_selected_news_player_id", None)
+if selected_news_player_id:
+    news_player = get_player_by_id(nfl_players, str(selected_news_player_id))
+    if news_player is None:
+        st.warning("That player could not be found in the local player cache.")
+    else:
+        show_player_news(news_player)
 
-if league_change:
+# Keep the current app state's only valid exits beneath the player browser.
+with st.bottom:
+    if analysis_mode:
+        back_to_overview = st.button("Back to Overview")
+    else:
+        league_change = st.button("Switch Leagues")
+        reset = st.button("Log Out")
+
+if analysis_mode and back_to_overview:
+    st.session_state.pop(ANALYSIS_MODE_KEY, None)
+    st.switch_page(
+        "pages/overview.py",
+        query_params={"league_id": league_id},
+    )
+if not analysis_mode and league_change:
     st.session_state.pop("league_id", None)
     st.session_state.pop("user_id", None)
     if "league_id" in st.query_params:
         st.query_params.pop("league_id")
     st.switch_page("pages/leagues.py")
-if reset:
+if not analysis_mode and reset:
     st.session_state.clear()
     st.query_params.clear()
     st.rerun()

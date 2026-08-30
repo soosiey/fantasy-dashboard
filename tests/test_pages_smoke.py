@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from fantasy_dashboard.components.comparison_selection import COMPARISON_COLUMN
 from fantasy_dashboard.models.matchup import WeeklyMatchupContainer
 
 pytestmark = pytest.mark.smoke
@@ -111,6 +112,7 @@ def test_legacy_url_redirects(
         ("pages/players.py", "Players"),
         ("pages/matchups.py", "Matchups"),
         ("pages/ranking.py", "User Rankings"),
+        ("pages/analysis.py", "Statistics"),
         ("pages/team.py", "Team Page"),
     ],
 )
@@ -124,6 +126,102 @@ def test_authenticated_page_renders(
     app.switch_page(page_path).run()
 
     _assert_page(app, expected_title)
+
+
+def test_analysis_mode_hides_overview_navigation_and_can_exit(
+    fake_page_backend,
+) -> None:
+    app = _authenticated_app(fake_page_backend)
+
+    app.switch_page("pages/analysis.py").run()
+
+    _assert_page(app, "Statistics")
+    assert app.session_state["_analysis_mode"] is True
+    assert next(box for box in app.selectbox if box.label == "Team").value == "user-1"
+
+    next(
+        button for button in app.button if button.label == "Back to Overview"
+    ).click().run()
+
+    _assert_page(app, "Overview")
+    assert "_analysis_mode" not in app.session_state
+
+
+def test_statistics_filters_update_the_selected_view(fake_page_backend) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.switch_page("pages/analysis.py").run()
+
+    position = next(box for box in app.selectbox if box.label == "Position")
+    position.set_value("QB").run()
+    period = next(
+        control for control in app.segmented_control if control.label == "Period"
+    )
+    period.set_value("Week").run()
+    week = next(box for box in app.selectbox if box.label == "Week")
+    week.set_value(3).run()
+    stats_source = next(
+        control for control in app.segmented_control if control.label == "Stat type"
+    )
+    stats_source.set_value("Predicted").run()
+
+    _assert_page(app, "Statistics")
+    assert _query_value(app, "position") == "QB"
+    assert _query_value(app, "period") == "week"
+    assert _query_value(app, "week") == "3"
+    assert _query_value(app, "stats") == "predicted"
+
+
+def test_players_page_is_available_inside_analysis_mode(fake_page_backend) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.switch_page("pages/analysis.py").run()
+
+    app.switch_page("pages/players.py").run()
+
+    _assert_page(app, "Players")
+    assert app.session_state["_analysis_mode"] is True
+    assert any(button.label == "Back to Overview" for button in app.button)
+    assert not any(button.label == "Switch Leagues" for button in app.button)
+
+    next(
+        button for button in app.button if button.label == "Back to Overview"
+    ).click().run()
+
+    _assert_page(app, "Overview")
+    assert "_analysis_mode" not in app.session_state
+
+
+def test_comparison_column_only_appears_in_analysis_state(fake_page_backend) -> None:
+    app = _authenticated_app(fake_page_backend)
+
+    app.switch_page("pages/players.py").run()
+    assert COMPARISON_COLUMN not in app.dataframe[0].value.columns
+
+    app.switch_page("pages/analysis.py").run()
+    assert app.dataframe[0].value.columns[0] == COMPARISON_COLUMN
+
+    app.switch_page("pages/players.py").run()
+    assert app.dataframe[0].value.columns[0] == COMPARISON_COLUMN
+
+
+@pytest.mark.parametrize(
+    ("page_path", "state_key"),
+    [
+        ("pages/players.py", "_selected_news_player_id"),
+        ("pages/analysis.py", "_statistics_news_player_id"),
+    ],
+)
+def test_statistics_tables_open_recent_player_news(
+    fake_page_backend,
+    page_path: str,
+    state_key: str,
+) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state[state_key] = "player-1"
+
+    app.switch_page(page_path).run()
+
+    assert not app.exception
+    assert any(subheader.value == "Smoke Test News" for subheader in app.subheader)
 
 
 def test_matchups_handles_empty_week(monkeypatch, fake_page_backend) -> None:
