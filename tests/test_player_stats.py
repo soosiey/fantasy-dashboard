@@ -147,3 +147,12 @@ def test_relevant_stats_are_position_specific() -> None:
         "FG Made 50–59",
         "FG Made 60+",
     }.issubset(kicker_stats)
+
+
+def test_relevant_stats_combine_multiple_positions() -> None:
+    combined_stats = get_relevant_stat_labels("QB", "RB")
+
+    assert "Pass Yds" in combined_stats
+    assert "Carries" in combined_stats
+    assert "Receptions" in combined_stats
+    assert "FG Made" not in combined_stats

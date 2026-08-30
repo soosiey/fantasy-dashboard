@@ -5,6 +5,8 @@ import streamlit as st
 from fantasy_dashboard.components.comparison_selection import (
     COMPARISON_COLUMN,
     add_comparison_column,
+    render_comparison_column_label,
+    render_comparison_sidebar,
     save_comparison_selection,
 )
 from fantasy_dashboard.components.data_disclaimer import render_data_disclaimer
@@ -280,7 +282,7 @@ with players_list_tab:
             **(
                 {
                     COMPARISON_COLUMN: st.column_config.CheckboxColumn(
-                        COMPARISON_COLUMN,
+                        "",
                         width="small",
                     )
                 }
@@ -327,6 +329,7 @@ with players_list_tab:
             ),
         }
         if analysis_mode:
+            render_comparison_column_label()
             edited_player_table = st.data_editor(
                 styled_player_table,
                 column_config=player_column_config,
@@ -354,6 +357,9 @@ with players_list_tab:
                 width="stretch",
                 key="players-list-table",
             )
+
+    if analysis_mode:
+        render_comparison_sidebar(nfl_players, league_id)
 
     stats_update = (
         get_data_update("projected_player_stats", season, selected_week)

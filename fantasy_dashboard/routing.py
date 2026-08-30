@@ -13,6 +13,7 @@ PAGE_SOURCES = {
     "matchups": "pages/matchups.py",
     "rankings": "pages/ranking.py",
     "analysis": "pages/analysis.py",
+    "comparison": "pages/comparison.py",
     "team": "pages/team.py",
 }
 

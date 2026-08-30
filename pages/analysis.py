@@ -5,6 +5,8 @@ import streamlit as st
 from fantasy_dashboard.components.comparison_selection import (
     COMPARISON_COLUMN,
     add_comparison_column,
+    render_comparison_column_label,
+    render_comparison_sidebar,
     save_comparison_selection,
 )
 from fantasy_dashboard.components.data_disclaimer import render_data_disclaimer
@@ -29,7 +31,7 @@ from fantasy_dashboard.player_stats import (
     get_relevant_stat_labels,
     get_rosterable_positions,
 )
-from fantasy_dashboard.roster import get_player_by_id
+from fantasy_dashboard.roster import get_player_by_id, get_roster_player_order
 from fantasy_dashboard.routing import (
     ANALYSIS_MODE_KEY,
     require_authentication,
@@ -216,9 +218,8 @@ else:
     selected_position = (
         None if selected_position_label == "All Positions" else selected_position_label
     )
-    selected_player_ids = {
-        str(player_id) for player_id in selected_roster.players if player_id is not None
-    }
+    roster_player_order = get_roster_player_order(selected_roster)
+    selected_player_ids = set(roster_player_order)
     player_rows = [
         row
         for row in build_player_stat_rows(
@@ -232,6 +233,14 @@ else:
         )
         if row["Player ID"] in selected_player_ids
     ]
+    roster_order_by_player_id = {
+        player_id: index for index, player_id in enumerate(roster_player_order)
+    }
+    player_rows.sort(
+        key=lambda row: roster_order_by_player_id.get(
+            row["Player ID"], len(roster_player_order)
+        )
+    )
 
     st.subheader("Players")
     if not player_rows:
@@ -267,11 +276,12 @@ else:
                 for column in row.index
             ]
 
+        render_comparison_column_label()
         edited_player_table = st.data_editor(
             player_table.style.apply(highlight_relevant_stats, axis=1),
             column_config={
                 COMPARISON_COLUMN: st.column_config.CheckboxColumn(
-                    COMPARISON_COLUMN,
+                    "",
                     width="small",
                 ),
                 **{
@@ -363,6 +373,8 @@ else:
                 st.warning("That player could not be found in the local player cache.")
             else:
                 show_player_news(news_player)
+
+    render_comparison_sidebar(nfl_players, league_id)
 
     render_data_disclaimer(
         (

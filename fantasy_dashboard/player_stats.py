@@ -150,8 +150,8 @@ def get_relevant_stat_fields(
 
 
 # Identify the stat columns worth emphasizing for one player's position.
-def get_relevant_stat_labels(position: str) -> set[str]:
-    return {label for label, _ in get_relevant_stat_fields(position)}
+def get_relevant_stat_labels(*positions: str) -> set[str]:
+    return {label for label, _ in get_relevant_stat_fields(*positions)}
 
 
 # Describe each rostered player using the owner's Sleeper display name.

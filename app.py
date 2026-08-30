@@ -82,6 +82,12 @@ analysis_page = st.Page(
     url_path="analysis",
     visibility=league_visibility,
 )
+comparison_page = st.Page(
+    PAGE_SOURCES["comparison"],
+    title="Comparison",
+    url_path="comparison",
+    visibility=league_visibility,
+)
 legacy_ranking_page = st.Page(
     "pages/ranking_legacy.py",
     title="Rankings",
@@ -109,6 +115,7 @@ pages_by_route = {
     "matchups": matchups_page,
     "rankings": ranking_page,
     "analysis": analysis_page,
+    "comparison": comparison_page,
     "ranking": legacy_ranking_page,
     "draft_results": legacy_draft_results_page,
     "team": team_page,
@@ -124,6 +131,7 @@ page_route = st.navigation(
         matchups_page,
         ranking_page,
         analysis_page,
+        comparison_page,
         team_page,
         legacy_ranking_page,
         legacy_draft_results_page,
@@ -141,13 +149,13 @@ if authenticated and PENDING_ROUTE_KEY in st.session_state:
     st.switch_page(destination, query_params=pending_query)
 
 # Entering Analysis changes the available navigation until the user explicitly exits.
-if authenticated and league_id and page_route.url_path == "analysis":
+if authenticated and league_id and page_route.url_path in {"analysis", "comparison"}:
     st.session_state[ANALYSIS_MODE_KEY] = True
 analysis_mode = bool(st.session_state.get(ANALYSIS_MODE_KEY))
 if analysis_mode and (not authenticated or not league_id):
     st.session_state.pop(ANALYSIS_MODE_KEY, None)
     analysis_mode = False
-if analysis_mode and page_route.url_path not in {"analysis", "players"}:
+if analysis_mode and page_route.url_path not in {"analysis", "players", "comparison"}:
     st.switch_page(analysis_page, query_params={"league_id": league_id})
 if authenticated and not page_route.url_path:
     st.switch_page(overview_page if league_id else leagues_page)
@@ -164,6 +172,7 @@ with st.sidebar:
             label="Statistics",
         )
         st.page_link(players_page, label="Players")
+        st.page_link(comparison_page, label="Comparison")
     elif not authenticated:
         st.page_link(start_page, label="User Login")
     elif not league_id:

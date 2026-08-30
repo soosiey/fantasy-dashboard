@@ -7,6 +7,27 @@ from fantasy_dashboard.models.player import PlayerModel
 NON_STARTING_POSITIONS = {"BN", "IR"}
 
 
+def get_roster_player_order(roster: RosterModel) -> list[str]:
+    """Return lineup players in starter, bench, then reserve order."""
+    starters = [
+        str(player_id) for player_id in roster.starters if player_id not in (None, "0")
+    ]
+    starter_ids = set(starters)
+    reserves = [
+        str(player_id) for player_id in roster.reserve if player_id not in (None, "0")
+    ]
+    reserve_ids = set(reserves)
+    players = [
+        str(player_id) for player_id in roster.players if player_id not in (None, "0")
+    ]
+    bench = [
+        player_id
+        for player_id in players
+        if player_id not in starter_ids and player_id not in reserve_ids
+    ]
+    return list(dict.fromkeys([*starters, *bench, *reserves]))
+
+
 # Resolve one cached JSON record into the application's player model.
 def _get_player(
     players: dict[str, dict[str, Any]], player_id: str | None

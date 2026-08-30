@@ -113,6 +113,7 @@ def test_legacy_url_redirects(
         ("pages/matchups.py", "Matchups"),
         ("pages/ranking.py", "User Rankings"),
         ("pages/analysis.py", "Statistics"),
+        ("pages/comparison.py", "Comparison"),
         ("pages/team.py", "Team Page"),
     ],
 )
@@ -201,6 +202,52 @@ def test_comparison_column_only_appears_in_analysis_state(fake_page_backend) -> 
 
     app.switch_page("pages/players.py").run()
     assert app.dataframe[0].value.columns[0] == COMPARISON_COLUMN
+
+
+@pytest.mark.parametrize("page_path", ["pages/analysis.py", "pages/players.py"])
+def test_selected_players_appear_in_analysis_comparison_sidebar(
+    fake_page_backend,
+    page_path: str,
+) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["_analysis_mode"] = True
+    app.session_state["comparison-player-ids-league-1"] = ["player-1"]
+
+    app.switch_page(page_path).run()
+
+    assert any(header.value == "Comparison" for header in app.subheader)
+    comparison_markup = " ".join(markdown.value for markdown in app.markdown)
+    assert "First Quarterback" in comparison_markup
+    assert "QB · BUF" in comparison_markup
+
+
+def test_comparison_page_only_shows_checked_players(fake_page_backend) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["comparison-player-ids-league-1"] = ["player-1"]
+
+    app.switch_page("pages/comparison.py").run()
+
+    _assert_page(app, "Comparison")
+    assert app.session_state["_analysis_mode"] is True
+    assert app.dataframe[0].value["Player ID"].tolist() == ["player-1"]
+
+
+def test_comparison_can_show_union_of_relevant_position_stats(
+    fake_page_backend,
+) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["comparison-player-ids-league-1"] = ["player-1"]
+    app.switch_page("pages/comparison.py").run()
+
+    next(
+        checkbox for checkbox in app.checkbox if checkbox.label == "Only Relevant Stats"
+    ).check().run()
+
+    columns = app.dataframe[0].value.columns
+    assert "Fantasy Points" in columns
+    assert "Pass Yds" in columns
+    assert "Receptions" not in columns
+    assert _query_value(app, "relevant") == "true"
 
 
 @pytest.mark.parametrize(
