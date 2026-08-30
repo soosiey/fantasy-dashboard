@@ -114,6 +114,7 @@ def test_legacy_url_redirects(
         ("pages/ranking.py", "User Rankings"),
         ("pages/analysis.py", "Statistics"),
         ("pages/comparison.py", "Comparison"),
+        ("pages/graphs.py", "Graphs"),
         ("pages/team.py", "Team Page"),
     ],
 )
@@ -247,6 +248,219 @@ def test_comparison_can_show_union_of_relevant_position_stats(
     assert "Fantasy Points" in columns
     assert "Pass Yds" in columns
     assert "Receptions" not in columns
+    assert _query_value(app, "relevant") == "true"
+
+
+@pytest.mark.parametrize(
+    "page_path",
+    ["pages/players.py", "pages/analysis.py", "pages/comparison.py"],
+)
+def test_position_filters_include_flex(
+    fake_page_backend,
+    page_path: str,
+) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["comparison-player-ids-league-1"] = ["player-1"]
+    app.switch_page(page_path).run()
+
+    position = next(box for box in app.selectbox if box.label == "Position")
+    assert "FLEX" in position.options
+
+
+def test_generate_graphs_warns_for_all_positions_without_navigating(
+    fake_page_backend,
+) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["comparison-player-ids-league-1"] = ["player-1"]
+    app.switch_page("pages/comparison.py").run()
+
+    next(
+        button for button in app.button if button.label == "Generate Graphs"
+    ).click().run()
+
+    _assert_page(app, "Comparison")
+    assert any(
+        warning.value
+        == "You have selected to graph players in All Positions, so only fantasy points will be compared"
+        for warning in app.warning
+    )
+
+
+def test_generate_graphs_skips_warning_for_flex(fake_page_backend) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["comparison-player-ids-league-1"] = ["player-1"]
+    app.switch_page("pages/comparison.py").run()
+    next(box for box in app.selectbox if box.label == "Position").set_value(
+        "FLEX"
+    ).run()
+
+    next(
+        button for button in app.button if button.label == "Generate Graphs"
+    ).click().run()
+
+    _assert_page(app, "Comparison")
+    assert not any("All Positions" in warning.value for warning in app.warning)
+
+
+def test_graphs_page_is_a_searchable_player_picker(fake_page_backend) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.switch_page("pages/graphs.py").run()
+
+    _assert_page(app, "Graphs")
+    assert [tab.label for tab in app.tabs] == [
+        "Single Player Stats",
+        "Comparison Stats",
+    ]
+    assert any(field.label == "Player name" for field in app.text_input)
+    assert app.dataframe[0].value.columns.tolist() == [
+        "Player ID",
+        "Player",
+        "Graph",
+    ]
+
+
+def test_graph_player_opens_player_stats_state_and_can_return(
+    fake_page_backend,
+) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["_graph_target_player_id"] = "player-1"
+
+    app.switch_page("pages/graphs.py").run()
+
+    _assert_page(app, "Graph")
+    assert app.session_state["_player_stats_mode"] is True
+    assert any(header.value == "First Quarterback" for header in app.header)
+    assert any(button.label == "Back to Analysis" for button in app.button)
+
+    next(
+        button for button in app.button if button.label == "Back to Analysis"
+    ).click().run()
+
+    _assert_page(app, "Graphs")
+    assert "_player_stats_mode" not in app.session_state
+    assert app.session_state["_analysis_mode"] is True
+
+
+def test_graph_controls_offer_recent_years_and_relevant_player_stats(
+    fake_page_backend,
+) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["graph_player_id"] = "player-1"
+    app.session_state["_player_stats_mode"] = True
+    app.query_params["player_id"] = "player-1"
+
+    app.switch_page("pages/graph.py").run()
+
+    year = next(box for box in app.selectbox if box.label == "Year")
+    stat = next(box for box in app.selectbox if box.label == "Stat")
+    assert year.options == ["2026", "2025", "2024"]
+    assert year.value == "2026"
+    assert stat.value == "Fantasy Points"
+    assert "Pass Yds" in stat.options
+    assert "FG Made" not in stat.options
+    assert not any(control.label == "Stat type" for control in app.segmented_control)
+
+    year.set_value("2025").run()
+    stat.set_value("Pass Yds").run()
+
+    _assert_page(app, "Graph")
+    assert _query_value(app, "year") == "2025"
+    assert _query_value(app, "stat") == "Pass Yds"
+    assert "source" not in app.query_params
+
+
+def test_graph_recovers_from_empty_persisted_control_values(
+    fake_page_backend,
+) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["graph_player_id"] = "player-1"
+    app.session_state["_player_stats_mode"] = True
+    app.session_state["graph-league-1-player-1-year"] = None
+    app.session_state["graph-league-1-player-1-stat"] = None
+    app.query_params["player_id"] = "player-1"
+
+    app.switch_page("pages/graph.py").run()
+
+    _assert_page(app, "Graph")
+    assert next(box for box in app.selectbox if box.label == "Year").value == "2026"
+    assert (
+        next(box for box in app.selectbox if box.label == "Stat").value
+        == "Fantasy Points"
+    )
+
+
+def test_player_stats_state_includes_full_stats_page(fake_page_backend) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["graph_player_id"] = "player-1"
+    app.session_state["_player_stats_mode"] = True
+    app.query_params["player_id"] = "player-1"
+
+    app.switch_page("pages/stats.py").run()
+
+    _assert_page(app, "Stats")
+    assert app.session_state["_player_stats_mode"] is True
+    assert any(header.value == "First Quarterback" for header in app.header)
+    assert {"Week", "Opponent", "Fantasy Points"}.issubset(
+        app.dataframe[0].value.columns
+    )
+    assert app.dataframe[0].value["Opponent"].tolist() == ["NYJ"]
+    assert next(box for box in app.selectbox if box.label == "Year").options == [
+        "2026",
+        "2025",
+        "2024",
+    ]
+    assert (
+        next(
+            control for control in app.segmented_control if control.label == "Stat type"
+        ).value
+        == "Actual"
+    )
+    assert (
+        next(
+            toggle for toggle in app.toggle if toggle.label == "Only Relevant Stats"
+        ).value
+        is False
+    )
+    assert any(button.label == "Back to Analysis" for button in app.button)
+
+
+def test_player_stats_state_includes_empty_insights_page(fake_page_backend) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["graph_player_id"] = "player-1"
+    app.session_state["_player_stats_mode"] = True
+    app.query_params["player_id"] = "player-1"
+
+    app.switch_page("pages/insights.py").run()
+
+    _assert_page(app, "Insights")
+    assert app.session_state["_player_stats_mode"] is True
+    assert any(button.label == "Back to Analysis" for button in app.button)
+
+
+def test_player_stats_page_supports_predictions_and_relevant_stats(
+    fake_page_backend,
+) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["graph_player_id"] = "player-1"
+    app.session_state["_player_stats_mode"] = True
+    app.query_params["player_id"] = "player-1"
+    app.switch_page("pages/stats.py").run()
+
+    source = next(
+        control for control in app.segmented_control if control.label == "Stat type"
+    )
+    source.set_value("Predicted").run()
+    relevant = next(
+        toggle for toggle in app.toggle if toggle.label == "Only Relevant Stats"
+    )
+    relevant.set_value(True).run()
+
+    _assert_page(app, "Stats")
+    columns = app.dataframe[0].value.columns
+    assert "Opponent" in columns
+    assert "Pass Yds" in columns
+    assert "Receptions" not in columns
+    assert _query_value(app, "stats") == "predicted"
     assert _query_value(app, "relevant") == "true"
 
 

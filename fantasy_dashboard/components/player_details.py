@@ -13,9 +13,88 @@ from fantasy_dashboard.player_stats import (
 )
 
 
-# Show player identity and an 18-week, league-scored game log in a wide modal.
-@st.dialog("Player Details", width="large")
-def show_player_details(
+def render_player_stats_table(
+    weekly_table: pd.DataFrame,
+    position: str,
+    *,
+    table_height: int = 650,
+    relevant_only: bool = False,
+    show_stat_filter: bool = False,
+    filter_key: str = "player-stats-view",
+) -> None:
+    """Render the shared weekly table for both dialogs and full pages."""
+    stat_view = "Relevant Stats" if relevant_only else "All Stats"
+    if show_stat_filter:
+        stat_view = (
+            st.segmented_control(
+                "Stats shown",
+                ["All Stats", "Relevant Stats"],
+                default="All Stats",
+                key=filter_key,
+                width="content",
+            )
+            or "All Stats"
+        )
+
+    relevant_columns = get_relevant_stat_labels(position)
+    if stat_view == "Relevant Stats":
+        context_columns = {"Week", "Opponent"}
+        weekly_table = weekly_table[
+            [
+                column
+                for column in weekly_table.columns
+                if column in context_columns or column in relevant_columns
+            ]
+        ]
+
+    if "Opponent" in weekly_table.columns:
+        weekly_table = weekly_table[
+            [
+                "Week",
+                "Opponent",
+                *(
+                    column
+                    for column in weekly_table.columns
+                    if column not in {"Week", "Opponent"}
+                ),
+            ]
+        ]
+
+    def highlight_relevant_stats(row: pd.Series) -> list[str]:
+        return [
+            (
+                "background-color: rgba(59, 130, 246, 0.10)"
+                if column in relevant_columns
+                else ""
+            )
+            for column in row.index
+        ]
+
+    st.dataframe(
+        weekly_table.style.apply(highlight_relevant_stats, axis=1),
+        column_config={
+            **{
+                label: st.column_config.NumberColumn(
+                    label,
+                    format="%.2f",
+                    width="small",
+                )
+                for label, _ in ALL_STATS
+            },
+            "Week": st.column_config.NumberColumn("Week", width="small"),
+            "Opponent": st.column_config.TextColumn("Opponent", width="small"),
+            "Fantasy Points": st.column_config.NumberColumn(
+                "Fantasy Points", format="%.2f", width="small"
+            ),
+        },
+        hide_index=True,
+        height=table_height,
+        width="stretch",
+    )
+
+
+# Render player identity and an 18-week, league-scored game log in any container.
+def render_player_details(
     player_id: str,
     player: dict[str, Any],
     season: str,
@@ -81,58 +160,39 @@ def show_player_details(
         )
         table_height = 650
 
-    stat_view = "All Stats"
-    if show_stat_filter:
-        stat_view = (
-            st.segmented_control(
-                "Stats shown",
-                ["All Stats", "Relevant Stats"],
-                default="All Stats",
-                key=f"player-details-stat-view-{player_id}-{selected_week}",
-                width="content",
-            )
-            or "All Stats"
-        )
+    render_player_stats_table(
+        weekly_table,
+        position,
+        table_height=table_height,
+        show_stat_filter=show_stat_filter,
+        filter_key=f"player-details-stat-view-{player_id}-{selected_week}",
+    )
 
-    relevant_columns = get_relevant_stat_labels(position)
-    if stat_view == "Relevant Stats":
-        context_columns = {"Week", "Opponent"}
-        weekly_table = weekly_table[
-            [
-                column
-                for column in weekly_table.columns
-                if column in context_columns or column in relevant_columns
-            ]
-        ]
 
-    def highlight_relevant_stats(row: pd.Series) -> list[str]:
-        return [
-            (
-                "background-color: rgba(59, 130, 246, 0.10)"
-                if column in relevant_columns
-                else ""
-            )
-            for column in row.index
-        ]
-
-    st.dataframe(
-        weekly_table.style.apply(highlight_relevant_stats, axis=1),
-        column_config={
-            **{
-                label: st.column_config.NumberColumn(
-                    label,
-                    format="%.2f",
-                    width="small",
-                )
-                for label, _ in ALL_STATS
-            },
-            "Week": st.column_config.NumberColumn("Week", width="small"),
-            "Opponent": st.column_config.TextColumn("Opponent", width="small"),
-            "Fantasy Points": st.column_config.NumberColumn(
-                "Fantasy Points", format="%.2f", width="small"
-            ),
-        },
-        hide_index=True,
-        height=table_height,
-        width="stretch",
+# Keep the overview and matchup interaction as a modal around the shared content.
+@st.dialog("Player Details", width="large")
+def show_player_details(
+    player_id: str,
+    player: dict[str, Any],
+    season: str,
+    season_type: str,
+    scoring_settings: dict[str, Any],
+    *,
+    selected_stats: dict[str, Any] | None = None,
+    selected_week: int | None = None,
+    stats_source: str | None = None,
+    show_news_button: bool = False,
+    show_stat_filter: bool = False,
+) -> None:
+    render_player_details(
+        player_id,
+        player,
+        season,
+        season_type,
+        scoring_settings,
+        selected_stats=selected_stats,
+        selected_week=selected_week,
+        stats_source=stats_source,
+        show_news_button=show_news_button,
+        show_stat_filter=show_stat_filter,
     )

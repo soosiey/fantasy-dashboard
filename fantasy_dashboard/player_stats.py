@@ -274,7 +274,10 @@ def build_player_stat_rows(
         position = _display_position(player_data, allowed_positions)
         if position not in allowed_positions:
             continue
-        if selected_position is not None and position != selected_position:
+        if selected_position == "FLEX":
+            if position not in FLEX_POSITIONS["FLEX"]:
+                continue
+        elif selected_position is not None and position != selected_position:
             continue
         if not player_data.get("active"):
             continue

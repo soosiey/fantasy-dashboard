@@ -14,12 +14,18 @@ PAGE_SOURCES = {
     "rankings": "pages/ranking.py",
     "analysis": "pages/analysis.py",
     "comparison": "pages/comparison.py",
+    "graphs": "pages/graphs.py",
+    "graph": "pages/graph.py",
+    "stats": "pages/stats.py",
+    "insights": "pages/insights.py",
     "team": "pages/team.py",
 }
 
 PENDING_ROUTE_KEY = "_pending_route"
 PENDING_QUERY_KEY = "_pending_query_params"
 ANALYSIS_MODE_KEY = "_analysis_mode"
+PLAYER_STATS_MODE_KEY = "_player_stats_mode"
+PLAYER_STATS_PENDING_KEY = "_player_stats_transition_pending"
 
 
 # Resolve durable URL context first, then retain it across sidebar navigation.

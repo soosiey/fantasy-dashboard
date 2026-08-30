@@ -89,6 +89,7 @@ except (TypeError, ValueError):
 requested_week = min(max(requested_week, 1), 18)
 
 filter_prefix = f"statistics-{league_id}"
+position_filter_options = ["All Positions", "FLEX", *rosterable_positions]
 stats_source_filter_key = f"{filter_prefix}-stat-source"
 position_filter_key = f"{filter_prefix}-position"
 period_filter_key = f"{filter_prefix}-period"
@@ -99,7 +100,7 @@ filter_defaults = {
     ),
     position_filter_key: (
         requested_position
-        if requested_position in rosterable_positions
+        if requested_position in position_filter_options
         else "All Positions"
     ),
     period_filter_key: "Week" if requested_period == "week" else "Season",
@@ -158,7 +159,7 @@ else:
     with position_column:
         selected_position_label = st.selectbox(
             "Position",
-            ["All Positions", *rosterable_positions],
+            position_filter_options,
             key=position_filter_key,
         )
     with period_column:

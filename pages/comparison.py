@@ -93,6 +93,7 @@ except (TypeError, ValueError):
 requested_week = min(max(requested_week, 1), 18)
 
 filter_prefix = f"comparison-{league_id}"
+position_filter_options = ["All Positions", "FLEX", *rosterable_positions]
 stats_source_filter_key = f"{filter_prefix}-stat-source"
 position_filter_key = f"{filter_prefix}-position"
 period_filter_key = f"{filter_prefix}-period"
@@ -104,7 +105,7 @@ filter_defaults = {
     ),
     position_filter_key: (
         requested_position
-        if requested_position in rosterable_positions
+        if requested_position in position_filter_options
         else "All Positions"
     ),
     period_filter_key: "Week" if requested_period == "week" else "Season",
@@ -131,7 +132,7 @@ with stats_source_column:
 with position_column:
     selected_position_label = st.selectbox(
         "Position",
-        ["All Positions", *rosterable_positions],
+        position_filter_options,
         key=position_filter_key,
     )
 with period_column:
@@ -349,8 +350,14 @@ render_data_disclaimer(
 )
 
 with st.bottom:
+    generate_graphs = st.button("Generate Graphs")
     back_to_overview = st.button("Back to Overview")
 
+if generate_graphs and selected_position_label == "All Positions":
+    st.warning(
+        "You have selected to graph players in All Positions, so only fantasy "
+        "points will be compared"
+    )
 if back_to_overview:
     st.session_state.pop(ANALYSIS_MODE_KEY, None)
     st.switch_page(

@@ -7,6 +7,7 @@ from fantasy_dashboard.routing import (
     ANALYSIS_MODE_KEY,
     PAGE_SOURCES,
     PENDING_ROUTE_KEY,
+    PLAYER_STATS_MODE_KEY,
     pop_pending_route,
     resolve_league_id,
     store_pending_route,
@@ -88,6 +89,30 @@ comparison_page = st.Page(
     url_path="comparison",
     visibility=league_visibility,
 )
+graphs_page = st.Page(
+    PAGE_SOURCES["graphs"],
+    title="Graphs",
+    url_path="graphs",
+    visibility=league_visibility,
+)
+graph_page = st.Page(
+    PAGE_SOURCES["graph"],
+    title="Graph",
+    url_path="graph",
+    visibility=league_visibility,
+)
+stats_page = st.Page(
+    PAGE_SOURCES["stats"],
+    title="Stats",
+    url_path="stats",
+    visibility=league_visibility,
+)
+insights_page = st.Page(
+    PAGE_SOURCES["insights"],
+    title="Insights",
+    url_path="insights",
+    visibility=league_visibility,
+)
 legacy_ranking_page = st.Page(
     "pages/ranking_legacy.py",
     title="Rankings",
@@ -116,6 +141,10 @@ pages_by_route = {
     "rankings": ranking_page,
     "analysis": analysis_page,
     "comparison": comparison_page,
+    "graphs": graphs_page,
+    "graph": graph_page,
+    "stats": stats_page,
+    "insights": insights_page,
     "ranking": legacy_ranking_page,
     "draft_results": legacy_draft_results_page,
     "team": team_page,
@@ -132,6 +161,10 @@ page_route = st.navigation(
         ranking_page,
         analysis_page,
         comparison_page,
+        graphs_page,
+        graph_page,
+        stats_page,
+        insights_page,
         team_page,
         legacy_ranking_page,
         legacy_draft_results_page,
@@ -149,13 +182,40 @@ if authenticated and PENDING_ROUTE_KEY in st.session_state:
     st.switch_page(destination, query_params=pending_query)
 
 # Entering Analysis changes the available navigation until the user explicitly exits.
-if authenticated and league_id and page_route.url_path in {"analysis", "comparison"}:
+if (
+    authenticated
+    and league_id
+    and page_route.url_path
+    in {
+        "analysis",
+        "comparison",
+        "graphs",
+    }
+):
     st.session_state[ANALYSIS_MODE_KEY] = True
+if (
+    authenticated
+    and league_id
+    and page_route.url_path in {"graph", "stats", "insights"}
+):
+    st.session_state[PLAYER_STATS_MODE_KEY] = True
+    st.session_state.pop(ANALYSIS_MODE_KEY, None)
+player_stats_mode = bool(st.session_state.get(PLAYER_STATS_MODE_KEY))
+if player_stats_mode and (not authenticated or not league_id):
+    st.session_state.pop(PLAYER_STATS_MODE_KEY, None)
+    player_stats_mode = False
 analysis_mode = bool(st.session_state.get(ANALYSIS_MODE_KEY))
 if analysis_mode and (not authenticated or not league_id):
     st.session_state.pop(ANALYSIS_MODE_KEY, None)
     analysis_mode = False
-if analysis_mode and page_route.url_path not in {"analysis", "players", "comparison"}:
+if player_stats_mode and page_route.url_path not in {"graph", "stats", "insights"}:
+    st.switch_page(graph_page, query_params={"league_id": league_id})
+if analysis_mode and page_route.url_path not in {
+    "analysis",
+    "players",
+    "comparison",
+    "graphs",
+}:
     st.switch_page(analysis_page, query_params={"league_id": league_id})
 if authenticated and not page_route.url_path:
     st.switch_page(overview_page if league_id else leagues_page)
@@ -166,13 +226,18 @@ if authenticated and page_route.url_path == "team" and not user_id:
 
 # Render an explicit sidebar so overview and analysis can behave as separate states.
 with st.sidebar:
-    if analysis_mode:
+    if player_stats_mode:
+        st.page_link(graph_page, label="Graph")
+        st.page_link(stats_page, label="Stats")
+        st.page_link(insights_page, label="Insights")
+    elif analysis_mode:
         st.page_link(
             analysis_page,
             label="Statistics",
         )
         st.page_link(players_page, label="Players")
         st.page_link(comparison_page, label="Comparison")
+        st.page_link(graphs_page, label="Graphs")
     elif not authenticated:
         st.page_link(start_page, label="User Login")
     elif not league_id:

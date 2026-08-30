@@ -121,6 +121,31 @@ def test_available_players_exclude_currently_rostered_players() -> None:
     assert rows[0]["FG Made"] == 0
 
 
+def test_flex_position_filter_includes_running_backs_receivers_and_tight_ends() -> None:
+    players = {
+        position: {
+            "active": True,
+            "fantasy_positions": [position],
+            "first_name": position,
+            "last_name": "Player",
+            "position": position,
+            "team": "BUF",
+        }
+        for position in ["QB", "RB", "WR", "TE"]
+    }
+
+    rows = build_player_stat_rows(
+        players,
+        [],
+        {},
+        {},
+        ["QB", "RB", "WR", "TE"],
+        selected_position="FLEX",
+    )
+
+    assert {row["Position"] for row in rows} == {"RB", "WR", "TE"}
+
+
 # League scoring remains ready for real aggregate data when it is connected later.
 def test_fantasy_points_use_league_scoring_settings() -> None:
     points = calculate_fantasy_points(
