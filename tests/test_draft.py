@@ -1,3 +1,4 @@
+from fantasy_dashboard.components.draft_table import _format_amount
 from fantasy_dashboard.draft import build_draft_result_rows
 from fantasy_dashboard.models.draft import DraftPickContainer, DraftPickModel
 
@@ -31,6 +32,11 @@ def test_draft_pick_container_parses_auction_amounts() -> None:
     assert draft.picks[0].amount is None
     assert draft.picks[1].amount == 31.0
     assert draft.picks[1].picked_by == "user-2"
+
+
+# Snake and linear draft picks should leave the auction-only money cell empty.
+def test_non_auction_amount_is_formatted_as_empty() -> None:
+    assert _format_amount(None) == ""
 
 
 # Search should use catalog names while retaining metadata when a player is absent.

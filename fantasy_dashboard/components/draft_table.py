@@ -9,7 +9,7 @@ from fantasy_dashboard.draft import DraftResultRow
 # Format auction prices without implying a cost for snake-draft selections.
 def _format_amount(amount: float | None) -> str:
     if amount is None:
-        return "&mdash;"
+        return ""
     if amount.is_integer():
         return f"${amount:,.0f}"
     return f"${amount:,.2f}"
