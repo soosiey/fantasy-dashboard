@@ -437,6 +437,22 @@ def test_player_stats_state_includes_empty_insights_page(fake_page_backend) -> N
     assert any(button.label == "Back to Analysis" for button in app.button)
 
 
+def test_player_stats_state_includes_recent_news_page(fake_page_backend) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["graph_player_id"] = "player-1"
+    app.session_state["_player_stats_mode"] = True
+    app.query_params["player_id"] = "player-1"
+
+    app.switch_page("pages/news.py").run()
+
+    _assert_page(app, "News")
+    assert app.session_state["_player_stats_mode"] is True
+    assert any(caption.value == "First Quarterback" for caption in app.caption)
+    assert any(subheader.value == "Smoke Test News" for subheader in app.subheader)
+    assert any(text.value == "A deterministic player update." for text in app.markdown)
+    assert any(button.label == "Back to Analysis" for button in app.button)
+
+
 def test_player_stats_page_supports_predictions_and_relevant_stats(
     fake_page_backend,
 ) -> None:

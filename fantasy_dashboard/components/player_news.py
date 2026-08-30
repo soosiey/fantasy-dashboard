@@ -26,9 +26,8 @@ def _format_news_date(news_date: str) -> str:
         return news_date
 
 
-# Show the requested update in a modal with Streamlit's built-in close button.
-@st.dialog("Recent Player News")
-def show_player_news(player: PlayerModel) -> None:
+# Render the same player-specific news feed in dialogs and full pages.
+def render_player_news(player: PlayerModel) -> None:
     player_name = f"{player.first_name} {player.last_name}".strip()
     st.caption(player_name)
 
@@ -51,3 +50,9 @@ def show_player_news(player: PlayerModel) -> None:
             st.write(news.text)
             if index < len(news_items) - 1:
                 st.divider()
+
+
+# Show the requested update in a modal with Streamlit's built-in close button.
+@st.dialog("Recent Player News")
+def show_player_news(player: PlayerModel) -> None:
+    render_player_news(player)

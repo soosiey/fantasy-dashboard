@@ -113,6 +113,12 @@ insights_page = st.Page(
     url_path="insights",
     visibility=league_visibility,
 )
+news_page = st.Page(
+    PAGE_SOURCES["news"],
+    title="News",
+    url_path="news",
+    visibility=league_visibility,
+)
 legacy_ranking_page = st.Page(
     "pages/ranking_legacy.py",
     title="Rankings",
@@ -145,6 +151,7 @@ pages_by_route = {
     "graph": graph_page,
     "stats": stats_page,
     "insights": insights_page,
+    "news": news_page,
     "ranking": legacy_ranking_page,
     "draft_results": legacy_draft_results_page,
     "team": team_page,
@@ -165,6 +172,7 @@ page_route = st.navigation(
         graph_page,
         stats_page,
         insights_page,
+        news_page,
         team_page,
         legacy_ranking_page,
         legacy_draft_results_page,
@@ -196,7 +204,7 @@ if (
 if (
     authenticated
     and league_id
-    and page_route.url_path in {"graph", "stats", "insights"}
+    and page_route.url_path in {"graph", "stats", "insights", "news"}
 ):
     st.session_state[PLAYER_STATS_MODE_KEY] = True
     st.session_state.pop(ANALYSIS_MODE_KEY, None)
@@ -208,7 +216,12 @@ analysis_mode = bool(st.session_state.get(ANALYSIS_MODE_KEY))
 if analysis_mode and (not authenticated or not league_id):
     st.session_state.pop(ANALYSIS_MODE_KEY, None)
     analysis_mode = False
-if player_stats_mode and page_route.url_path not in {"graph", "stats", "insights"}:
+if player_stats_mode and page_route.url_path not in {
+    "graph",
+    "stats",
+    "insights",
+    "news",
+}:
     st.switch_page(graph_page, query_params={"league_id": league_id})
 if analysis_mode and page_route.url_path not in {
     "analysis",
@@ -230,6 +243,7 @@ with st.sidebar:
         st.page_link(graph_page, label="Graph")
         st.page_link(stats_page, label="Stats")
         st.page_link(insights_page, label="Insights")
+        st.page_link(news_page, label="News")
     elif analysis_mode:
         st.page_link(
             analysis_page,
