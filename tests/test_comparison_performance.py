@@ -5,6 +5,7 @@ from fantasy_dashboard.components.comparison_data import (
     comparison_positions_are_compatible,
 )
 from fantasy_dashboard.components.comparison_performance import (
+    get_metric_winner_player_id,
     get_selected_comparison_metrics,
     make_arrow_compatible,
 )
@@ -65,3 +66,31 @@ def test_comparison_metrics_only_include_selected_players_positions() -> None:
         for statistics in league_statistics.values()
         for metric in statistics
     }
+
+
+@pytest.mark.parametrize(
+    ("metric_key", "values", "expected"),
+    [
+        ("average", {"player-1": 18.0, "player-2": 21.0}, "player-2"),
+        ("mae", {"player-1": 2.5, "player-2": 4.0}, "player-1"),
+        ("interception_rate", {"player-1": 1.8, "player-2": 2.4}, "player-1"),
+        ("bias", {"player-1": -0.5, "player-2": 1.0}, "player-1"),
+    ],
+)
+def test_metric_winner_respects_metric_direction(
+    metric_key: str,
+    values: dict[str, float],
+    expected: str,
+) -> None:
+    assert get_metric_winner_player_id(metric_key, values) == expected
+
+
+def test_metric_winner_does_not_choose_a_tied_or_only_available_player() -> None:
+    assert get_metric_winner_player_id(
+        "average",
+        {"player-1": 20.0, "player-2": 20.0},
+    ) is None
+    assert get_metric_winner_player_id(
+        "average",
+        {"player-1": 20.0, "player-2": None},
+    ) is None

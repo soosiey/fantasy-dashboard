@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from math import isclose, isfinite
 from numbers import Real
 from typing import Any
 
@@ -19,6 +20,60 @@ from fantasy_dashboard.player_performance import (
     build_projection_accuracy_statistics,
     get_team_completed_weeks,
 )
+
+WINNER_CELL_STYLE = (
+    "background-color: rgba(34, 197, 94, 0.22); "
+    "color: #15803d; font-weight: 700;"
+)
+
+# Most comparison metrics reward a larger value. These are the exceptions.
+LOWER_IS_BETTER_METRICS = {
+    "standard_deviation",
+    "mae",
+    "rmse",
+    "bust_rate",
+    "games_missed",
+    "interception_rate",
+    "points_allowed_per_game",
+}
+ABSOLUTE_LOWER_IS_BETTER_METRICS = {"bias"}
+
+
+def get_metric_winner_player_id(
+    metric_key: str,
+    values_by_player_id: dict[str, Any],
+) -> str | None:
+    """Return the sole best selected player for a metric, or None for a tie."""
+    numeric_values = {
+        player_id: float(value)
+        for player_id, value in values_by_player_id.items()
+        if isinstance(value, Real)
+        and not isinstance(value, bool)
+        and isfinite(float(value))
+    }
+    if len(numeric_values) < 2:
+        return None
+
+    scores = (
+        {
+            player_id: abs(value)
+            for player_id, value in numeric_values.items()
+        }
+        if metric_key in ABSOLUTE_LOWER_IS_BETTER_METRICS
+        else numeric_values
+    )
+    best_score = (
+        min(scores.values())
+        if metric_key in LOWER_IS_BETTER_METRICS
+        or metric_key in ABSOLUTE_LOWER_IS_BETTER_METRICS
+        else max(scores.values())
+    )
+    winners = [
+        player_id
+        for player_id, score in scores.items()
+        if isclose(score, best_score, rel_tol=1e-9, abs_tol=1e-12)
+    ]
+    return winners[0] if len(winners) == 1 else None
 
 
 def make_arrow_compatible(statistics_table: pd.DataFrame) -> pd.DataFrame:
@@ -81,6 +136,7 @@ def _render_comparison_metric_table(
         return
 
     table_rows = []
+    winner_column_by_row: dict[int, str] = {}
     player_columns: dict[str, str] = {}
     used_column_names: set[str] = set()
     for player_id in selected_player_ids:
@@ -121,6 +177,15 @@ def _render_comparison_metric_table(
         row: dict[str, Any] = {"Statistic": statistic_label}
         for player_id, column_name in player_columns.items():
             row[column_name] = values_by_player.get(player_id, {}).get(metric_key)
+        winner_player_id = get_metric_winner_player_id(
+            metric_key,
+            {
+                player_id: values_by_player.get(player_id, {}).get(metric_key)
+                for player_id in player_columns
+            },
+        )
+        if winner_player_id is not None:
+            winner_column_by_row[len(table_rows)] = player_columns[winner_player_id]
         for position in selected_positions:
             row[f"{position} League Average"] = position_averages[position].get(
                 metric_key
@@ -131,8 +196,15 @@ def _render_comparison_metric_table(
 
     statistics_table = make_arrow_compatible(pd.DataFrame(table_rows))
 
+    def highlight_winner(row: pd.Series) -> list[str]:
+        winner_column = winner_column_by_row.get(int(row.name))
+        return [
+            WINNER_CELL_STYLE if column == winner_column else ""
+            for column in row.index
+        ]
+
     st.dataframe(
-        statistics_table,
+        statistics_table.style.apply(highlight_winner, axis=1),
         column_config={
             "Statistic": st.column_config.TextColumn("Statistic", width="large"),
             "Unit": st.column_config.TextColumn("Unit", width="small"),
