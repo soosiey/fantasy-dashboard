@@ -1,9 +1,11 @@
 from fantasy_dashboard.league_predictions import (
     build_optimized_week_matchups,
     optimize_lineup,
+    project_draft_championship_odds,
     project_playoffs,
     project_regular_season,
 )
+from fantasy_dashboard.models.draft import DraftPickModel
 from fantasy_dashboard.models.league import LeagueModel, RosterModel
 from fantasy_dashboard.models.matchup import WeeklyMatchupModel
 from fantasy_dashboard.models.user import SleeperTeam
@@ -215,3 +217,46 @@ def test_playoff_projection_applies_byes_and_weekly_optimal_scores() -> None:
     assert projection.champion.roster_id == 1
     assert projection.runner_up is not None
     assert projection.runner_up.roster_id == 2
+
+
+def test_draft_championship_odds_reward_close_contenders_relative_to_favorite() -> None:
+    league = _league(["QB", "BN"], playoff_teams=2)
+    teams = [
+        SleeperTeam("user-1", "One", "", "Team One"),
+        SleeperTeam("user-2", "Two", "", "Team Two"),
+        SleeperTeam("user-3", "Three", "", "Team Three"),
+    ]
+    picks = [
+        DraftPickModel(1, "player-1", "One", None, "user-1", 1),
+        DraftPickModel(2, "player-2", "Two", None, "user-2", 1),
+        DraftPickModel(3, "player-3", "Three", None, "user-3", 1),
+    ]
+
+    projections = project_draft_championship_odds(
+        league,
+        picks,
+        teams,
+        _players("QB", "QB", "QB"),
+        {
+            "player-1": {"pts": 340},
+            "player-2": {"pts": 335},
+            "player-3": {"pts": 170},
+        },
+        simulations=6000,
+        random_seed=7,
+    )
+
+    probabilities = [
+        projection.championship_probability for projection in projections.values()
+    ]
+    assert abs(sum(probabilities) - 1) < 0.001
+    assert projections["user-1"].relative_championship_score == 100
+    assert projections["user-2"].relative_championship_score >= 85
+    assert (
+        projections["user-3"].relative_championship_score
+        < projections["user-2"].relative_championship_score
+    )
+    assert (
+        projections["user-1"].average_weekly_win_probability
+        > projections["user-3"].average_weekly_win_probability
+    )

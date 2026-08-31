@@ -33,6 +33,7 @@ from fantasy_dashboard.data import (
 from fantasy_dashboard.draft_grading import DraftGradeWeights, grade_draft_picks
 from fantasy_dashboard.league_predictions import (
     build_optimized_week_matchups,
+    project_draft_championship_odds,
     project_playoffs,
     project_regular_season,
 )
@@ -176,6 +177,13 @@ with draft_grades_tab:
                 draft_grade_projections,
                 draft_grade_weights,
             )
+            draft_team_projections = project_draft_championship_odds(
+                draft_grade_league,
+                draft_grade_picks.picks,
+                draft_grade_team_list,
+                draft_grade_players,
+                draft_grade_projections,
+            )
             per_pick_tab, overall_tab = st.tabs(["Per Pick", "Overall"])
             with per_pick_tab:
                 team_names_by_user_id = {
@@ -206,12 +214,18 @@ with draft_grades_tab:
                     draft_pick_grades,
                 )
             with overall_tab:
+                st.caption(
+                    "Overall grades come from 5,000 simulated seasons using each "
+                    "drafted roster's best projected legal lineup. The favorite is "
+                    "normalized to 100; raw playoff and championship probabilities "
+                    "are shown inside each card."
+                )
                 render_overall_draft_grade_cards(
                     draft_grade_picks.picks,
                     draft_grade_players,
                     draft_grade_team_list,
                     league_id,
-                    draft_pick_grades,
+                    draft_team_projections,
                 )
             render_data_disclaimer(
                 get_data_update("draft_picks", draft_id),

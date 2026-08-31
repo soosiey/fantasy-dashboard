@@ -7,6 +7,7 @@ import streamlit as st
 
 from fantasy_dashboard.clients.sleeper import SleeperClient
 from fantasy_dashboard.draft_grading import DraftPickGrade, letter_grade
+from fantasy_dashboard.league_predictions import DraftTeamProjection
 from fantasy_dashboard.models.draft import DraftPickModel
 from fantasy_dashboard.models.user import SleeperTeam
 
@@ -242,7 +243,7 @@ def _render_overall_summary(
     team: SleeperTeam,
     picks: list[DraftPickModel],
     players: dict[str, dict[str, Any]],
-    grades: dict[int, DraftPickGrade],
+    projection: DraftTeamProjection,
 ) -> str:
     fantasy_team, username, avatar_id = _team_identity(team)
     avatar = (
@@ -267,11 +268,7 @@ def _render_overall_summary(
         else f"{len(picks)} rounds represented"
     )
     pick_label = "pick" if len(picks) == 1 else "picks"
-    grade_score = (
-        sum(grades[pick.pick_number].score for pick in picks) / len(picks)
-        if picks
-        else 0.0
-    )
+    grade_score = projection.relative_championship_score
     grade_letter = letter_grade(grade_score)
 
     return (
@@ -284,7 +281,8 @@ def _render_overall_summary(
         '<div class="draft-grade-player">'
         f'<div class="draft-grade-player-name">{len(picks)} draft {pick_label}</div>'
         f'<div class="draft-grade-player-meta">{escape(position_summary)}</div>'
-        f'<div class="draft-grade-pick">{escape(draft_context)}</div>'
+        f'<div class="draft-grade-pick">{escape(draft_context)} · '
+        f"{projection.championship_probability:.1%} title odds</div>"
         "</div>"
         f'<div class="draft-grade-mark draft-grade-{grade_letter.casefold()}">'
         f"<strong>{grade_letter}</strong>"
@@ -298,39 +296,49 @@ def render_overall_draft_grade_cards(
     players: dict[str, dict[str, Any]],
     teams: list[SleeperTeam],
     league_id: str,
-    grades: dict[int, DraftPickGrade],
+    projections: dict[str, DraftTeamProjection],
 ) -> None:
-    if not teams:
-        st.info("No fantasy teams are available to grade yet.")
-        return
-
-    _render_card_styles()
     picks_by_user_id: dict[str, list[DraftPickModel]] = {}
     for pick in picks:
         picks_by_user_id.setdefault(pick.picked_by, []).append(pick)
+    drafting_teams = [
+        team
+        for team in teams
+        if picks_by_user_id.get(team.user_id) and team.user_id in projections
+    ]
+    if not drafting_teams:
+        st.info("No fantasy teams with draft picks are available to grade yet.")
+        return
 
-    for row_start in range(0, len(teams), 3):
+    _render_card_styles()
+
+    for row_start in range(0, len(drafting_teams), 3):
         columns = st.columns(3)
-        for column, team in zip(columns, teams[row_start : row_start + 3]):
+        for column, team in zip(columns, drafting_teams[row_start : row_start + 3]):
             team_picks = picks_by_user_id.get(team.user_id, [])
+            projection = projections[team.user_id]
             insight_key = f"overall-draft-grade-insight-{league_id}-{team.user_id}"
             with column, st.container(key=f"draft-grade-card-overall-{team.user_id}"):
                 st.markdown(
-                    _render_overall_summary(team, team_picks, players, grades),
+                    _render_overall_summary(team, team_picks, players, projection),
                     unsafe_allow_html=True,
                 )
                 if st.session_state.get(insight_key):
-                    grade_score = (
-                        sum(grades[pick.pick_number].score for pick in team_picks)
-                        / len(team_picks)
-                        if team_picks
-                        else 0.0
-                    )
                     st.markdown(
                         '<div class="draft-grade-insight">'
-                        f"{escape(team.display_team_name)} made {len(team_picks)} "
-                        f"selections with an average pick score of {grade_score:.1f}, "
-                        f"giving it an overall {letter_grade(grade_score)} grade.</div>",
+                        f"<strong>Championship probability · "
+                        f"{projection.championship_probability:.1%}</strong><br>"
+                        f"Playoff probability: {projection.playoff_probability:.1%}. "
+                        f"Average one-week win probability against league opponents: "
+                        f"{projection.average_weekly_win_probability:.1%}.<br><br>"
+                        f"The projected best lineup averages {projection.weekly_mean:.2f} "
+                        f"points with a {projection.weekly_standard_deviation:.2f}-point "
+                        f"weekly standard deviation. Championship odds are normalized "
+                        f"against the league favorite for a relative score of "
+                        f"{projection.relative_championship_score:.1f}/100, giving "
+                        f"{escape(team.display_team_name)} an overall "
+                        f"{letter_grade(projection.relative_championship_score)} grade."
+                        "</div>",
                         unsafe_allow_html=True,
                     )
                 st.button(

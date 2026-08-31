@@ -204,10 +204,10 @@ def test_league_predictions_projects_standings_and_tournament(
     assert "draft-grade-mark" in draft_grade_markup
     overall_grade_markup = " ".join(markdown.value for markdown in app.tabs[2].markdown)
     assert "Test Team" in overall_grade_markup
-    assert "Other Team" in overall_grade_markup
     assert "1 draft pick" in overall_grade_markup
-    assert "0 draft picks" in overall_grade_markup
-    assert overall_grade_markup.count('<div class="draft-grade-mark draft-grade-') == 2
+    assert "Other Team" not in overall_grade_markup
+    assert "0 draft picks" not in overall_grade_markup
+    assert overall_grade_markup.count('<div class="draft-grade-mark draft-grade-') == 1
     assert (
         next(
             slider for slider in app.slider if slider.label == "Positional strength"
@@ -265,8 +265,9 @@ def test_league_predictions_projects_standings_and_tournament(
     overall_insight_markup = " ".join(
         markdown.value for markdown in app.tabs[2].markdown
     )
-    assert "average pick score" in overall_insight_markup
-    assert "overall" in overall_insight_markup
+    assert "Championship probability" in overall_insight_markup
+    assert "one-week win probability" in overall_insight_markup
+    assert "relative score" in overall_insight_markup
 
 
 def test_statistics_filters_update_the_selected_view(authenticated_app) -> None:

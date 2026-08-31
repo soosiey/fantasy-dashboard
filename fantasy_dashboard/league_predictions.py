@@ -1,8 +1,11 @@
 from dataclasses import dataclass, replace
 from functools import cache
 from math import ceil, log2
+from random import Random
+from statistics import NormalDist
 from typing import Any
 
+from fantasy_dashboard.models.draft import DraftPickModel
 from fantasy_dashboard.models.league import LeagueModel, RosterModel
 from fantasy_dashboard.models.matchup import WeeklyMatchupModel
 from fantasy_dashboard.models.user import SleeperTeam
@@ -35,6 +38,29 @@ class PlayoffProjection:
     rounds: dict[int, list[PlayoffMatchup]]
     champion: ProjectedStanding | None
     runner_up: ProjectedStanding | None
+
+
+@dataclass(frozen=True, slots=True)
+class DraftTeamProjection:
+    user_id: str
+    weekly_mean: float
+    weekly_standard_deviation: float
+    average_weekly_win_probability: float
+    playoff_probability: float
+    championship_probability: float
+    relative_championship_score: float
+
+
+POSITION_WEEKLY_CV = {
+    "QB": 0.30,
+    "RB": 0.45,
+    "WR": 0.50,
+    "TE": 0.55,
+    "K": 0.40,
+    "DEF": 0.45,
+}
+DEFAULT_WEEKLY_CV = 0.50
+NFL_GAMES_PER_TEAM = 17
 
 
 def _eligible_positions(player: dict[str, Any]) -> set[str]:
@@ -115,6 +141,222 @@ def optimize_lineup(
 
     _, score, player_ids = best_assignment(0, 0)
     return OptimalLineup(score=round(score, 2), player_ids=player_ids)
+
+
+def _draft_roster(
+    user_id: str,
+    roster_id: int,
+    player_ids: list[str],
+    league_id: str,
+) -> RosterModel:
+    return RosterModel(
+        starters=[],
+        wins=0,
+        waiver=0,
+        budget_used=0,
+        moves=0,
+        ties=0,
+        losses=0,
+        points=0,
+        points_against=0,
+        roster_id=roster_id,
+        reserve=[],
+        players=player_ids,
+        user_id=user_id,
+        league_id=league_id,
+    )
+
+
+def _lineup_distribution(
+    roster: RosterModel,
+    league: LeagueModel,
+    players: dict[str, dict[str, Any]],
+    projected_stats: dict[str, dict[str, Any]],
+) -> tuple[float, float]:
+    lineup = optimize_lineup(roster, league, players, projected_stats)
+    variance = 0.0
+    weekly_mean = 0.0
+    for player_id in lineup.player_ids:
+        if player_id is None:
+            continue
+        season_points = calculate_fantasy_points(
+            projected_stats.get(player_id, {}), league.scoring_settings
+        )
+        player_mean = max(0.0, season_points / NFL_GAMES_PER_TEAM)
+        position = str(players.get(player_id, {}).get("position") or "")
+        player_deviation = max(
+            1.0, player_mean * POSITION_WEEKLY_CV.get(position, DEFAULT_WEEKLY_CV)
+        )
+        weekly_mean += player_mean
+        variance += player_deviation**2
+    return weekly_mean, variance**0.5
+
+
+def _average_weekly_win_probability(
+    user_id: str,
+    distributions: dict[str, tuple[float, float]],
+) -> float:
+    mean, deviation = distributions[user_id]
+    probabilities = []
+    for opponent_id, (opponent_mean, opponent_deviation) in distributions.items():
+        if opponent_id == user_id:
+            continue
+        difference_deviation = (deviation**2 + opponent_deviation**2) ** 0.5
+        if difference_deviation <= 0:
+            probabilities.append(0.5)
+        else:
+            probabilities.append(
+                NormalDist().cdf((mean - opponent_mean) / difference_deviation)
+            )
+    return sum(probabilities) / len(probabilities) if probabilities else 1.0
+
+
+def _round_robin_pairs(user_ids: list[str], week: int) -> list[tuple[str, str]]:
+    participants: list[str | None] = [*user_ids]
+    if len(participants) % 2:
+        participants.append(None)
+    if len(participants) < 2:
+        return []
+    rotations = week % (len(participants) - 1)
+    for _ in range(rotations):
+        participants = [
+            participants[0],
+            participants[-1],
+            *participants[1:-1],
+        ]
+    pairs = []
+    for index in range(len(participants) // 2):
+        left = participants[index]
+        right = participants[-1 - index]
+        if left is not None and right is not None:
+            pairs.append((left, right))
+    return pairs
+
+
+def project_draft_championship_odds(
+    league: LeagueModel,
+    picks: list[DraftPickModel],
+    teams: list[SleeperTeam],
+    players: dict[str, dict[str, Any]],
+    projected_stats: dict[str, dict[str, Any]],
+    *,
+    simulations: int = 5000,
+    random_seed: int = 2026,
+) -> dict[str, DraftTeamProjection]:
+    """Simulate season and playoff outcomes for the originally drafted rosters."""
+    player_ids_by_user: dict[str, list[str]] = {}
+    for pick in picks:
+        if pick.picked_by:
+            player_ids_by_user.setdefault(pick.picked_by, []).append(pick.player_id)
+    drafting_user_ids = [
+        team.user_id for team in teams if player_ids_by_user.get(team.user_id)
+    ]
+    if not drafting_user_ids:
+        return {}
+
+    distributions = {}
+    for roster_id, user_id in enumerate(drafting_user_ids, 1):
+        distributions[user_id] = _lineup_distribution(
+            _draft_roster(
+                user_id,
+                roster_id,
+                player_ids_by_user[user_id],
+                league.league_id,
+            ),
+            league,
+            players,
+            projected_stats,
+        )
+
+    simulation_count = max(1, int(simulations))
+    playoff_team_count = min(league.settings.playoff_teams, len(drafting_user_ids))
+    playoff_counts = {user_id: 0 for user_id in drafting_user_ids}
+    championship_counts = {user_id: 0 for user_id in drafting_user_ids}
+    rng = Random(random_seed)
+
+    def score(user_id: str) -> float:
+        mean, deviation = distributions[user_id]
+        return max(0.0, rng.gauss(mean, deviation))
+
+    regular_season_weeks = max(1, league.settings.playoff_start_week - 1)
+    for _ in range(simulation_count):
+        wins = {user_id: 0 for user_id in drafting_user_ids}
+        points = {user_id: 0.0 for user_id in drafting_user_ids}
+        for week in range(regular_season_weeks):
+            for left_id, right_id in _round_robin_pairs(drafting_user_ids, week):
+                left_score = score(left_id)
+                right_score = score(right_id)
+                points[left_id] += left_score
+                points[right_id] += right_score
+                if left_score == right_score:
+                    winner_id = rng.choice((left_id, right_id))
+                else:
+                    winner_id = left_id if left_score > right_score else right_id
+                wins[winner_id] += 1
+
+        seeded = sorted(
+            drafting_user_ids,
+            key=lambda user_id: (-wins[user_id], -points[user_id], user_id),
+        )[:playoff_team_count]
+        for user_id in seeded:
+            playoff_counts[user_id] += 1
+
+        if not seeded:
+            continue
+        if len(seeded) == 1:
+            championship_counts[seeded[0]] += 1
+            continue
+        entrants_by_seed = {seed: user_id for seed, user_id in enumerate(seeded, 1)}
+        bracket_size = 2 ** ceil(log2(len(seeded)))
+        slots: list[str | None] = [
+            entrants_by_seed.get(seed) for seed in _seed_order(bracket_size)
+        ]
+        while len(slots) > 1:
+            next_slots: list[str | None] = []
+            for index in range(0, len(slots), 2):
+                left_id, right_id = slots[index : index + 2]
+                if left_id is None:
+                    winner_id = right_id
+                elif right_id is None:
+                    winner_id = left_id
+                else:
+                    left_score = score(left_id)
+                    right_score = score(right_id)
+                    if left_score == right_score:
+                        winner_id = rng.choice((left_id, right_id))
+                    else:
+                        winner_id = left_id if left_score > right_score else right_id
+                next_slots.append(winner_id)
+            slots = next_slots
+        if slots[0] is not None:
+            championship_counts[slots[0]] += 1
+
+    championship_probabilities = {
+        user_id: championship_counts[user_id] / simulation_count
+        for user_id in drafting_user_ids
+    }
+    favorite_probability = max(championship_probabilities.values(), default=0.0)
+    return {
+        user_id: DraftTeamProjection(
+            user_id=user_id,
+            weekly_mean=round(distributions[user_id][0], 2),
+            weekly_standard_deviation=round(distributions[user_id][1], 2),
+            average_weekly_win_probability=round(
+                _average_weekly_win_probability(user_id, distributions), 4
+            ),
+            playoff_probability=round(playoff_counts[user_id] / simulation_count, 4),
+            championship_probability=round(championship_probabilities[user_id], 4),
+            relative_championship_score=round(
+                (
+                    100 * championship_probabilities[user_id] / favorite_probability
+                    if favorite_probability > 0
+                    else 100.0
+                ),
+                2,
+            ),
+        )
+        for user_id in drafting_user_ids
+    }
 
 
 def build_optimized_week_matchups(
