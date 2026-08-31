@@ -1,6 +1,7 @@
 import requests
 import streamlit as st
 
+from about.version import VERSION
 from fantasy_dashboard.clients.sleeper import SleeperClient
 from fantasy_dashboard.data import (
     PLAYER_CATALOG_MAX_AGE,
@@ -345,6 +346,33 @@ with st.sidebar:
             icon=":material/arrow_outward:",
             icon_position="right",
         )
+
+# Keep the release identifier visible independently of the active app state.
+st.markdown(
+    f"""
+    <style>
+    .app-version-indicator {{
+        position: fixed;
+        right: 0.9rem;
+        bottom: 0.7rem;
+        z-index: 10000;
+        color: var(--text-color);
+        background: color-mix(in srgb, var(--background-color) 88%, transparent);
+        border: 1px solid color-mix(in srgb, var(--text-color) 18%, transparent);
+        border-radius: 999px;
+        padding: 0.18rem 0.5rem;
+        font-size: 0.72rem;
+        line-height: 1rem;
+        opacity: 0.65;
+        pointer-events: none;
+    }}
+    </style>
+    <div class="app-version-indicator" aria-label="Application version">
+        v{VERSION}
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 # Hand control to the authenticated and context-valid page.
 page_route.run()

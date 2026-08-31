@@ -24,6 +24,7 @@ def test_login_page_renders_without_provider_requests(fake_page_backend) -> None
     app = AppTest.from_file(APP_PATH, default_timeout=10).run()
 
     _assert_page(app, "Fantasy Football Dashboard")
+    assert any("v0.1" in markdown.value for markdown in app.markdown)
 
 
 def test_leagues_page_renders_for_authenticated_user(fake_page_backend) -> None:
