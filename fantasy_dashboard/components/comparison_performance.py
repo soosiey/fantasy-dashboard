@@ -61,6 +61,20 @@ def make_arrow_compatible(statistics_table: pd.DataFrame) -> pd.DataFrame:
     return statistics_table
 
 
+def get_selected_comparison_metrics(
+    selected_statistics: dict[str, list[dict[str, Any]]],
+) -> tuple[list[str], dict[str, dict[str, Any]]]:
+    metric_order: list[str] = []
+    metric_details: dict[str, dict[str, Any]] = {}
+    for statistics in selected_statistics.values():
+        for metric in statistics:
+            metric_key = str(metric["Key"])
+            if metric_key not in metric_details:
+                metric_order.append(metric_key)
+                metric_details[metric_key] = metric
+    return metric_order, metric_details
+
+
 def _player_name(player_id: str, players: dict[str, dict[str, Any]]) -> str:
     player = players.get(player_id, {})
     name = f"{player.get('first_name') or ''} {player.get('last_name') or ''}".strip()
@@ -76,14 +90,9 @@ def _render_comparison_metric_table(
     *,
     use_symbols: bool = False,
 ) -> None:
-    metric_order: list[str] = []
-    metric_details: dict[str, dict[str, Any]] = {}
-    for statistics in [*selected_statistics.values(), *league_statistics.values()]:
-        for metric in statistics:
-            metric_key = str(metric["Key"])
-            if metric_key not in metric_details:
-                metric_order.append(metric_key)
-                metric_details[metric_key] = metric
+    metric_order, metric_details = get_selected_comparison_metrics(
+        selected_statistics
+    )
 
     if not metric_order:
         st.info("No statistics are available for the selected players.")
@@ -261,22 +270,16 @@ def render_comparison_performance(
     except (requests.RequestException, TypeError, ValueError):
         st.warning("Some player statistics could not be loaded.")
 
-    (
-        core_tab,
-        projection_tab,
-        consistency_tab,
-        opportunity_tab,
-        efficiency_tab,
-        availability_tab,
-    ) = st.tabs(
-        [
-            "Core Performance Statistics",
-            "Projection Accuracy",
-            "Consistency",
-            "Opportunity",
-            "Efficiency",
-            "Availability",
-        ]
+    performance_tab_names = [
+        "Core Performance Statistics",
+        "Projection Accuracy",
+        "Consistency",
+    ]
+    if positions_are_compatible:
+        performance_tab_names.extend(["Opportunity", "Efficiency"])
+    performance_tab_names.append("Availability")
+    performance_tabs = dict(
+        zip(performance_tab_names, st.tabs(performance_tab_names), strict=True)
     )
 
     def render_category(
@@ -298,7 +301,7 @@ def render_comparison_performance(
             use_symbols=use_symbols,
         )
 
-    with core_tab:
+    with performance_tabs["Core Performance Statistics"]:
         st.caption(f"{selected_season} season · {selected_stat}")
         render_category(
             lambda player_id: build_core_performance_statistics(
@@ -307,7 +310,7 @@ def render_comparison_performance(
             use_symbols=True,
         )
 
-    with projection_tab:
+    with performance_tabs["Projection Accuracy"]:
         hit_tolerance = st.number_input(
             "Hit tolerance",
             min_value=0.0,
@@ -324,7 +327,7 @@ def render_comparison_performance(
             )
         )
 
-    with consistency_tab:
+    with performance_tabs["Consistency"]:
         consistency_column, boom_bust_column = st.columns(2)
         with consistency_column:
             consistency_band = st.number_input(
@@ -353,23 +356,24 @@ def render_comparison_performance(
             )
         )
 
-    with opportunity_tab:
-        render_category(
-            lambda player_id: build_opportunity_statistics(
-                actual_rows[player_id],
-                str(players[player_id].get("position") or ""),
+    if positions_are_compatible:
+        with performance_tabs["Opportunity"]:
+            render_category(
+                lambda player_id: build_opportunity_statistics(
+                    actual_rows[player_id],
+                    str(players[player_id].get("position") or ""),
+                )
             )
-        )
 
-    with efficiency_tab:
-        render_category(
-            lambda player_id: build_efficiency_statistics(
-                actual_rows[player_id],
-                str(players[player_id].get("position") or ""),
+        with performance_tabs["Efficiency"]:
+            render_category(
+                lambda player_id: build_efficiency_statistics(
+                    actual_rows[player_id],
+                    str(players[player_id].get("position") or ""),
+                )
             )
-        )
 
-    with availability_tab:
+    with performance_tabs["Availability"]:
         try:
             schedule = get_nfl_schedule(selected_season, "regular")
         except (requests.RequestException, TypeError, ValueError):

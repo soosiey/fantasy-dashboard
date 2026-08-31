@@ -289,6 +289,10 @@ def test_comparison_performance_tables_include_players_and_position_average(
 ) -> None:
     app = _authenticated_app(fake_page_backend)
     app.session_state["comparison-player-ids-league-1"] = ["player-1", "player-2"]
+    app.session_state["generated-comparison-player-ids-league-1"] = [
+        "player-1",
+        "player-2",
+    ]
 
     app.switch_page("pages/comparison.py").run()
 
@@ -322,6 +326,10 @@ def test_comparison_performance_limits_mixed_position_groups_to_fantasy_points(
     monkeypatch.setattr(data, "get_nfl_players", lambda: mixed_position_players)
     app = _authenticated_app(fake_page_backend)
     app.session_state["comparison-player-ids-league-1"] = ["player-1", "player-2"]
+    app.session_state["generated-comparison-player-ids-league-1"] = [
+        "player-1",
+        "player-2",
+    ]
 
     app.switch_page("pages/comparison.py").run()
 
@@ -331,6 +339,15 @@ def test_comparison_performance_limits_mixed_position_groups_to_fantasy_points(
         if box.key == "comparison-performance-league-1-stat"
     )
     assert stat_selector.options == ["Fantasy Points"]
+    performance_tab_labels = [tab.label for tab in app.tabs[3:]]
+    assert "Opportunity" not in performance_tab_labels
+    assert "Efficiency" not in performance_tab_labels
+    assert performance_tab_labels == [
+        "Core Performance Statistics",
+        "Projection Accuracy",
+        "Consistency",
+        "Availability",
+    ]
     assert any(
         "different position groups" in warning.value for warning in app.warning
     )
@@ -370,39 +387,54 @@ def test_position_filters_include_flex(
     assert "FLEX" in position.options
 
 
-def test_generate_graphs_warns_for_all_positions_without_navigating(
+def test_comparison_tabs_require_generate_comparisons(
     fake_page_backend,
 ) -> None:
     app = _authenticated_app(fake_page_backend)
     app.session_state["comparison-player-ids-league-1"] = ["player-1"]
     app.switch_page("pages/comparison.py").run()
 
+    assert not any(box.label == "Stat" for box in app.selectbox)
+    assert sum(
+        "Press Generate Comparisons" in warning.value for warning in app.warning
+    ) == 2
+
+
+def test_generate_comparisons_snapshots_visible_checked_players(
+    fake_page_backend,
+) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["comparison-player-ids-league-1"] = ["player-1", "player-2"]
+    app.switch_page("pages/comparison.py").run()
+
     next(
-        button for button in app.button if button.label == "Generate Graphs"
+        button for button in app.button if button.label == "Generate Comparisons"
     ).click().run()
 
     _assert_page(app, "Comparison")
-    assert any(
-        warning.value
-        == "You have selected to graph players in All Positions, so only fantasy points will be compared"
-        for warning in app.warning
-    )
+    assert app.session_state["generated-comparison-player-ids-league-1"] == [
+        "player-1",
+        "player-2",
+    ]
+    assert any(box.label == "Stat" for box in app.selectbox)
 
 
-def test_generate_graphs_skips_warning_for_flex(fake_page_backend) -> None:
+def test_generate_comparisons_uses_only_rows_visible_after_filtering(
+    fake_page_backend,
+) -> None:
     app = _authenticated_app(fake_page_backend)
-    app.session_state["comparison-player-ids-league-1"] = ["player-1"]
+    app.session_state["comparison-player-ids-league-1"] = ["player-1", "player-2"]
     app.switch_page("pages/comparison.py").run()
     next(box for box in app.selectbox if box.label == "Position").set_value(
         "FLEX"
     ).run()
 
     next(
-        button for button in app.button if button.label == "Generate Graphs"
+        button for button in app.button if button.label == "Generate Comparisons"
     ).click().run()
 
     _assert_page(app, "Comparison")
-    assert not any("All Positions" in warning.value for warning in app.warning)
+    assert app.session_state["generated-comparison-player-ids-league-1"] == []
 
 
 def test_graphs_page_is_a_searchable_player_picker(fake_page_backend) -> None:

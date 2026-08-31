@@ -128,6 +128,20 @@ if st.session_state[period_filter_key] not in {"Season", "Week"}:
 overview_tab, graphs_tab, performance_statistics_tab = st.tabs(
     ["Overview", "Graphs", "Performance Statistics"]
 )
+generated_comparison_key = f"generated-comparison-player-ids-{league_id}"
+has_generated_comparison = generated_comparison_key in st.session_state
+generated_comparison_player_ids = [
+    str(player_id)
+    for player_id in st.session_state.get(generated_comparison_key, [])
+]
+
+if not has_generated_comparison:
+    graphs_tab.warning(
+        "Press Generate Comparisons on the Overview tab to select players."
+    )
+    performance_statistics_tab.warning(
+        "Press Generate Comparisons on the Overview tab to select players."
+    )
 
 only_relevant_stats = overview_tab.checkbox(
     "Only Relevant Stats",
@@ -216,13 +230,18 @@ comparison_player_ids = [
     str(player_id) for player_id in st.session_state.get(comparison_key, [])
 ]
 comparison_player_id_set = set(comparison_player_ids)
-comparison_positions = [
+generated_comparison_positions = [
     str(nfl_players.get(player_id, {}).get("position") or "")
-    for player_id in comparison_player_ids
+    for player_id in generated_comparison_player_ids
 ]
-comparison_positions_compatible = comparison_positions_are_compatible(
-    comparison_positions
+generated_positions_compatible = comparison_positions_are_compatible(
+    generated_comparison_positions
 )
+if has_generated_comparison and not generated_positions_compatible:
+    overview_tab.warning(
+        "You have selected players from different position groups, so only "
+        "fantasy points will be compared."
+    )
 player_rows = [
     row
     for row in build_player_stat_rows(
@@ -366,13 +385,14 @@ else:
         else:
             show_player_news(news_player)
 
-with performance_statistics_tab:
-    render_comparison_performance(
-        league_id,
-        league,
-        nfl_players,
-        comparison_player_ids,
-    )
+if has_generated_comparison:
+    with performance_statistics_tab:
+        render_comparison_performance(
+            league_id,
+            league,
+            nfl_players,
+            generated_comparison_player_ids,
+        )
 
 render_comparison_sidebar(nfl_players, league_id)
 with overview_tab:
@@ -391,20 +411,14 @@ with overview_tab:
     )
 
 with st.bottom:
-    generate_graphs = st.button("Generate Graphs")
+    generate_comparisons = st.button("Generate Comparisons")
     back_to_overview = st.button("Back to Overview")
 
-if generate_graphs:
-    if not comparison_positions_compatible:
-        overview_tab.warning(
-            "You have selected players from different position groups, so only "
-            "fantasy points will be compared."
-        )
-    elif selected_position_label == "All Positions":
-        overview_tab.warning(
-            "You have selected to graph players in All Positions, so only fantasy "
-            "points will be compared"
-        )
+if generate_comparisons:
+    st.session_state[generated_comparison_key] = [
+        str(row["Player ID"]) for row in player_rows
+    ]
+    st.rerun()
 if back_to_overview:
     st.session_state.pop(ANALYSIS_MODE_KEY, None)
     st.switch_page(
