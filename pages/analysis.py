@@ -109,6 +109,10 @@ filter_defaults = {
 for filter_key, default_value in filter_defaults.items():
     if filter_key not in st.session_state:
         st.session_state[filter_key] = default_value
+if st.session_state[stats_source_filter_key] not in {"Actual", "Predicted"}:
+    st.session_state[stats_source_filter_key] = filter_defaults[stats_source_filter_key]
+if st.session_state[period_filter_key] not in {"Season", "Week"}:
+    st.session_state[period_filter_key] = filter_defaults[period_filter_key]
 
 rosters_by_user_id = {roster.user_id: roster for roster in rosters.rosters}
 selectable_teams = [team for team in teams.users if team.user_id in rosters_by_user_id]
@@ -150,11 +154,14 @@ else:
 
     stats_source_column, position_column, period_column, week_column = st.columns(4)
     with stats_source_column:
-        stats_source = st.segmented_control(
-            "Stat type",
-            ["Actual", "Predicted"],
-            key=stats_source_filter_key,
-            width="stretch",
+        stats_source = (
+            st.segmented_control(
+                "Stat type",
+                ["Actual", "Predicted"],
+                key=stats_source_filter_key,
+                width="stretch",
+            )
+            or "Actual"
         )
     with position_column:
         selected_position_label = st.selectbox(
@@ -163,11 +170,14 @@ else:
             key=position_filter_key,
         )
     with period_column:
-        stats_period = st.segmented_control(
-            "Period",
-            ["Season", "Week"],
-            key=period_filter_key,
-            width="stretch",
+        stats_period = (
+            st.segmented_control(
+                "Period",
+                ["Season", "Week"],
+                key=period_filter_key,
+                width="stretch",
+            )
+            or "Season"
         )
     with week_column:
         selected_week = (

@@ -63,6 +63,10 @@ if stats_source_key not in st.session_state:
     st.session_state[stats_source_key] = (
         "Predicted" if requested_stats_source == "predicted" else "Actual"
     )
+if st.session_state[stats_source_key] not in {"Actual", "Predicted"}:
+    st.session_state[stats_source_key] = (
+        "Predicted" if requested_stats_source == "predicted" else "Actual"
+    )
 
 # Group the matchup filters opposite the title with enough room for the
 # Actual/Predicted selector to remain on one horizontal line.
@@ -86,11 +90,14 @@ with filter_column:
             help="Reload this week's scores and lineups from Sleeper",
             width="content",
         )
-    stats_source = st.segmented_control(
-        "Stat type",
-        ["Actual", "Predicted"],
-        key=stats_source_key,
-        width="stretch",
+    stats_source = (
+        st.segmented_control(
+            "Stat type",
+            ["Actual", "Predicted"],
+            key=stats_source_key,
+            width="stretch",
+        )
+        or "Actual"
     )
 
 sync_query_params(

@@ -574,6 +574,30 @@ def test_players_deep_link_restores_filters(fake_page_backend) -> None:
     )
 
 
+def test_players_recovers_from_empty_segmented_controls(fake_page_backend) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["players-league-1-period"] = None
+    app.session_state["players-league-1-stat-source"] = None
+
+    app.switch_page("pages/players.py").run()
+
+    _assert_page(app, "Players")
+    assert (
+        next(
+            control for control in app.segmented_control if control.label == "Period"
+        ).value
+        == "Season"
+    )
+    assert (
+        next(
+            control for control in app.segmented_control if control.label == "Stat type"
+        ).value
+        == "Actual"
+    )
+    assert _query_value(app, "period") == "season"
+    assert _query_value(app, "stats") == "actual"
+
+
 def test_matchup_player_details_and_relevant_stats_open(fake_page_backend) -> None:
     app = _authenticated_app(fake_page_backend)
     app.switch_page("pages/matchups.py").run()

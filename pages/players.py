@@ -120,6 +120,12 @@ player_filter_defaults = {
 for filter_key, default_value in player_filter_defaults.items():
     if filter_key not in st.session_state:
         st.session_state[filter_key] = default_value
+if st.session_state[stats_source_filter_key] not in {"Actual", "Predicted"}:
+    st.session_state[stats_source_filter_key] = player_filter_defaults[
+        stats_source_filter_key
+    ]
+if st.session_state[period_filter_key] not in {"Season", "Week"}:
+    st.session_state[period_filter_key] = player_filter_defaults[period_filter_key]
 
 # Keep the force-refresh control compact and separate from the player filters.
 title_column, refresh_column = st.columns([8, 1], vertical_alignment="center")
@@ -140,11 +146,14 @@ with players_list_tab:
     availability_column, position_column, period_column, week_column = st.columns(4)
     with availability_column:
         available_only = st.toggle("Available players only", key=available_filter_key)
-        stats_source = st.segmented_control(
-            "Stat type",
-            ["Actual", "Predicted"],
-            key=stats_source_filter_key,
-            width="stretch",
+        stats_source = (
+            st.segmented_control(
+                "Stat type",
+                ["Actual", "Predicted"],
+                key=stats_source_filter_key,
+                width="stretch",
+            )
+            or "Actual"
         )
     with position_column:
         selected_position_label = st.selectbox(
@@ -153,11 +162,14 @@ with players_list_tab:
             key=position_filter_key,
         )
     with period_column:
-        stats_period = st.segmented_control(
-            "Period",
-            ["Season", "Week"],
-            key=period_filter_key,
-            width="stretch",
+        stats_period = (
+            st.segmented_control(
+                "Period",
+                ["Season", "Week"],
+                key=period_filter_key,
+                width="stretch",
+            )
+            or "Season"
         )
     with week_column:
         selected_week = (
