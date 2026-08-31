@@ -558,6 +558,39 @@ def test_comparison_weekly_graphs_use_performance_metrics_without_week_filters(
     assert app.get("vega_lite_chart")
 
 
+def test_comparison_graph_tabs_show_selected_metric_settings(
+    authenticated_app,
+) -> None:
+    app = authenticated_app()
+    app.session_state["comparison-player-ids-league-1"] = ["player-1", "player-2"]
+    app.session_state["generated-comparison-player-ids-league-1"] = [
+        "player-1",
+        "player-2",
+    ]
+    for graph_prefix in ("comparison-graphs", "comparison-weekly-graphs"):
+        metric_prefix = f"{graph_prefix}-league-1-2026-metric"
+        app.session_state[f"{metric_prefix}-Projection Accuracy:mae"] = True
+        app.session_state[f"{metric_prefix}-Consistency:consistency_rate"] = True
+        settings_prefix = f"{graph_prefix}-league-1-2026"
+        app.session_state[f"{settings_prefix}-hit-tolerance"] = 4.5
+        app.session_state[f"{settings_prefix}-consistency-band"] = 25.0
+        app.session_state[f"{settings_prefix}-boom-bust-tolerance"] = 5.0
+
+    app.switch_page("pages/comparison.py").run()
+
+    for graph_prefix in ("comparison-graphs", "comparison-weekly-graphs"):
+        settings_prefix = f"{graph_prefix}-league-1-2026"
+        assert app.number_input(
+            key=f"{settings_prefix}-hit-tolerance"
+        ).value == 4.5
+        assert app.number_input(
+            key=f"{settings_prefix}-consistency-band"
+        ).value == 25.0
+        assert app.number_input(
+            key=f"{settings_prefix}-boom-bust-tolerance"
+        ).value == 5.0
+
+
 def test_graphs_page_is_a_searchable_player_picker(authenticated_app) -> None:
     app = authenticated_app()
     app.switch_page("pages/graphs.py").run()

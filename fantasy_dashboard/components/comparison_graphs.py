@@ -8,6 +8,9 @@ import streamlit as st
 from fantasy_dashboard.components.comparison_data import (
     ComparisonDataProvider,
 )
+from fantasy_dashboard.components.comparison_graph_controls import (
+    render_comparison_graph_settings,
+)
 from fantasy_dashboard.components.comparison_graph_metrics import (
     MAX_GRAPH_STATISTICS,
     build_comparison_category_statistics,
@@ -134,6 +137,24 @@ def render_comparison_graphs(
     if not selected_options:
         st.info("Select at least one performance statistic to graph.")
         return
+
+    graph_settings = render_comparison_graph_settings(
+        selected_options,
+        key_prefix=f"comparison-graphs-{league_id}-{selected_season}",
+    )
+    category_statistics = build_comparison_category_statistics(
+        league_player_ids,
+        players,
+        actual_rows,
+        projected_rows,
+        schedule,
+        selected_weeks,
+        selected_stat,
+        positions_are_compatible,
+        hit_tolerance=graph_settings.hit_tolerance,
+        consistency_band_percent=graph_settings.consistency_band_percent,
+        boom_bust_tolerance=graph_settings.boom_bust_tolerance,
+    )
 
     selected_positions = list(dict.fromkeys(selected_positions))
     chart_rows: list[dict[str, Any]] = []

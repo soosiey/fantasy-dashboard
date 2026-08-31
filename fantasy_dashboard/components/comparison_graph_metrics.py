@@ -34,6 +34,10 @@ def build_comparison_category_statistics(
     selected_weeks: list[int],
     selected_stat: str,
     positions_are_compatible: bool,
+    *,
+    hit_tolerance: float = 3.0,
+    consistency_band_percent: float = 20.0,
+    boom_bust_tolerance: float = 3.0,
 ) -> dict[str, dict[str, list[dict[str, Any]]]]:
     categories = {
         "Core Performance": {
@@ -47,7 +51,7 @@ def build_comparison_category_statistics(
                 actual_rows[player_id],
                 projected_rows[player_id],
                 selected_stat,
-                hit_tolerance=3.0,
+                hit_tolerance=hit_tolerance,
             )
             for player_id in player_ids
         },
@@ -56,8 +60,8 @@ def build_comparison_category_statistics(
                 actual_rows[player_id],
                 projected_rows[player_id],
                 selected_stat,
-                consistency_band_percent=20.0,
-                boom_bust_tolerance=3.0,
+                consistency_band_percent=consistency_band_percent,
+                boom_bust_tolerance=boom_bust_tolerance,
             )
             for player_id in player_ids
         },

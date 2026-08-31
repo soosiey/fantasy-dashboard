@@ -10,6 +10,10 @@ from fantasy_dashboard.components.comparison_data import (
     FULL_SEASON_WEEKS,
     ComparisonDataProvider,
 )
+from fantasy_dashboard.components.comparison_graph_controls import (
+    ComparisonGraphSettings,
+    render_comparison_graph_settings,
+)
 from fantasy_dashboard.components.comparison_graph_metrics import (
     MAX_GRAPH_STATISTICS,
     build_comparison_category_statistics,
@@ -72,6 +76,7 @@ def _metric_trend(
     projected_rows: dict[str, list[dict[str, Any]]],
     schedule: list[dict[str, Any]],
     selected_stat: str,
+    graph_settings: ComparisonGraphSettings,
 ) -> list[dict[str, Any]]:
     if category == "Core Performance":
         return build_core_performance_trend(
@@ -83,7 +88,7 @@ def _metric_trend(
             projected_rows[player_id],
             selected_stat,
             metric_key,
-            hit_tolerance=3.0,
+            hit_tolerance=graph_settings.hit_tolerance,
         )
     if category == "Consistency":
         return build_consistency_trend(
@@ -91,8 +96,8 @@ def _metric_trend(
             projected_rows[player_id],
             selected_stat,
             metric_key,
-            consistency_band_percent=20.0,
-            boom_bust_tolerance=3.0,
+            consistency_band_percent=graph_settings.consistency_band_percent,
+            boom_bust_tolerance=graph_settings.boom_bust_tolerance,
         )
     position = str(players[player_id].get("position") or "")
     if category == "Opportunity":
@@ -188,6 +193,11 @@ def render_comparison_weekly_graphs(
         st.info("Select at least one performance statistic to graph.")
         return
 
+    graph_settings = render_comparison_graph_settings(
+        selected_options,
+        key_prefix=f"comparison-weekly-graphs-{league_id}-{selected_season}",
+    )
+
     selected_positions = list(dict.fromkeys(selected_positions))
     metric_charts = []
     for option in selected_options:
@@ -201,6 +211,7 @@ def render_comparison_weekly_graphs(
                 projected_rows,
                 schedule,
                 selected_stat,
+                graph_settings,
             )
             for player_id in league_player_ids
         }
