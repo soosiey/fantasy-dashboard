@@ -332,11 +332,11 @@ with st.sidebar:
             analysis_page,
             label="Statistics",
         )
-        st.page_link(league_predictions_page, label="League Predictions")
         st.page_link(players_page, label="Players")
         st.page_link(matchups_page, label="Matchups")
         st.page_link(comparison_page, label="Comparison")
         st.page_link(graphs_page, label="Single Player Selection")
+        st.page_link(league_predictions_page, label="League Predictions")
     elif not authenticated:
         st.page_link(start_page, label="User Login")
     elif not league_id:
