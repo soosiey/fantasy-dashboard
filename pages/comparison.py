@@ -2,9 +2,12 @@ import pandas as pd
 import requests
 import streamlit as st
 
+from fantasy_dashboard.components.comparison_data import (
+    ComparisonDataProvider,
+    comparison_positions_are_compatible,
+)
 from fantasy_dashboard.components.comparison_graphs import render_comparison_graphs
 from fantasy_dashboard.components.comparison_performance import (
-    comparison_positions_are_compatible,
     render_comparison_performance,
 )
 from fantasy_dashboard.components.comparison_selection import (
@@ -417,27 +420,18 @@ else:
             show_player_news(news_player)
 
 if has_generated_comparison:
+    comparison_data = ComparisonDataProvider(
+        league_id,
+        league,
+        nfl_players,
+        generated_comparison_player_ids,
+    )
     with performance_statistics_tab:
-        render_comparison_performance(
-            league_id,
-            league,
-            nfl_players,
-            generated_comparison_player_ids,
-        )
+        render_comparison_performance(comparison_data)
     with stat_graphs_tab:
-        render_comparison_graphs(
-            league_id,
-            league,
-            nfl_players,
-            generated_comparison_player_ids,
-        )
+        render_comparison_graphs(comparison_data)
     with weekly_graphs_tab:
-        render_comparison_weekly_graphs(
-            league_id,
-            league,
-            nfl_players,
-            generated_comparison_player_ids,
-        )
+        render_comparison_weekly_graphs(comparison_data)
 
 render_comparison_sidebar(nfl_players, league_id)
 with overview_tab:

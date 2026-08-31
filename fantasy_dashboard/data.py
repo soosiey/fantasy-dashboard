@@ -547,12 +547,13 @@ def refresh_projected_player_stats_cache(
     week: int | None,
     *,
     force_provider: bool = False,
+    raw_cache_max_age: timedelta = CURRENT_PROJECTION_CACHE_MAX_AGE,
 ) -> dict[str, dict[str, float]]:
     raw_cache_path = ESPN_PROJECTIONS_CACHE_DIR / f"{season}.json"
     projection_data = EspnClient().get_nfl_projections(
         season,
         raw_cache_path,
-        max_age=timedelta(0) if force_provider else timedelta(hours=1),
+        max_age=timedelta(0) if force_provider else raw_cache_max_age,
     )
     stats = map_projections_to_sleeper(
         projection_data,
@@ -632,25 +633,12 @@ def refresh_current_week_input_data(*, force: bool = False) -> tuple[str, str, i
     if not force and any(
         _is_cache_stale(path, projection_max_age) for path in projection_paths
     ):
-        raw_cache_path = ESPN_PROJECTIONS_CACHE_DIR / f"{season}.json"
-        projection_data = EspnClient().get_nfl_projections(
-            season,
-            raw_cache_path,
-            max_age=projection_max_age,
-        )
-        players = get_nfl_players()
-        for normalized_path, projection_week in zip(
-            projection_paths,
-            (week, None),
-        ):
-            projections = map_projections_to_sleeper(
-                projection_data,
-                players,
+        for projection_week in (week, None):
+            refresh_projected_player_stats_cache(
                 season,
                 projection_week,
+                raw_cache_max_age=projection_max_age,
             )
-            _write_json_cache(normalized_path, projections)
-        _read_json_cache.clear()
 
     return season, season_type, week
 

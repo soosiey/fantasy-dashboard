@@ -1,8 +1,10 @@
 import pandas as pd
 import pytest
 
-from fantasy_dashboard.components.comparison_performance import (
+from fantasy_dashboard.components.comparison_data import (
     comparison_positions_are_compatible,
+)
+from fantasy_dashboard.components.comparison_performance import (
     get_selected_comparison_metrics,
     make_arrow_compatible,
 )

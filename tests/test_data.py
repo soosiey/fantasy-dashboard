@@ -192,6 +192,85 @@ def test_projected_stats_reuse_normalized_week_cache(monkeypatch, tmp_path) -> N
     assert mapping_calls == 1
 
 
+def test_projection_refresh_uses_six_hour_raw_espn_cache(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    requested_max_ages: list[timedelta] = []
+
+    class FakeEspnClient:
+        def get_nfl_projections(
+            self,
+            season: str,
+            cache_path,
+            *,
+            max_age: timedelta,
+        ) -> dict:
+            assert season == "2026"
+            assert cache_path == tmp_path / "raw" / "2026.json"
+            requested_max_ages.append(max_age)
+            return {"players": []}
+
+    monkeypatch.setattr(data, "WEEKLY_STATS_CACHE_DIR", tmp_path / "weekly")
+    monkeypatch.setattr(data, "ESPN_PROJECTIONS_CACHE_DIR", tmp_path / "raw")
+    monkeypatch.setattr(data, "EspnClient", FakeEspnClient)
+    monkeypatch.setattr(data, "map_projections_to_sleeper", lambda *args: {})
+    monkeypatch.setattr(data, "get_nfl_players", dict)
+
+    data.refresh_projected_player_stats_cache("2026", 4)
+
+    assert requested_max_ages == [data.CURRENT_PROJECTION_CACHE_MAX_AGE]
+
+
+def test_pregame_projection_update_uses_authoritative_refresh_function(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    refreshes: list[tuple[str, int | None, timedelta]] = []
+
+    monkeypatch.setattr(data, "WEEKLY_STATS_CACHE_DIR", tmp_path / "weekly")
+    monkeypatch.setattr(
+        data,
+        "get_nfl_state",
+        lambda: {
+            "season": "2026",
+            "season_type": "regular",
+            "week": 4,
+            "display_week": 4,
+        },
+    )
+    monkeypatch.setattr(
+        data,
+        "get_nfl_schedule",
+        lambda *args: [{"week": 4, "status": "pre_game"}],
+    )
+    monkeypatch.setattr(data, "refresh_player_stats_cache", lambda *args: {})
+
+    def refresh_projections(
+        season: str,
+        week: int | None,
+        *,
+        force_provider: bool = False,
+        raw_cache_max_age: timedelta,
+    ) -> dict[str, dict[str, float]]:
+        assert not force_provider
+        refreshes.append((season, week, raw_cache_max_age))
+        return {}
+
+    monkeypatch.setattr(
+        data,
+        "refresh_projected_player_stats_cache",
+        refresh_projections,
+    )
+
+    data.refresh_current_week_input_data()
+
+    assert refreshes == [
+        ("2026", 4, data.CURRENT_PROJECTION_CACHE_MAX_AGE),
+        ("2026", None, data.CURRENT_PROJECTION_CACHE_MAX_AGE),
+    ]
+
+
 def test_actual_cache_uses_live_and_finalized_refresh_windows(tmp_path) -> None:
     cache_path = tmp_path / "week_1.json"
     cache_path.write_text("{}")

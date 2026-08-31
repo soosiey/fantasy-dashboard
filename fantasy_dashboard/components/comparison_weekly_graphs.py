@@ -4,22 +4,18 @@ from typing import Any
 import altair as alt
 import numpy as np
 import pandas as pd
-import requests
 import streamlit as st
 
-from fantasy_dashboard.components.comparison_graphs import (
+from fantasy_dashboard.components.comparison_data import (
+    FULL_SEASON_WEEKS,
+    ComparisonDataProvider,
+)
+from fantasy_dashboard.components.comparison_graph_metrics import (
     MAX_GRAPH_STATISTICS,
-    _build_category_statistics,
-    _load_weekly_rows,
-    _metric_options,
-    _player_name,
-    _season_options,
+    build_comparison_category_statistics,
+    get_comparison_metric_options,
+    get_comparison_player_name,
 )
-from fantasy_dashboard.components.comparison_performance import (
-    comparison_positions_are_compatible,
-    get_comparison_stat_options,
-)
-from fantasy_dashboard.data import get_nfl_schedule, get_rosters
 from fantasy_dashboard.player_performance import (
     build_availability_statistics,
     build_availability_trend,
@@ -116,64 +112,38 @@ def _metric_trend(
 
 
 def render_comparison_weekly_graphs(
-    league_id: str,
-    league: Any,
-    players: dict[str, dict[str, Any]],
-    comparison_player_ids: list[str],
+    data_provider: ComparisonDataProvider,
 ) -> None:
-    selected_player_ids = [
-        player_id for player_id in comparison_player_ids if player_id in players
-    ]
+    league_id = data_provider.league_id
+    players = data_provider.players
+    selected_player_ids = data_provider.selected_player_ids
     if not selected_player_ids:
         st.info("No visible checked players were included in this comparison.")
         return
 
-    season_options = _season_options()
+    season_options = data_provider.get_season_options()
+    if data_provider.season_warning:
+        st.warning(data_provider.season_warning)
     year_key = f"comparison-weekly-graphs-{league_id}-year"
     if st.session_state.get(year_key) not in season_options:
         st.session_state[year_key] = season_options[0]
     selected_season = st.selectbox("Year", season_options, key=year_key)
 
-    selected_positions = [
-        str(players[player_id].get("position") or "")
-        for player_id in selected_player_ids
-    ]
-    positions_are_compatible = comparison_positions_are_compatible(
-        selected_positions
-    )
-    stat_options = get_comparison_stat_options(players, selected_player_ids)
+    selected_positions = data_provider.selected_positions
+    positions_are_compatible = data_provider.positions_are_compatible
+    stat_options = data_provider.get_stat_options()
     stat_key = f"comparison-weekly-graphs-{league_id}-stat"
     if st.session_state.get(stat_key) not in stat_options:
         st.session_state[stat_key] = "Fantasy Points"
     selected_stat = st.selectbox("Stat", stat_options, key=stat_key)
 
-    try:
-        rosters = get_rosters(league_id)
-        rostered_player_ids = {
-            str(player_id)
-            for roster in rosters.rosters
-            for player_id in roster.players
-            if player_id is not None and str(player_id) in players
-        }
-    except (requests.RequestException, TypeError, ValueError, AttributeError):
-        rostered_player_ids = set(selected_player_ids)
-        st.warning("League rosters could not be loaded for the league averages.")
-    league_player_ids = sorted(rostered_player_ids | set(selected_player_ids))
-
-    try:
-        actual_rows, projected_rows = _load_weekly_rows(
-            league_player_ids,
-            selected_season,
-            list(range(1, 19)),
-            league.scoring_settings,
-        )
-    except (requests.RequestException, TypeError, ValueError):
-        st.warning("Player statistics could not be loaded for this season.")
-        return
-    try:
-        schedule = get_nfl_schedule(selected_season, "regular")
-    except (requests.RequestException, TypeError, ValueError):
-        schedule = []
+    context = data_provider.get_context(selected_season, FULL_SEASON_WEEKS)
+    for warning in context.warnings:
+        st.warning(warning)
+    league_player_ids = context.league_player_ids
+    actual_rows = context.actual_rows
+    projected_rows = context.projected_rows
+    schedule = context.schedule
 
     if not positions_are_compatible:
         st.warning(
@@ -181,13 +151,13 @@ def render_comparison_weekly_graphs(
             "fantasy-point performance statistics will be compared."
         )
 
-    category_statistics = _build_category_statistics(
+    category_statistics = build_comparison_category_statistics(
         league_player_ids,
         players,
         actual_rows,
         projected_rows,
         schedule,
-        list(range(1, 19)),
+        list(FULL_SEASON_WEEKS),
         selected_stat,
         positions_are_compatible,
     )
@@ -205,7 +175,10 @@ def render_comparison_weekly_graphs(
                     str(players[player_id].get("injury_status") or ""),
                 )
             )
-    metric_options = _metric_options(category_statistics, selected_player_ids)
+    metric_options = get_comparison_metric_options(
+        category_statistics,
+        selected_player_ids,
+    )
     selected_options = _render_metric_selector(
         league_id,
         selected_season,
@@ -239,7 +212,10 @@ def render_comparison_weekly_graphs(
                     chart_rows.append(
                         {
                             "Week": int(row["Week"]),
-                            "Entity": _player_name(player_id, players),
+                            "Entity": get_comparison_player_name(
+                                player_id,
+                                players,
+                            ),
                             "Value": float(value),
                             "Series": "Player",
                         }

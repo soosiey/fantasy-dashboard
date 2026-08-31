@@ -1,19 +1,13 @@
 from collections.abc import Callable
-from datetime import datetime
 from numbers import Real
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import pandas as pd
-import requests
 import streamlit as st
 
-from fantasy_dashboard.data import (
-    get_current_nfl_season,
-    get_nfl_schedule,
-    get_player_stats,
-    get_projected_player_stats,
-    get_rosters,
+from fantasy_dashboard.components.comparison_data import (
+    FULL_SEASON_WEEKS,
+    ComparisonDataProvider,
 )
 from fantasy_dashboard.player_performance import (
     build_availability_statistics,
@@ -24,48 +18,7 @@ from fantasy_dashboard.player_performance import (
     build_opportunity_statistics,
     build_projection_accuracy_statistics,
     get_team_completed_weeks,
-    is_eligible_game,
 )
-from fantasy_dashboard.player_stats import (
-    build_player_stat_row,
-    get_relevant_stat_fields,
-)
-
-FLEX_POSITIONS = {"RB", "WR", "TE"}
-
-
-def comparison_positions_are_compatible(positions: list[str]) -> bool:
-    distinct_positions = {position.upper() for position in positions if position}
-    return len(distinct_positions) <= 1 or distinct_positions <= FLEX_POSITIONS
-
-
-def get_comparison_stat_options(
-    players: dict[str, dict[str, Any]],
-    player_ids: list[str],
-) -> list[str]:
-    positions = [
-        str(players[player_id].get("position") or "")
-        for player_id in player_ids
-        if player_id in players
-    ]
-    if not comparison_positions_are_compatible(positions):
-        return ["Fantasy Points"]
-
-    relevant_stat_options = list(
-        dict.fromkeys(
-            label
-            for player_id in player_ids
-            if player_id in players
-            for label, stat_key in get_relevant_stat_fields(
-                str(players[player_id].get("position") or "")
-            )
-            if stat_key != "gp"
-        )
-    )
-    if "Fantasy Points" in relevant_stat_options:
-        relevant_stat_options.remove("Fantasy Points")
-    relevant_stat_options.insert(0, "Fantasy Points")
-    return relevant_stat_options
 
 
 def make_arrow_compatible(statistics_table: pd.DataFrame) -> pd.DataFrame:
@@ -190,41 +143,26 @@ def _render_comparison_metric_table(
 
 
 def render_comparison_performance(
-    league_id: str,
-    league: Any,
-    players: dict[str, dict[str, Any]],
-    comparison_player_ids: list[str],
+    data_provider: ComparisonDataProvider,
 ) -> None:
-    selected_player_ids = [
-        player_id for player_id in comparison_player_ids if player_id in players
-    ]
+    league_id = data_provider.league_id
+    players = data_provider.players
+    selected_player_ids = data_provider.selected_player_ids
     if not selected_player_ids:
         st.info("Select players from Statistics or Players to compare them here.")
         return
 
-    try:
-        current_season = int(get_current_nfl_season())
-    except (requests.RequestException, KeyError, TypeError, ValueError):
-        today = datetime.now(ZoneInfo("America/New_York")).date()
-        current_season = today.year if today.month >= 3 else today.year - 1
-        st.warning("The current NFL season could not be detected from Sleeper.")
-
-    selected_positions = [
-        str(players[player_id].get("position") or "")
-        for player_id in selected_player_ids
-    ]
-    positions_are_compatible = comparison_positions_are_compatible(selected_positions)
+    season_options = data_provider.get_season_options()
+    if data_provider.season_warning:
+        st.warning(data_provider.season_warning)
+    positions_are_compatible = data_provider.positions_are_compatible
     if not positions_are_compatible:
         st.warning(
             "You have selected players from different position groups, so only "
             "fantasy points will be compared."
         )
 
-    season_options = [str(current_season - offset) for offset in range(3)]
-    relevant_stat_options = get_comparison_stat_options(
-        players,
-        selected_player_ids,
-    )
+    relevant_stat_options = data_provider.get_stat_options()
 
     year_key = f"comparison-performance-{league_id}-year"
     stat_key = f"comparison-performance-{league_id}-stat"
@@ -239,48 +177,12 @@ def render_comparison_performance(
     with stat_column:
         selected_stat = st.selectbox("Stat", relevant_stat_options, key=stat_key)
 
-    try:
-        rosters = get_rosters(league_id)
-        rostered_player_ids = {
-            str(player_id)
-            for roster in rosters.rosters
-            for player_id in roster.players
-            if player_id is not None and str(player_id) in players
-        }
-    except (requests.RequestException, TypeError, ValueError, AttributeError):
-        rostered_player_ids = set(selected_player_ids)
-        st.warning("League rosters could not be loaded for the league averages.")
-    league_player_ids = sorted(rostered_player_ids | set(selected_player_ids))
-
-    actual_rows = {player_id: [] for player_id in league_player_ids}
-    projected_rows = {player_id: [] for player_id in league_player_ids}
-    try:
-        for week in range(1, 19):
-            actual_stats = get_player_stats(selected_season, "regular", week)
-            projected_stats = get_projected_player_stats(selected_season, week)
-            for player_id in league_player_ids:
-                player_actual_stats = actual_stats.get(player_id, {})
-                if is_eligible_game({"stats": player_actual_stats}):
-                    row = build_player_stat_row(
-                        player_actual_stats,
-                        league.scoring_settings,
-                        week,
-                        stats_available=True,
-                    )
-                    row["_Raw Stats"] = player_actual_stats
-                    actual_rows[player_id].append(row)
-                player_projected_stats = projected_stats.get(player_id, {})
-                if player_projected_stats:
-                    projected_rows[player_id].append(
-                        build_player_stat_row(
-                            player_projected_stats,
-                            league.scoring_settings,
-                            week,
-                            stats_available=True,
-                        )
-                    )
-    except (requests.RequestException, TypeError, ValueError):
-        st.warning("Some player statistics could not be loaded.")
+    context = data_provider.get_context(selected_season, FULL_SEASON_WEEKS)
+    for warning in context.warnings:
+        st.warning(warning)
+    league_player_ids = context.league_player_ids
+    actual_rows = context.actual_rows
+    projected_rows = context.projected_rows
 
     performance_tab_names = [
         "Core Performance Statistics",
@@ -386,11 +288,7 @@ def render_comparison_performance(
             )
 
     with performance_tabs["Availability"]:
-        try:
-            schedule = get_nfl_schedule(selected_season, "regular")
-        except (requests.RequestException, TypeError, ValueError):
-            schedule = []
-            st.warning("The completed NFL schedule could not be loaded.")
+        schedule = context.schedule
 
         def availability_builder(player_id: str) -> list[dict[str, Any]]:
             player = players[player_id]
