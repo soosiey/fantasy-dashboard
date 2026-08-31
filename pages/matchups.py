@@ -42,6 +42,15 @@ require_authentication("matchups")
 league_id = resolve_league_id()
 analysis_mode = bool(st.session_state.get(ANALYSIS_MODE_KEY))
 
+# The analysis comparison drawer reserves space inside the main block. Widen the
+# block in that state so the mirrored lineup keeps the same usable width it has
+# in the overview state.
+if analysis_mode:
+    st.markdown(
+        "<style>[data-testid='stMainBlockContainer'] { max-width: 95rem; }</style>",
+        unsafe_allow_html=True,
+    )
+
 if league_id is None:
     st.warning("Select a league first.")
     st.switch_page("pages/leagues.py")

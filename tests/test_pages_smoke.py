@@ -221,6 +221,10 @@ def test_matchups_page_is_available_inside_analysis_mode(authenticated_app) -> N
     assert app.session_state["_analysis_mode"] is True
     assert any(button.label == "Back to Overview" for button in app.button)
     assert not any(button.label == "Switch Leagues" for button in app.button)
+    assert any(
+        "stMainBlockContainer" in markdown.value and "max-width: 95rem" in markdown.value
+        for markdown in app.markdown
+    )
 
     next(
         button for button in app.button if button.label == "Back to Overview"
