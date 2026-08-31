@@ -14,7 +14,7 @@ def _get_recent_news_v4(rotoworld_id: int, player_name: str) -> list[PlayerNewsM
     return RotoworldClient().get_recent_news(rotoworld_id, player_name)
 
 
-# Format NBC's ISO timestamp into a concise date for the news blurb.
+# Format NBC's ISO timestamp into a concise date for the news listing.
 def _format_news_date(news_date: str) -> str:
     if not news_date:
         return "Date unavailable"
@@ -42,12 +42,15 @@ def render_player_news(player: PlayerModel) -> None:
         st.info("No recent Rotoworld news was found for this player.")
         return
 
-    # Keep multiple weekly updates inside one compact, scrollable blurb.
+    # Link to each report's source without reproducing the article analysis.
     with st.container(height=500, border=False):
         for index, news in enumerate(news_items):
             st.subheader(news.title)
-            st.caption(_format_news_date(news.date))
-            st.write(news.text)
+            publication = _format_news_date(news.date)
+            if news.author:
+                publication = f"{publication} · By {news.author}"
+            st.caption(publication)
+            st.link_button("View on Rotoworld", news.source_url)
             if index < len(news_items) - 1:
                 st.divider()
 

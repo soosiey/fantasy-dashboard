@@ -262,15 +262,15 @@ if authenticated:
         st.button(
             "Refresh Current Week",
             key="refresh-current-week-input-data",
-            help="Pull fresh actual stats and projections for the current NFL week",
+            help="Pull fresh actual stats for the current NFL week",
             on_click=request_current_week_refresh,
         )
 
 if st.session_state.pop("_refresh_current_week_input_data", False):
     try:
-        with st.spinner("Refreshing current-week player data..."):
+        with st.spinner("Refreshing current-week actual stats..."):
             refresh_current_week_input_data(force=True)
-        st.toast("Current-week player data refreshed.")
+        st.toast("Current-week actual stats refreshed.")
     except (OSError, TypeError, ValueError, requests.RequestException) as error:
         st.warning(f"Unable to refresh current-week player data: {error}")
 

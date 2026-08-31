@@ -214,13 +214,39 @@ def test_actual_cache_uses_live_and_finalized_refresh_windows(tmp_path) -> None:
         now=checked_at,
     )
 
+    pregame_games = [{"date": "2026-09-14", "status": "pre_game"}]
+    hourly_update = checked_at.timestamp() - 3600
+    os.utime(cache_path, (hourly_update, hourly_update))
+    assert not data._actual_cache_needs_refresh(
+        cache_path,
+        pregame_games,
+        now=checked_at,
+    )
+
+    daily_update = checked_at.timestamp() - 86400
+    os.utime(cache_path, (daily_update, daily_update))
+    assert data._actual_cache_needs_refresh(
+        cache_path,
+        pregame_games,
+        now=checked_at,
+    )
+
     completed_games = [{"date": "2026-09-07", "status": "complete"}]
     before_deadline = datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc).timestamp()
     os.utime(cache_path, (before_deadline, before_deadline))
+    assert not data._actual_cache_needs_refresh(
+        cache_path,
+        completed_games,
+        now=datetime(2026, 9, 9, 13, 0, tzinfo=timezone.utc),
+    )
+
+    stale_final_update = datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc).timestamp()
+    os.utime(cache_path, (stale_final_update, stale_final_update))
+    after_deadline = datetime(2026, 9, 11, 12, 0, tzinfo=timezone.utc)
     assert data._actual_cache_needs_refresh(
         cache_path,
         completed_games,
-        now=checked_at,
+        now=after_deadline,
     )
 
     finalized_update = datetime(2026, 9, 11, 12, 0, tzinfo=timezone.utc).timestamp()
@@ -230,3 +256,14 @@ def test_actual_cache_uses_live_and_finalized_refresh_windows(tmp_path) -> None:
         completed_games,
         now=checked_at,
     )
+
+
+def test_projection_cache_is_six_hourly_except_when_a_game_is_live() -> None:
+    assert data.CURRENT_PROJECTION_CACHE_MAX_AGE.total_seconds() == 6 * 60 * 60
+    assert data._projection_cache_max_age([]) == data.CURRENT_PROJECTION_CACHE_MAX_AGE
+    assert data._projection_cache_max_age(
+        [{"status": "pre_game"}, {"status": "complete"}]
+    ) == data.CURRENT_PROJECTION_CACHE_MAX_AGE
+    assert data._projection_cache_max_age(
+        [{"status": "complete"}, {"status": "in_progress"}]
+    ) == data.LIVE_PROJECTION_CACHE_MAX_AGE

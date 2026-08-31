@@ -11,7 +11,6 @@ from fantasy_dashboard.components.player_details import show_player_details
 from fantasy_dashboard.components.player_news import show_player_news
 from fantasy_dashboard.data import (
     clear_matchup_data,
-    clear_projected_player_data,
     get_data_update,
     get_default_nfl_week,
     get_league,
@@ -113,8 +112,6 @@ if force_refresh:
         stats_season,
         league.season_type,
     )
-    if stats_source == "Predicted":
-        clear_projected_player_data(stats_season, selected_week)
     st.rerun()
 
 # Load the selected week's lineups and resolve their team and player identities.

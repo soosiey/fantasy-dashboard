@@ -475,7 +475,11 @@ def test_player_stats_state_includes_recent_news_page(fake_page_backend) -> None
     assert app.session_state["_player_stats_mode"] is True
     assert any(caption.value == "First Quarterback" for caption in app.caption)
     assert any(subheader.value == "Smoke Test News" for subheader in app.subheader)
-    assert any(text.value == "A deterministic player update." for text in app.markdown)
+    assert any("By Example Writer" in caption.value for caption in app.caption)
+    assert app.get("link_button")
+    assert not any(
+        text.value == "A deterministic player update." for text in app.markdown
+    )
     assert any(button.label == "Back to Analysis" for button in app.button)
 
 

@@ -2,6 +2,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from typing import Any, ClassVar
+from urllib.parse import urljoin, urlparse
 
 import requests
 
@@ -13,7 +14,6 @@ class _PlayerNewsParser(HTMLParser):
     FIELD_CLASSES: ClassVar[dict[str, str]] = {
         "PlayerNewsPost-name-container": "player_name",
         "PlayerNewsPost-headline": "title",
-        "PlayerNewsPost-analysis": "text",
     }
 
     def __init__(self) -> None:
@@ -21,7 +21,11 @@ class _PlayerNewsParser(HTMLParser):
         self.posts: list[dict[str, str]] = []
         self._current_post: dict[str, str] | None = None
         self._captures = {field: 0 for field in self.FIELD_CLASSES.values()}
-        self._elements: list[tuple[str, set[str], bool]] = []
+        self._elements: list[tuple[str, set[str], bool, bool]] = []
+        self._inside_analysis = 0
+        self._analysis_seen = False
+        self._anchor_text = ""
+        self._anchor_can_be_author = False
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = dict(attrs)
@@ -33,8 +37,13 @@ class _PlayerNewsParser(HTMLParser):
                 "player_name": "",
                 "title": "",
                 "date": "",
-                "text": "",
+                "author": "",
+                "source_url": "",
             }
+            self._inside_analysis = 0
+            self._analysis_seen = False
+            self._anchor_text = ""
+            self._anchor_can_be_author = False
 
         captured_fields: set[str] = set()
         if self._current_post is not None:
@@ -46,7 +55,29 @@ class _PlayerNewsParser(HTMLParser):
             if "PlayerNewsPost-date" in classes:
                 self._current_post["date"] = attributes.get("data-date") or ""
 
-        self._elements.append((tag, captured_fields, starts_post))
+            # The first NBC link in a card leads to that player's Rotoworld page.
+            # Keep the UI on Rotoworld rather than forwarding to an external report.
+            href = attributes.get("href")
+            if tag == "a" and href:
+                self._anchor_text = ""
+                candidate_url = urljoin(RotoworldClient.PLAYER_NEWS_URL, href)
+                candidate_host = (urlparse(candidate_url).hostname or "").casefold()
+                is_rotoworld_link = candidate_host == "nbcsports.com" or (
+                    candidate_host.endswith(".nbcsports.com")
+                )
+                self._anchor_can_be_author = self._analysis_seen and is_rotoworld_link
+                if (
+                    not self._analysis_seen
+                    and not self._current_post["source_url"]
+                    and is_rotoworld_link
+                ):
+                    self._current_post["source_url"] = candidate_url
+
+        is_analysis = "PlayerNewsPost-analysis" in classes
+        if is_analysis:
+            self._inside_analysis += 1
+
+        self._elements.append((tag, captured_fields, starts_post, is_analysis))
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self.handle_starttag(tag, attrs)
@@ -59,13 +90,29 @@ class _PlayerNewsParser(HTMLParser):
         for field, depth in self._captures.items():
             if depth:
                 self._current_post[field] += f" {data}"
+        if self._anchor_can_be_author:
+            self._anchor_text += f" {data}"
 
     def handle_endtag(self, tag: str) -> None:
+        if (
+            tag == "a"
+            and self._current_post is not None
+            and self._anchor_can_be_author
+            and not self._current_post["author"]
+        ):
+            self._current_post["author"] = " ".join(self._anchor_text.split())
+        if tag == "a":
+            self._anchor_text = ""
+            self._anchor_can_be_author = False
+
         # Unwind through the matching element so mildly malformed HTML is tolerated.
         while self._elements:
-            open_tag, captured_fields, starts_post = self._elements.pop()
+            open_tag, captured_fields, starts_post, is_analysis = self._elements.pop()
             for field in captured_fields:
                 self._captures[field] -= 1
+            if is_analysis:
+                self._inside_analysis -= 1
+                self._analysis_seen = self._inside_analysis == 0
 
             if starts_post and self._current_post is not None:
                 post = {
@@ -164,7 +211,10 @@ class RotoworldClient:
                     PlayerNewsModel(
                         title=post["title"],
                         date=post["date"],
-                        text=post["text"],
+                        author=post["author"],
+                        source_url=(
+                            post["source_url"] or self.PLAYER_NEWS_URL
+                        ),
                     )
                 )
 

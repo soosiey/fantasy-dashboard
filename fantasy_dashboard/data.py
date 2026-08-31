@@ -30,8 +30,9 @@ from fantasy_dashboard.paths import (
 )
 
 PLAYER_CATALOG_MAX_AGE = timedelta(days=1)
-CURRENT_PROJECTION_CACHE_MAX_AGE = timedelta(hours=1)
-PREGAME_ACTUAL_CACHE_MAX_AGE = timedelta(hours=1)
+CURRENT_PROJECTION_CACHE_MAX_AGE = timedelta(hours=6)
+LIVE_PROJECTION_CACHE_MAX_AGE = timedelta(hours=1)
+PREGAME_ACTUAL_CACHE_MAX_AGE = timedelta(days=1)
 LIVE_ACTUAL_CACHE_MAX_AGE = timedelta(minutes=1)
 CORRECTION_WINDOW = timedelta(days=3)
 LIVE_GAME_STATUSES = {"in_progress", "in-progress", "live"}
@@ -177,7 +178,8 @@ def _actual_cache_needs_refresh(
         if checked_at >= correction_deadline:
             # Refresh exactly once after the correction window, then freeze.
             return _cache_updated_at(path) < correction_deadline
-        return checked_at - _cache_updated_at(path) >= PREGAME_ACTUAL_CACHE_MAX_AGE
+        # Keep the final in-game result untouched while corrections accumulate.
+        return False
 
     statuses = {
         str(game.get("status") or "").casefold()
@@ -190,6 +192,17 @@ def _actual_cache_needs_refresh(
         else PREGAME_ACTUAL_CACHE_MAX_AGE
     )
     return checked_at - _cache_updated_at(path) >= max_age
+
+
+def _projection_cache_max_age(games: list[dict[str, Any]]) -> timedelta:
+    statuses = {
+        str(game.get("status") or "").casefold()
+        for game in games
+        if isinstance(game, dict)
+    }
+    if statuses.intersection(LIVE_GAME_STATUSES):
+        return LIVE_PROJECTION_CACHE_MAX_AGE
+    return CURRENT_PROJECTION_CACHE_MAX_AGE
 
 
 # Share the stateless Sleeper client across sessions and page reruns.
@@ -583,15 +596,17 @@ def refresh_current_week_input_data(*, force: bool = False) -> tuple[str, str, i
         _stats_cache_path("espn", season, "regular", week),
         _stats_cache_path("espn", season, "regular", None),
     ]
-    if force or any(
-        _is_cache_stale(path, CURRENT_PROJECTION_CACHE_MAX_AGE)
-        for path in projection_paths
+    projection_max_age = _projection_cache_max_age(current_games)
+    # A forced refresh belongs only to actual stats. Projection refreshes follow
+    # their own daily/live schedule and are never forced by a UI control.
+    if not force and any(
+        _is_cache_stale(path, projection_max_age) for path in projection_paths
     ):
         raw_cache_path = ESPN_PROJECTIONS_CACHE_DIR / f"{season}.json"
         projection_data = EspnClient().get_nfl_projections(
             season,
             raw_cache_path,
-            max_age=(timedelta(0) if force else CURRENT_PROJECTION_CACHE_MAX_AGE),
+            max_age=projection_max_age,
         )
         players = get_nfl_players()
         for normalized_path, projection_week in zip(

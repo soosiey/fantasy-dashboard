@@ -233,7 +233,8 @@ def fake_page_backend(monkeypatch) -> SleeperUser:
             PlayerNewsModel(
                 title="Smoke Test News",
                 date="2026-08-28T12:00:00Z",
-                text="A deterministic player update.",
+                author="Example Writer",
+                source_url="https://www.nbcsports.com/fantasy/football/player-news",
             )
         ],
     )
