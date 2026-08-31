@@ -27,6 +27,20 @@ def test_login_page_renders_without_provider_requests(fake_page_backend) -> None
     assert any("v0.1" in markdown.value for markdown in app.markdown)
 
 
+def test_app_tolerates_stale_page_source_cache(
+    monkeypatch,
+    fake_page_backend,
+) -> None:
+    from fantasy_dashboard.routing import PAGE_SOURCES
+
+    monkeypatch.delitem(PAGE_SOURCES, "league-predictions")
+    monkeypatch.delitem(PAGE_SOURCES, "regression")
+
+    app = AppTest.from_file(APP_PATH, default_timeout=10).run()
+
+    _assert_page(app, "Fantasy Football Dashboard")
+
+
 def test_leagues_page_renders_for_authenticated_user(fake_page_backend) -> None:
     app = AppTest.from_file(APP_PATH, default_timeout=10)
     app.session_state["sleeper_user"] = fake_page_backend

@@ -101,13 +101,14 @@ analysis_page = st.Page(
     visibility=league_visibility,
 )
 league_predictions_page = st.Page(
-    PAGE_SOURCES["league-predictions"],
+    # Streamlit can retain an older imported routing module during a code hot reload.
+    PAGE_SOURCES.get("league-predictions", "pages/league_predictions.py"),
     title="League Predictions",
     url_path="league-predictions",
     visibility=league_visibility,
 )
 regression_page = st.Page(
-    PAGE_SOURCES["regression"],
+    PAGE_SOURCES.get("regression", "pages/regression.py"),
     title="Regression",
     url_path="regression",
     visibility=league_visibility,
