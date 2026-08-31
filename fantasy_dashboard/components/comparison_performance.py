@@ -39,6 +39,35 @@ def comparison_positions_are_compatible(positions: list[str]) -> bool:
     return len(distinct_positions) <= 1 or distinct_positions <= FLEX_POSITIONS
 
 
+def get_comparison_stat_options(
+    players: dict[str, dict[str, Any]],
+    player_ids: list[str],
+) -> list[str]:
+    positions = [
+        str(players[player_id].get("position") or "")
+        for player_id in player_ids
+        if player_id in players
+    ]
+    if not comparison_positions_are_compatible(positions):
+        return ["Fantasy Points"]
+
+    relevant_stat_options = list(
+        dict.fromkeys(
+            label
+            for player_id in player_ids
+            if player_id in players
+            for label, stat_key in get_relevant_stat_fields(
+                str(players[player_id].get("position") or "")
+            )
+            if stat_key != "gp"
+        )
+    )
+    if "Fantasy Points" in relevant_stat_options:
+        relevant_stat_options.remove("Fantasy Points")
+    relevant_stat_options.insert(0, "Fantasy Points")
+    return relevant_stat_options
+
+
 def make_arrow_compatible(statistics_table: pd.DataFrame) -> pd.DataFrame:
     statistics_table = statistics_table.copy()
     for column in statistics_table.columns:
@@ -192,22 +221,10 @@ def render_comparison_performance(
         )
 
     season_options = [str(current_season - offset) for offset in range(3)]
-    if positions_are_compatible:
-        relevant_stat_options = list(
-            dict.fromkeys(
-                label
-                for player_id in selected_player_ids
-                for label, stat_key in get_relevant_stat_fields(
-                    str(players[player_id].get("position") or "")
-                )
-                if stat_key != "gp"
-            )
-        )
-        if "Fantasy Points" in relevant_stat_options:
-            relevant_stat_options.remove("Fantasy Points")
-        relevant_stat_options.insert(0, "Fantasy Points")
-    else:
-        relevant_stat_options = ["Fantasy Points"]
+    relevant_stat_options = get_comparison_stat_options(
+        players,
+        selected_player_ids,
+    )
 
     year_key = f"comparison-performance-{league_id}-year"
     stat_key = f"comparison-performance-{league_id}-stat"

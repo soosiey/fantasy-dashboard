@@ -10,6 +10,7 @@ import streamlit as st
 
 from fantasy_dashboard.components.comparison_performance import (
     comparison_positions_are_compatible,
+    get_comparison_stat_options,
 )
 from fantasy_dashboard.data import (
     get_current_nfl_season,
@@ -93,12 +94,13 @@ def _build_category_statistics(
     projected_rows: dict[str, list[dict[str, Any]]],
     schedule: list[dict[str, Any]],
     selected_weeks: list[int],
+    selected_stat: str,
     positions_are_compatible: bool,
 ) -> dict[str, dict[str, list[dict[str, Any]]]]:
     categories = {
         "Core Performance": {
             player_id: build_core_performance_statistics(
-                actual_rows[player_id], "Fantasy Points"
+                actual_rows[player_id], selected_stat
             )
             for player_id in player_ids
         },
@@ -106,7 +108,7 @@ def _build_category_statistics(
             player_id: build_projection_accuracy_statistics(
                 actual_rows[player_id],
                 projected_rows[player_id],
-                "Fantasy Points",
+                selected_stat,
                 hit_tolerance=3.0,
             )
             for player_id in player_ids
@@ -115,7 +117,7 @@ def _build_category_statistics(
             player_id: build_consistency_statistics(
                 actual_rows[player_id],
                 projected_rows[player_id],
-                "Fantasy Points",
+                selected_stat,
                 consistency_band_percent=20.0,
                 boom_bust_tolerance=3.0,
             )
@@ -204,6 +206,19 @@ def render_comparison_graphs(
         st.session_state[year_key] = season_options[0]
     selected_season = st.selectbox("Year", season_options, key=year_key)
 
+    selected_positions = [
+        str(players[player_id].get("position") or "")
+        for player_id in selected_player_ids
+    ]
+    positions_are_compatible = comparison_positions_are_compatible(
+        selected_positions
+    )
+    stat_options = get_comparison_stat_options(players, selected_player_ids)
+    stat_key = f"comparison-graphs-{league_id}-stat"
+    if st.session_state.get(stat_key) not in stat_options:
+        st.session_state[stat_key] = "Fantasy Points"
+    selected_stat = st.selectbox("Stat", stat_options, key=stat_key)
+
     week_key_prefix = f"comparison-graphs-{league_id}-{selected_season}-week"
     week_keys = [f"{week_key_prefix}-{week}" for week in range(1, 19)]
     for week_key in week_keys:
@@ -258,11 +273,6 @@ def render_comparison_graphs(
     except (requests.RequestException, TypeError, ValueError):
         schedule = []
 
-    selected_positions = [
-        str(players[player_id].get("position") or "")
-        for player_id in selected_player_ids
-    ]
-    positions_are_compatible = comparison_positions_are_compatible(selected_positions)
     if not positions_are_compatible:
         st.warning(
             "You have selected players from different position groups, so only "
@@ -275,6 +285,7 @@ def render_comparison_graphs(
         projected_rows,
         schedule,
         selected_weeks,
+        selected_stat,
         positions_are_compatible,
     )
     metric_options = _metric_options(category_statistics, selected_player_ids)

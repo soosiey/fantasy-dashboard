@@ -344,6 +344,12 @@ def test_comparison_performance_limits_mixed_position_groups_to_fantasy_points(
         if box.key == "comparison-performance-league-1-stat"
     )
     assert stat_selector.options == ["Fantasy Points"]
+    assert app.selectbox(key="comparison-graphs-league-1-stat").options == [
+        "Fantasy Points"
+    ]
+    assert app.selectbox(key="comparison-weekly-graphs-league-1-stat").options == [
+        "Fantasy Points"
+    ]
     all_tab_labels = [tab.label for tab in app.tabs]
     performance_tab_names = [
         "Core Performance Statistics",
@@ -475,6 +481,10 @@ def test_comparison_graphs_offer_week_and_statistic_controls(
 
     graph_year = app.selectbox(key="comparison-graphs-league-1-year")
     assert graph_year.value == "2026"
+    graph_stat = app.selectbox(key="comparison-graphs-league-1-stat")
+    assert graph_stat.value == "Fantasy Points"
+    assert "Pass Yds" in graph_stat.options
+    assert "Receptions" not in graph_stat.options
     week_checkboxes = [
         checkbox for checkbox in app.checkbox if checkbox.label.startswith("Week ")
     ]
@@ -537,6 +547,10 @@ def test_comparison_weekly_graphs_use_performance_metrics_without_week_filters(
     app.switch_page("pages/comparison.py").run()
 
     assert app.selectbox(key="comparison-weekly-graphs-league-1-year").value == "2026"
+    weekly_stat = app.selectbox(key="comparison-weekly-graphs-league-1-stat")
+    assert weekly_stat.value == "Fantasy Points"
+    assert "Pass Yds" in weekly_stat.options
+    assert "Receptions" not in weekly_stat.options
     assert not any(
         str(checkbox.key).startswith("comparison-weekly-graphs-league-1-2026-week")
         for checkbox in app.checkbox
