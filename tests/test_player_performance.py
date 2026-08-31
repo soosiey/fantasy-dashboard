@@ -261,21 +261,17 @@ def test_opportunity_and_efficiency_use_cached_volume_with_context() -> None:
         },
     ]
     opportunity = {
-        row["Statistic"]: row
-        for row in build_opportunity_statistics(weekly_rows, "RB")
+        row["Statistic"]: row for row in build_opportunity_statistics(weekly_rows, "RB")
     }
     efficiency = {
-        row["Statistic"]: row
-        for row in build_efficiency_statistics(weekly_rows, "RB")
+        row["Statistic"]: row for row in build_efficiency_statistics(weekly_rows, "RB")
     }
 
     assert opportunity["Touches"]["Value"] == 34
     assert opportunity["Targets"]["Value"] == 15
     assert opportunity["Snap share"]["Value"] == 62.5
     assert opportunity["Red-zone opportunities"]["Value"] == 8
-    assert efficiency["Fantasy points per touch"]["Value"] == pytest.approx(
-        30 / 34
-    )
+    assert efficiency["Fantasy points per touch"]["Value"] == pytest.approx(30 / 34)
     assert efficiency["Yards per carry"]["Value"] == 6
     assert efficiency["Catch rate"]["Value"] == 60
     assert efficiency["Yards per target"]["Value"] == 6
@@ -300,11 +296,12 @@ def test_availability_excludes_byes_and_retains_injury_context() -> None:
     assert values["Games played"] == 1
     assert values["Games missed"] == 1
     assert values["Availability rate"] == 50
-    assert next(
-        row["Context"]
-        for row in statistics
-        if row["Statistic"] == "Injury status"
-    ) == "Current Sleeper designation: Questionable"
+    assert (
+        next(
+            row["Context"] for row in statistics if row["Statistic"] == "Injury status"
+        )
+        == "Current Sleeper designation: Questionable"
+    )
 
 
 def test_new_performance_metric_trends_recalculate_cumulatively() -> None:
@@ -322,8 +319,7 @@ def test_new_performance_metric_trends_recalculate_cumulatively() -> None:
     ]
 
     assert [
-        row["Value"]
-        for row in build_opportunity_trend(weekly_rows, "RB", "touches")
+        row["Value"] for row in build_opportunity_trend(weekly_rows, "RB", "touches")
     ] == [12, 34]
     assert [
         row["Value"]

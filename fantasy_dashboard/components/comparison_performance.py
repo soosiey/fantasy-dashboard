@@ -53,9 +53,11 @@ def make_arrow_compatible(statistics_table: pd.DataFrame) -> pd.DataFrame:
                 lambda value: (
                     None
                     if pd.isna(value)
-                    else f"{float(value):.2f}"
-                    if isinstance(value, Real) and not isinstance(value, bool)
-                    else str(value)
+                    else (
+                        f"{float(value):.2f}"
+                        if isinstance(value, Real) and not isinstance(value, bool)
+                        else str(value)
+                    )
                 )
             )
     return statistics_table
@@ -90,9 +92,7 @@ def _render_comparison_metric_table(
     *,
     use_symbols: bool = False,
 ) -> None:
-    metric_order, metric_details = get_selected_comparison_metrics(
-        selected_statistics
-    )
+    metric_order, metric_details = get_selected_comparison_metrics(selected_statistics)
 
     if not metric_order:
         st.info("No statistics are available for the selected players.")
@@ -119,16 +119,13 @@ def _render_comparison_metric_table(
             {
                 player_id: statistics
                 for player_id, statistics in league_statistics.items()
-                if str(players.get(player_id, {}).get("position") or "—")
-                == position
+                if str(players.get(player_id, {}).get("position") or "—") == position
             }
         )
         for position in selected_positions
     }
     values_by_player = {
-        player_id: {
-            str(metric["Key"]): metric.get("Value") for metric in statistics
-        }
+        player_id: {str(metric["Key"]): metric.get("Value") for metric in statistics}
         for player_id, statistics in selected_statistics.items()
     }
 
@@ -187,9 +184,7 @@ def render_comparison_performance(
         str(players[player_id].get("position") or "")
         for player_id in selected_player_ids
     ]
-    positions_are_compatible = comparison_positions_are_compatible(
-        selected_positions
-    )
+    positions_are_compatible = comparison_positions_are_compatible(selected_positions)
     if not positions_are_compatible:
         st.warning(
             "You have selected players from different position groups, so only "

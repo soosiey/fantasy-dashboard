@@ -5,6 +5,7 @@ import streamlit as st
 from fantasy_dashboard.components.comparison_selection import (
     COMPARISON_COLUMN,
     add_comparison_column,
+    comparison_editor_key,
     render_comparison_column_label,
     render_comparison_sidebar,
     save_comparison_selection,
@@ -348,13 +349,15 @@ else:
             hide_index=True,
             height=700,
             width="stretch",
-            key="statistics-player-table",
+            key=comparison_editor_key("statistics-player-table", league_id),
         )
-        save_comparison_selection(
+        if save_comparison_selection(
             edited_player_table,
             player_ids,
             league_id,
-        )
+            editor_key_base="statistics-player-table",
+        ):
+            st.rerun()
 
         selected_details_player_id = st.session_state.pop(
             "_statistics_details_player_id", None

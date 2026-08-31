@@ -6,6 +6,21 @@ import pandas as pd
 import streamlit as st
 
 COMPARISON_COLUMN = "Add to comparison"
+MAX_COMPARISON_PLAYERS = 5
+
+
+def cap_comparison_player_ids(player_ids: Iterable[str]) -> tuple[list[str], bool]:
+    unique_player_ids = list(dict.fromkeys(str(player_id) for player_id in player_ids))
+    return (
+        unique_player_ids[:MAX_COMPARISON_PLAYERS],
+        len(unique_player_ids) > MAX_COMPARISON_PLAYERS,
+    )
+
+
+def comparison_editor_key(base_key: str, league_id: str) -> str:
+    version_key = f"comparison-editor-version-{base_key}-{league_id}"
+    version = int(st.session_state.get(version_key, 0))
+    return f"{base_key}-v{version}"
 
 
 def render_comparison_column_label() -> None:
@@ -28,9 +43,13 @@ def add_comparison_column(
 ) -> pd.DataFrame:
     """Preselect players already chosen elsewhere in this league's analysis."""
     selection_key = f"comparison-player-ids-{league_id}"
-    selected_player_ids = {
-        str(player_id) for player_id in st.session_state.get(selection_key, [])
-    }
+    capped_player_ids, was_capped = cap_comparison_player_ids(
+        st.session_state.get(selection_key, [])
+    )
+    if was_capped:
+        st.session_state[selection_key] = capped_player_ids
+        st.session_state[f"comparison-player-limit-warning-{league_id}"] = True
+    selected_player_ids = set(capped_player_ids)
     table.insert(
         0,
         COMPARISON_COLUMN,
@@ -43,23 +62,33 @@ def save_comparison_selection(
     edited_table: pd.DataFrame,
     visible_player_ids: Iterable[str],
     league_id: str,
+    *,
+    editor_key_base: str,
 ) -> bool:
     """Merge the current table's checkboxes with selections from other views."""
     selection_key = f"comparison-player-ids-{league_id}"
-    selected_player_ids = {
+    selected_player_ids = [
         str(player_id) for player_id in st.session_state.get(selection_key, [])
-    }
+    ]
     visible_ids = {str(player_id) for player_id in visible_player_ids}
-    selected_player_ids.difference_update(visible_ids)
-    selected_player_ids.update(
-        edited_table.loc[edited_table[COMPARISON_COLUMN], "Player ID"].astype(str)
+    selected_outside_view = [
+        player_id for player_id in selected_player_ids if player_id not in visible_ids
+    ]
+    selected_in_view = (
+        edited_table.loc[edited_table[COMPARISON_COLUMN], "Player ID"]
+        .astype(str)
+        .tolist()
     )
-    updated_player_ids = sorted(selected_player_ids)
-    selection_changed = updated_player_ids != sorted(
-        str(player_id) for player_id in st.session_state.get(selection_key, [])
+    updated_player_ids, was_capped = cap_comparison_player_ids(
+        [*selected_outside_view, *selected_in_view]
     )
+    if was_capped:
+        st.session_state[f"comparison-player-limit-warning-{league_id}"] = True
+        version_key = f"comparison-editor-version-{editor_key_base}-{league_id}"
+        st.session_state[version_key] = int(st.session_state.get(version_key, 0)) + 1
+    selection_changed = updated_player_ids != selected_player_ids
     st.session_state[selection_key] = updated_player_ids
-    return selection_changed
+    return selection_changed or was_capped
 
 
 def render_comparison_sidebar(
@@ -68,14 +97,18 @@ def render_comparison_sidebar(
 ) -> None:
     """Show selected players in a fixed drawer on every analysis page."""
     selection_key = f"comparison-player-ids-{league_id}"
-    selected_player_ids = [
-        str(player_id) for player_id in st.session_state.get(selection_key, [])
-    ]
+    selected_player_ids, was_capped = cap_comparison_player_ids(
+        st.session_state.get(selection_key, [])
+    )
+    if was_capped:
+        st.session_state[selection_key] = selected_player_ids
+        st.session_state[f"comparison-player-limit-warning-{league_id}"] = True
+    limit_warning = st.session_state.pop(
+        f"comparison-player-limit-warning-{league_id}", False
+    )
     selected_players = [
         players[player_id] for player_id in selected_player_ids if player_id in players
     ]
-    if not selected_players:
-        return
 
     st.markdown(
         """
@@ -120,6 +153,9 @@ def render_comparison_sidebar(
 
     with st.container(key="comparison-drawer"):
         st.subheader("Comparison")
+        st.caption(f"{len(selected_players)}/{MAX_COMPARISON_PLAYERS}")
+        if limit_warning:
+            st.warning("You are at the 5-player comparison cap.")
         for player in selected_players:
             player_name = (
                 f"{player.get('first_name') or ''} {player.get('last_name') or ''}"

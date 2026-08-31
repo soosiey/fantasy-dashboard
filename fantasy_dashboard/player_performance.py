@@ -1007,9 +1007,7 @@ def build_availability_statistics(
         else None
     )
     availability_rate = (
-        games_played / team_completed_games * 100
-        if team_completed_games
-        else None
+        games_played / team_completed_games * 100 if team_completed_games else None
     )
     schedule_context = (
         f"{team_completed_games} completed team games"
@@ -1112,9 +1110,7 @@ def build_availability_trend(
     trend_rows: list[dict[str, Any]] = []
     trend_weeks = completed_team_weeks or sorted(rows_by_week)
     for completed_game_count, week in enumerate(trend_weeks, start=1):
-        player_rows = [
-            row for row in weekly_rows if int(row.get("Week") or 0) <= week
-        ]
+        player_rows = [row for row in weekly_rows if int(row.get("Week") or 0) <= week]
         statistics = build_availability_statistics(
             player_rows,
             completed_game_count,

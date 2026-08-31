@@ -2,16 +2,23 @@ import pandas as pd
 import requests
 import streamlit as st
 
+from fantasy_dashboard.components.comparison_graphs import render_comparison_graphs
 from fantasy_dashboard.components.comparison_performance import (
     comparison_positions_are_compatible,
     render_comparison_performance,
 )
 from fantasy_dashboard.components.comparison_selection import (
     COMPARISON_COLUMN,
+    MAX_COMPARISON_PLAYERS,
     add_comparison_column,
+    cap_comparison_player_ids,
+    comparison_editor_key,
     render_comparison_column_label,
     render_comparison_sidebar,
     save_comparison_selection,
+)
+from fantasy_dashboard.components.comparison_weekly_graphs import (
+    render_comparison_weekly_graphs,
 )
 from fantasy_dashboard.components.data_disclaimer import render_data_disclaimer
 from fantasy_dashboard.components.player_details import show_player_details
@@ -69,7 +76,7 @@ if not st.session_state.get(ANALYSIS_MODE_KEY):
     st.rerun()
 
 st.markdown(
-    "<style>[data-testid='stMainBlockContainer'] { max-width: 95rem; }</style>",
+    "<style>[data-testid='stMainBlockContainer'] { max-width: 115rem; }</style>",
     unsafe_allow_html=True,
 )
 st.title("Comparison")
@@ -125,21 +132,38 @@ if st.session_state[stats_source_filter_key] not in {"Actual", "Predicted"}:
 if st.session_state[period_filter_key] not in {"Season", "Week"}:
     st.session_state[period_filter_key] = filter_defaults[period_filter_key]
 
-overview_tab, graphs_tab, performance_statistics_tab = st.tabs(
-    ["Overview", "Graphs", "Performance Statistics"]
+(
+    overview_tab,
+    performance_statistics_tab,
+    stat_graphs_tab,
+    weekly_graphs_tab,
+) = st.tabs(
+    [
+        "Overview",
+        "Performance Statistics",
+        "Stat Graphs",
+        "Week-to-week Graphs",
+    ]
 )
 generated_comparison_key = f"generated-comparison-player-ids-{league_id}"
 has_generated_comparison = generated_comparison_key in st.session_state
-generated_comparison_player_ids = [
-    str(player_id)
-    for player_id in st.session_state.get(generated_comparison_key, [])
-]
+generated_comparison_player_ids, generated_comparison_was_capped = (
+    cap_comparison_player_ids(st.session_state.get(generated_comparison_key, []))
+)
+if generated_comparison_was_capped:
+    st.session_state[generated_comparison_key] = generated_comparison_player_ids
+    overview_tab.warning(
+        f"Comparisons are limited to {MAX_COMPARISON_PLAYERS} players."
+    )
 
 if not has_generated_comparison:
-    graphs_tab.warning(
+    stat_graphs_tab.warning(
         "Press Generate Comparisons on the Overview tab to select players."
     )
     performance_statistics_tab.warning(
+        "Press Generate Comparisons on the Overview tab to select players."
+    )
+    weekly_graphs_tab.warning(
         "Press Generate Comparisons on the Overview tab to select players."
     )
 
@@ -148,7 +172,9 @@ only_relevant_stats = overview_tab.checkbox(
     key=relevant_stats_filter_key,
 )
 
-stats_source_column, position_column, period_column, week_column = overview_tab.columns(4)
+stats_source_column, position_column, period_column, week_column = overview_tab.columns(
+    4
+)
 with stats_source_column:
     stats_source = (
         st.segmented_control(
@@ -352,9 +378,14 @@ else:
         hide_index=True,
         height=700,
         width="stretch",
-        key="comparison-player-table",
+        key=comparison_editor_key("comparison-player-table", league_id),
     )
-    if save_comparison_selection(edited_player_table, player_ids, league_id):
+    if save_comparison_selection(
+        edited_player_table,
+        player_ids,
+        league_id,
+        editor_key_base="comparison-player-table",
+    ):
         st.rerun()
 
     selected_details_player_id = st.session_state.pop(
@@ -393,6 +424,20 @@ if has_generated_comparison:
             nfl_players,
             generated_comparison_player_ids,
         )
+    with stat_graphs_tab:
+        render_comparison_graphs(
+            league_id,
+            league,
+            nfl_players,
+            generated_comparison_player_ids,
+        )
+    with weekly_graphs_tab:
+        render_comparison_weekly_graphs(
+            league_id,
+            league,
+            nfl_players,
+            generated_comparison_player_ids,
+        )
 
 render_comparison_sidebar(nfl_players, league_id)
 with overview_tab:
@@ -415,9 +460,13 @@ with st.bottom:
     back_to_overview = st.button("Back to Overview")
 
 if generate_comparisons:
-    st.session_state[generated_comparison_key] = [
-        str(row["Player ID"]) for row in player_rows
-    ]
+    visible_comparison_player_ids = [str(row["Player ID"]) for row in player_rows]
+    generated_player_ids, was_capped = cap_comparison_player_ids(
+        visible_comparison_player_ids
+    )
+    st.session_state[generated_comparison_key] = generated_player_ids
+    if was_capped:
+        st.session_state[f"comparison-player-limit-warning-{league_id}"] = True
     st.rerun()
 if back_to_overview:
     st.session_state.pop(ANALYSIS_MODE_KEY, None)

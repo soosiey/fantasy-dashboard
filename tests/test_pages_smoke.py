@@ -266,6 +266,7 @@ def test_selected_players_appear_in_analysis_comparison_sidebar(
     comparison_markup = " ".join(markdown.value for markdown in app.markdown)
     assert "First Quarterback" in comparison_markup
     assert "QB · BUF" in comparison_markup
+    assert any(caption.value == "1/5" for caption in app.caption)
 
 
 def test_comparison_page_only_shows_checked_players(fake_page_backend) -> None:
@@ -275,10 +276,11 @@ def test_comparison_page_only_shows_checked_players(fake_page_backend) -> None:
     app.switch_page("pages/comparison.py").run()
 
     _assert_page(app, "Comparison")
-    assert [tab.label for tab in app.tabs[:3]] == [
+    assert [tab.label for tab in app.tabs[:4]] == [
         "Overview",
-        "Graphs",
         "Performance Statistics",
+        "Stat Graphs",
+        "Week-to-week Graphs",
     ]
     assert app.session_state["_analysis_mode"] is True
     assert app.dataframe[0].value["Player ID"].tolist() == ["player-1"]
@@ -296,7 +298,7 @@ def test_comparison_performance_tables_include_players_and_position_average(
 
     app.switch_page("pages/comparison.py").run()
 
-    assert [tab.label for tab in app.tabs[3:]] == [
+    performance_tab_names = [
         "Core Performance Statistics",
         "Projection Accuracy",
         "Consistency",
@@ -304,6 +306,9 @@ def test_comparison_performance_tables_include_players_and_position_average(
         "Efficiency",
         "Availability",
     ]
+    assert [
+        tab.label for tab in app.tabs if tab.label in performance_tab_names
+    ] == performance_tab_names
     performance_table = app.dataframe[1].value
     assert "First Quarterback (QB)" in performance_table.columns
     assert "Second Quarterback (QB)" in performance_table.columns
@@ -339,7 +344,18 @@ def test_comparison_performance_limits_mixed_position_groups_to_fantasy_points(
         if box.key == "comparison-performance-league-1-stat"
     )
     assert stat_selector.options == ["Fantasy Points"]
-    performance_tab_labels = [tab.label for tab in app.tabs[3:]]
+    all_tab_labels = [tab.label for tab in app.tabs]
+    performance_tab_names = [
+        "Core Performance Statistics",
+        "Projection Accuracy",
+        "Consistency",
+        "Opportunity",
+        "Efficiency",
+        "Availability",
+    ]
+    performance_tab_labels = [
+        label for label in all_tab_labels if label in performance_tab_names
+    ]
     assert "Opportunity" not in performance_tab_labels
     assert "Efficiency" not in performance_tab_labels
     assert performance_tab_labels == [
@@ -348,9 +364,16 @@ def test_comparison_performance_limits_mixed_position_groups_to_fantasy_points(
         "Consistency",
         "Availability",
     ]
-    assert any(
-        "different position groups" in warning.value for warning in app.warning
-    )
+    graph_metric_labels = [
+        checkbox.label
+        for checkbox in app.checkbox
+        if " · " in checkbox.label
+        and str(checkbox.key).startswith("comparison-graphs-")
+    ]
+    assert not any(label.startswith("Opportunity ·") for label in graph_metric_labels)
+    assert not any(label.startswith("Efficiency ·") for label in graph_metric_labels)
+    assert not any(label.startswith("Availability ·") for label in graph_metric_labels)
+    assert any("different position groups" in warning.value for warning in app.warning)
 
 
 def test_comparison_can_show_union_of_relevant_position_stats(
@@ -395,9 +418,10 @@ def test_comparison_tabs_require_generate_comparisons(
     app.switch_page("pages/comparison.py").run()
 
     assert not any(box.label == "Stat" for box in app.selectbox)
-    assert sum(
-        "Press Generate Comparisons" in warning.value for warning in app.warning
-    ) == 2
+    assert (
+        sum("Press Generate Comparisons" in warning.value for warning in app.warning)
+        == 3
+    )
 
 
 def test_generate_comparisons_snapshots_visible_checked_players(
@@ -435,6 +459,98 @@ def test_generate_comparisons_uses_only_rows_visible_after_filtering(
 
     _assert_page(app, "Comparison")
     assert app.session_state["generated-comparison-player-ids-league-1"] == []
+
+
+def test_comparison_graphs_offer_week_and_statistic_controls(
+    fake_page_backend,
+) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["comparison-player-ids-league-1"] = ["player-1", "player-2"]
+    app.session_state["generated-comparison-player-ids-league-1"] = [
+        "player-1",
+        "player-2",
+    ]
+
+    app.switch_page("pages/comparison.py").run()
+
+    graph_year = app.selectbox(key="comparison-graphs-league-1-year")
+    assert graph_year.value == "2026"
+    week_checkboxes = [
+        checkbox for checkbox in app.checkbox if checkbox.label.startswith("Week ")
+    ]
+    assert len(week_checkboxes) == 18
+    assert all(checkbox.value for checkbox in week_checkboxes)
+
+    next(
+        button for button in app.button if button.label == "Check/Uncheck All"
+    ).click().run()
+
+    week_checkboxes = [
+        checkbox for checkbox in app.checkbox if checkbox.label.startswith("Week ")
+    ]
+    assert not any(checkbox.value for checkbox in week_checkboxes)
+    assert any("Select at least one week" in warning.value for warning in app.warning)
+
+
+def test_comparison_graphs_limit_statistics_and_render_bars(
+    fake_page_backend,
+) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["comparison-player-ids-league-1"] = ["player-1", "player-2"]
+    app.session_state["generated-comparison-player-ids-league-1"] = [
+        "player-1",
+        "player-2",
+    ]
+    metric_prefix = "comparison-graphs-league-1-2026-metric-Core Performance:"
+    for metric_key in [
+        "average",
+        "median",
+        "standard_deviation",
+        "floor_25",
+        "ceiling_75",
+        "ceiling_90",
+    ]:
+        app.session_state[f"{metric_prefix}{metric_key}"] = True
+
+    app.switch_page("pages/comparison.py").run()
+
+    metric_checkboxes = [
+        checkbox for checkbox in app.checkbox if " · " in checkbox.label
+    ]
+    assert sum(bool(checkbox.value) for checkbox in metric_checkboxes) == 5
+    assert app.get("vega_lite_chart")
+
+
+def test_comparison_weekly_graphs_use_performance_metrics_without_week_filters(
+    fake_page_backend,
+) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["comparison-player-ids-league-1"] = ["player-1", "player-2"]
+    app.session_state["generated-comparison-player-ids-league-1"] = [
+        "player-1",
+        "player-2",
+    ]
+    app.session_state[
+        "comparison-weekly-graphs-league-1-2026-metric-Core Performance:average"
+    ] = True
+
+    app.switch_page("pages/comparison.py").run()
+
+    assert app.selectbox(key="comparison-weekly-graphs-league-1-year").value == "2026"
+    assert not any(
+        str(checkbox.key).startswith("comparison-weekly-graphs-league-1-2026-week")
+        for checkbox in app.checkbox
+    )
+    weekly_metric_labels = [
+        checkbox.label
+        for checkbox in app.checkbox
+        if str(checkbox.key).startswith("comparison-weekly-graphs-league-1-2026-metric")
+    ]
+    assert any(label.startswith("Core Performance ·") for label in weekly_metric_labels)
+    assert any(label.startswith("Opportunity ·") for label in weekly_metric_labels)
+    assert any(label.startswith("Efficiency ·") for label in weekly_metric_labels)
+    assert any(label.startswith("Availability ·") for label in weekly_metric_labels)
+    assert app.get("vega_lite_chart")
 
 
 def test_graphs_page_is_a_searchable_player_picker(fake_page_backend) -> None:
@@ -736,9 +852,7 @@ def test_additional_performance_graphs_open_for_selected_statistic(
 
     _assert_page(app, "Performance")
     assert app.get("vega_lite_chart")
-    assert any(
-        subheader.value == expected_subheader for subheader in app.subheader
-    )
+    assert any(subheader.value == expected_subheader for subheader in app.subheader)
 
 
 def test_player_stats_state_includes_recent_news_page(fake_page_backend) -> None:

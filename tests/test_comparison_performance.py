@@ -41,9 +41,7 @@ def test_mixed_numeric_and_injury_status_column_is_arrow_compatible() -> None:
 
 def test_comparison_metrics_only_include_selected_players_positions() -> None:
     selected_statistics = {
-        "rb-player": [
-            {"Key": "touches", "Statistic": "Touches", "Value": 15.0}
-        ]
+        "rb-player": [{"Key": "touches", "Statistic": "Touches", "Value": 15.0}]
     }
     league_statistics = {
         **selected_statistics,
