@@ -580,15 +580,11 @@ def test_comparison_graph_tabs_show_selected_metric_settings(
 
     for graph_prefix in ("comparison-graphs", "comparison-weekly-graphs"):
         settings_prefix = f"{graph_prefix}-league-1-2026"
-        assert app.number_input(
-            key=f"{settings_prefix}-hit-tolerance"
-        ).value == 4.5
-        assert app.number_input(
-            key=f"{settings_prefix}-consistency-band"
-        ).value == 25.0
-        assert app.number_input(
-            key=f"{settings_prefix}-boom-bust-tolerance"
-        ).value == 5.0
+        assert app.number_input(key=f"{settings_prefix}-hit-tolerance").value == 4.5
+        assert app.number_input(key=f"{settings_prefix}-consistency-band").value == 25.0
+        assert (
+            app.number_input(key=f"{settings_prefix}-boom-bust-tolerance").value == 5.0
+        )
 
 
 def test_graphs_page_is_a_searchable_player_picker(authenticated_app) -> None:

@@ -530,9 +530,7 @@ def get_projected_player_stats(
     if not normalized_path.exists() or normalized_is_older_than_raw:
         refresh_projected_player_stats_cache(season, week)
     stats = _load_json_cache(normalized_path)
-    provider_cache_path = (
-        raw_cache_path if raw_cache_path.exists() else normalized_path
-    )
+    provider_cache_path = raw_cache_path if raw_cache_path.exists() else normalized_path
     _record_data_update(
         "ESPN",
         "projected_player_stats",
