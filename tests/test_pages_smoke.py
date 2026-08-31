@@ -50,6 +50,32 @@ def test_authenticated_root_opens_selected_league_overview(
     app = _authenticated_app(fake_page_backend)
 
     _assert_page(app, "Overview")
+    assert any(button.label == "Refresh Current Week" for button in app.button)
+
+
+def test_global_current_week_refresh_is_forced_from_bottom_bar(
+    monkeypatch,
+    fake_page_backend,
+) -> None:
+    from fantasy_dashboard import data
+
+    refresh_calls: list[bool] = []
+
+    def refresh_current_week_input_data(*, force: bool = False):
+        refresh_calls.append(force)
+        return "2026", "regular", 1
+
+    monkeypatch.setattr(
+        data,
+        "refresh_current_week_input_data",
+        refresh_current_week_input_data,
+    )
+    app = _authenticated_app(fake_page_backend)
+
+    app.button(key="refresh-current-week-input-data").click().run()
+
+    _assert_page(app, "Overview")
+    assert True in refresh_calls
 
 
 def test_cold_deep_link_redirects_to_login(fake_page_backend) -> None:

@@ -1,4 +1,6 @@
 import json
+import os
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from fantasy_dashboard import data
@@ -89,3 +91,142 @@ def test_missing_player_cache_returns_empty_mapping(monkeypatch, tmp_path) -> No
     monkeypatch.setattr(data, "NFL_PLAYERS_PATH", tmp_path / "missing.json")
 
     assert data.get_nfl_players() == {}
+
+
+def test_player_stats_reuse_persistent_week_cache(monkeypatch, tmp_path) -> None:
+    calls: list[tuple[str, str, int | None]] = []
+    provider_stats = {"player-1": {"pass_yd": 250}}
+
+    class FakeClient:
+        def get_player_stats(
+            self,
+            season: str,
+            season_type: str,
+            week: int | None,
+        ) -> dict[str, dict]:
+            calls.append((season, season_type, week))
+            return provider_stats.copy()
+
+    monkeypatch.setattr(data, "WEEKLY_STATS_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(data, "get_sleeper_client", FakeClient)
+    data._read_json_cache.clear()
+
+    assert data.get_player_stats("2026", "regular", 4) == provider_stats
+    provider_stats["player-1"] = {"pass_yd": 300}
+    assert data.get_player_stats("2026", "regular", 4) == {"player-1": {"pass_yd": 250}}
+    assert calls == [("2026", "regular", 4)]
+
+    data.refresh_player_stats_cache("2026", "regular", 4)
+    assert data.get_player_stats("2026", "regular", 4) == {"player-1": {"pass_yd": 300}}
+    assert calls == [("2026", "regular", 4), ("2026", "regular", 4)]
+
+
+def test_player_game_log_uses_refreshed_bulk_week(monkeypatch, tmp_path) -> None:
+    calls = 0
+
+    class FakeClient:
+        def get_player_weekly_stats(
+            self,
+            player_id: str,
+            season: str,
+            season_type: str,
+        ) -> dict[int, dict]:
+            nonlocal calls
+            calls += 1
+            return {
+                1: {
+                    "week": 1,
+                    "opponent": "NYJ",
+                    "stats": {"pass_yd": 250},
+                }
+            }
+
+    monkeypatch.setattr(data, "WEEKLY_STATS_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(data, "get_sleeper_client", FakeClient)
+    data._read_json_cache.clear()
+
+    initial = data.get_player_weekly_stats("player-1", "2026", "regular")
+    assert initial[1]["stats"] == {"pass_yd": 250}
+
+    week_path = data._stats_cache_path("sleeper", "2026", "regular", 1)
+    data._write_json_cache(week_path, {"player-1": {"pass_yd": 300}})
+    data._read_json_cache.clear()
+    refreshed = data.get_player_weekly_stats("player-1", "2026", "regular")
+
+    assert refreshed[1] == {
+        "week": 1,
+        "opponent": "NYJ",
+        "stats": {"pass_yd": 300},
+    }
+    assert calls == 1
+
+
+def test_projected_stats_reuse_normalized_week_cache(monkeypatch, tmp_path) -> None:
+    provider_calls = 0
+    mapping_calls = 0
+
+    class FakeEspnClient:
+        def get_nfl_projections(self, *args, **kwargs) -> dict:
+            nonlocal provider_calls
+            provider_calls += 1
+            return {"players": []}
+
+    def map_projections(*args, **kwargs) -> dict[str, dict[str, float]]:
+        nonlocal mapping_calls
+        mapping_calls += 1
+        return {"player-1": {"pass_yd": 275.0}}
+
+    monkeypatch.setattr(data, "WEEKLY_STATS_CACHE_DIR", tmp_path / "weekly")
+    monkeypatch.setattr(data, "ESPN_PROJECTIONS_CACHE_DIR", tmp_path / "raw")
+    monkeypatch.setattr(data, "EspnClient", FakeEspnClient)
+    monkeypatch.setattr(data, "map_projections_to_sleeper", map_projections)
+    monkeypatch.setattr(data, "get_nfl_players", dict)
+    data._read_json_cache.clear()
+
+    first = data.get_projected_player_stats("2026", 4)
+    second = data.get_projected_player_stats("2026", 4)
+
+    assert first == {"player-1": {"pass_yd": 275.0}}
+    assert second == first
+    assert provider_calls == 1
+    assert mapping_calls == 1
+
+
+def test_actual_cache_uses_live_and_finalized_refresh_windows(tmp_path) -> None:
+    cache_path = tmp_path / "week_1.json"
+    cache_path.write_text("{}")
+    checked_at = datetime(2026, 9, 14, 18, 0, tzinfo=timezone.utc)
+    live_games = [{"date": "2026-09-14", "status": "in_progress"}]
+
+    recent_live_update = checked_at.timestamp() - 30
+    os.utime(cache_path, (recent_live_update, recent_live_update))
+    assert not data._actual_cache_needs_refresh(
+        cache_path,
+        live_games,
+        now=checked_at,
+    )
+
+    stale_live_update = checked_at.timestamp() - 61
+    os.utime(cache_path, (stale_live_update, stale_live_update))
+    assert data._actual_cache_needs_refresh(
+        cache_path,
+        live_games,
+        now=checked_at,
+    )
+
+    completed_games = [{"date": "2026-09-07", "status": "complete"}]
+    before_deadline = datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc).timestamp()
+    os.utime(cache_path, (before_deadline, before_deadline))
+    assert data._actual_cache_needs_refresh(
+        cache_path,
+        completed_games,
+        now=checked_at,
+    )
+
+    finalized_update = datetime(2026, 9, 11, 12, 0, tzinfo=timezone.utc).timestamp()
+    os.utime(cache_path, (finalized_update, finalized_update))
+    assert not data._actual_cache_needs_refresh(
+        cache_path,
+        completed_games,
+        now=checked_at,
+    )

@@ -222,6 +222,11 @@ def fake_page_backend(monkeypatch) -> SleeperUser:
     monkeypatch.setattr(data, "get_avatar", lambda avatar_id: pixel)
     monkeypatch.setattr(data, "get_data_update", lambda *args: None)
     monkeypatch.setattr(
+        data,
+        "refresh_current_week_input_data",
+        lambda *args, **kwargs: ("2026", "regular", 1),
+    )
+    monkeypatch.setattr(
         player_news,
         "_get_recent_news_v4",
         lambda *args: [

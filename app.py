@@ -2,6 +2,10 @@ import requests
 import streamlit as st
 
 from fantasy_dashboard.clients.sleeper import SleeperClient
+from fantasy_dashboard.data import (
+    PLAYER_CATALOG_MAX_AGE,
+    refresh_current_week_input_data,
+)
 from fantasy_dashboard.paths import NFL_PLAYERS_PATH
 from fantasy_dashboard.routing import (
     ANALYSIS_MODE_KEY,
@@ -15,7 +19,10 @@ from fantasy_dashboard.routing import (
 
 # Refresh the shared player cache without preventing the app from starting on failure.
 try:
-    SleeperClient(timeout=30.0).refresh_nfl_players_cache(NFL_PLAYERS_PATH)
+    SleeperClient(timeout=30.0).refresh_nfl_players_cache(
+        NFL_PLAYERS_PATH,
+        max_age=PLAYER_CATALOG_MAX_AGE,
+    )
 except (OSError, TypeError, ValueError, requests.RequestException) as error:
     st.warning(f"Unable to refresh NFL player data: {error}")
 
@@ -26,6 +33,13 @@ if requested_user_id is not None:
     st.session_state["user_id"] = str(requested_user_id)
 user_id = st.session_state.get("user_id")
 league_visibility = "visible" if authenticated and league_id else "hidden"
+
+# Refresh stale current-week inputs after login while retaining disk fallbacks.
+if authenticated:
+    try:
+        refresh_current_week_input_data()
+    except (OSError, TypeError, ValueError, requests.RequestException) as error:
+        st.warning(f"Unable to refresh current-week player data: {error}")
 
 # Declare every route on every run so bookmarked pages remain recognizable.
 start_page = st.Page(
@@ -236,6 +250,29 @@ if authenticated and page_route.url_path not in {"", "leagues"} and not league_i
     st.switch_page(leagues_page)
 if authenticated and page_route.url_path == "team" and not user_id:
     st.switch_page(overview_page, query_params={"league_id": league_id})
+
+
+# Render this before page-owned controls so it remains their leftmost action.
+def request_current_week_refresh() -> None:
+    st.session_state["_refresh_current_week_input_data"] = True
+
+
+if authenticated:
+    with st.bottom:
+        st.button(
+            "Refresh Current Week",
+            key="refresh-current-week-input-data",
+            help="Pull fresh actual stats and projections for the current NFL week",
+            on_click=request_current_week_refresh,
+        )
+
+if st.session_state.pop("_refresh_current_week_input_data", False):
+    try:
+        with st.spinner("Refreshing current-week player data..."):
+            refresh_current_week_input_data(force=True)
+        st.toast("Current-week player data refreshed.")
+    except (OSError, TypeError, ValueError, requests.RequestException) as error:
+        st.warning(f"Unable to refresh current-week player data: {error}")
 
 # Render an explicit sidebar so overview and analysis can behave as separate states.
 with st.sidebar:

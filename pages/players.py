@@ -13,8 +13,6 @@ from fantasy_dashboard.components.data_disclaimer import render_data_disclaimer
 from fantasy_dashboard.components.player_details import show_player_details
 from fantasy_dashboard.components.player_news import show_player_news
 from fantasy_dashboard.data import (
-    clear_player_data,
-    clear_projected_player_data,
     get_data_update,
     get_default_nfl_week,
     get_league,
@@ -127,17 +125,7 @@ if st.session_state[stats_source_filter_key] not in {"Actual", "Predicted"}:
 if st.session_state[period_filter_key] not in {"Season", "Week"}:
     st.session_state[period_filter_key] = player_filter_defaults[period_filter_key]
 
-# Keep the force-refresh control compact and separate from the player filters.
-title_column, refresh_column = st.columns([8, 1], vertical_alignment="center")
-with title_column:
-    st.title("Players")
-with refresh_column:
-    force_refresh = st.button(
-        "↻",
-        key="refresh-players",
-        help="Reload player availability and cached statistics",
-        width="content",
-    )
+st.title("Players")
 
 players_list_tab, trends_tab = st.tabs(["Players list", "Trends"])
 
@@ -203,12 +191,6 @@ with players_list_tab:
         stats=stats_source.casefold(),
         search=player_search.strip() or None,
     )
-
-    if force_refresh:
-        clear_player_data(league_id, season, season_type, selected_week)
-        if stats_source == "Predicted":
-            clear_projected_player_data(season, selected_week)
-        st.rerun()
 
     # Load actual or projected aggregates and join them to league ownership.
     try:
