@@ -6,6 +6,11 @@ from types import SimpleNamespace
 from fantasy_dashboard import data
 
 
+# A stateless API client must not survive a hot reload with stale model classes.
+def test_sleeper_client_is_not_cached() -> None:
+    assert data.get_sleeper_client() is not data.get_sleeper_client()
+
+
 # The active NFL season and week should share one cached Sleeper state lookup.
 def test_current_nfl_state_is_cached(monkeypatch) -> None:
     calls = 0

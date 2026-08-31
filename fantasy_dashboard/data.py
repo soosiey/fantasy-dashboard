@@ -235,8 +235,9 @@ def _projection_cache_max_age(games: list[dict[str, Any]]) -> timedelta:
     return CURRENT_PROJECTION_CACHE_MAX_AGE
 
 
-# Share the stateless Sleeper client across sessions and page reruns.
-@st.cache_resource
+# Keep this client ephemeral. Retaining it across Streamlit hot reloads can retain
+# references to an older generation of the model classes imported by its module;
+# returning one of those instances from cache_data then fails during pickling.
 def get_sleeper_client() -> SleeperClient:
     return SleeperClient()
 
