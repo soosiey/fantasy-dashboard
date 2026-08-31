@@ -106,6 +106,12 @@ league_predictions_page = st.Page(
     url_path="league-predictions",
     visibility=league_visibility,
 )
+regression_page = st.Page(
+    PAGE_SOURCES["regression"],
+    title="Regression",
+    url_path="regression",
+    visibility=league_visibility,
+)
 comparison_page = st.Page(
     PAGE_SOURCES["comparison"],
     title="Comparison",
@@ -170,6 +176,7 @@ pages_by_route = {
     "rankings": ranking_page,
     "analysis": analysis_page,
     "league-predictions": league_predictions_page,
+    "regression": regression_page,
     "comparison": comparison_page,
     "graphs": graphs_page,
     "graph": graph_page,
@@ -192,6 +199,7 @@ page_route = st.navigation(
         ranking_page,
         analysis_page,
         league_predictions_page,
+        regression_page,
         comparison_page,
         graphs_page,
         graph_page,
@@ -222,6 +230,7 @@ if (
     in {
         "analysis",
         "league-predictions",
+        "regression",
         "comparison",
         "graphs",
     }
@@ -252,6 +261,7 @@ if player_stats_mode and page_route.url_path not in {
 if analysis_mode and page_route.url_path not in {
     "analysis",
     "league-predictions",
+    "regression",
     "players",
     "matchups",
     "comparison",
@@ -337,6 +347,7 @@ with st.sidebar:
         st.page_link(comparison_page, label="Comparison")
         st.page_link(graphs_page, label="Single Player Selection")
         st.page_link(league_predictions_page, label="League Predictions")
+        st.page_link(regression_page, label="Regression")
     elif not authenticated:
         st.page_link(start_page, label="User Login")
     elif not league_id:

@@ -14,6 +14,7 @@ PAGE_SOURCES = {
     "rankings": "pages/ranking.py",
     "analysis": "pages/analysis.py",
     "league-predictions": "pages/league_predictions.py",
+    "regression": "pages/regression.py",
     "comparison": "pages/comparison.py",
     "graphs": "pages/graphs.py",
     "graph": "pages/graph.py",

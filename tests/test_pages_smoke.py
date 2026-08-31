@@ -133,6 +133,7 @@ def test_legacy_url_redirects(
         ("pages/ranking.py", "User Rankings"),
         ("pages/analysis.py", "Statistics"),
         ("pages/league_predictions.py", "League Predictions"),
+        ("pages/regression.py", "Regression"),
         ("pages/comparison.py", "Comparison"),
         ("pages/graphs.py", "Single Player Selection"),
         ("pages/team.py", "Team Page"),
