@@ -1,5 +1,5 @@
-from fantasy_dashboard.components.draft_table import _format_amount
-from fantasy_dashboard.draft import build_draft_result_rows
+from fantasy_dashboard.components.draft_table import _format_amount, render_draft_table
+from fantasy_dashboard.draft import DraftResultRow, build_draft_result_rows
 from fantasy_dashboard.models.draft import DraftPickContainer, DraftPickModel
 
 
@@ -9,6 +9,7 @@ def test_draft_pick_container_parses_auction_amounts() -> None:
         [
             {
                 "pick_no": 2,
+                "round": 2,
                 "player_id": "player-2",
                 "picked_by": "user-2",
                 "metadata": {
@@ -19,6 +20,7 @@ def test_draft_pick_container_parses_auction_amounts() -> None:
             },
             {
                 "pick_no": 1,
+                "round": 1,
                 "player_id": "player-1",
                 "metadata": {
                     "first_name": "Ja'Marr",
@@ -29,6 +31,7 @@ def test_draft_pick_container_parses_auction_amounts() -> None:
     )
 
     assert [pick.pick_number for pick in draft.picks] == [1, 2]
+    assert [pick.round_number for pick in draft.picks] == [1, 2]
     assert draft.picks[0].amount is None
     assert draft.picks[1].amount == 31.0
     assert draft.picks[1].picked_by == "user-2"
@@ -37,6 +40,22 @@ def test_draft_pick_container_parses_auction_amounts() -> None:
 # Snake and linear draft picks should leave the auction-only money cell empty.
 def test_non_auction_amount_is_formatted_as_empty() -> None:
     assert _format_amount(None) == ""
+
+
+def test_snake_draft_table_includes_round(monkeypatch) -> None:
+    rendered_markup: list[str] = []
+    monkeypatch.setattr(
+        "fantasy_dashboard.components.draft_table.st.markdown",
+        lambda markup, **kwargs: rendered_markup.append(markup),
+    )
+
+    render_draft_table(
+        [DraftResultRow(13, 2, "Player One", "Draft User", None)],
+        show_round=True,
+    )
+
+    assert "<th>Round</th>" in rendered_markup[0]
+    assert '<td class="draft-round">2</td>' in rendered_markup[0]
 
 
 # Search should use catalog names while retaining metadata when a player is absent.
@@ -58,6 +77,7 @@ def test_build_draft_result_rows_filters_player_names() -> None:
 
     assert len(rows) == 1
     assert rows[0].player_name == "Justin Jefferson"
+    assert rows[0].round_number == 0
     assert rows[0].drafted_by == "Draft User"
     assert rows[0].amount == 25.0
 

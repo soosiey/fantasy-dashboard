@@ -109,7 +109,10 @@ else:
         )
         st.caption(f"{len(rows):,} of {len(draft.picks):,} picks shown")
         if rows:
-            render_draft_table(rows)
+            render_draft_table(
+                rows,
+                show_round=not any(pick.amount is not None for pick in draft.picks),
+            )
         elif draft.picks:
             st.info("No drafted players match that search.")
         else:

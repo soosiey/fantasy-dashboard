@@ -10,6 +10,7 @@ class DraftPickModel:
     player_name: str
     amount: float | None
     picked_by: str = ""
+    round_number: int = 0
 
     @classmethod
     def from_json(cls, data: dict[str, Any]) -> "DraftPickModel":
@@ -29,6 +30,7 @@ class DraftPickModel:
             player_name=" ".join(part for part in (first_name, last_name) if part),
             amount=amount,
             picked_by=str(data.get("picked_by") or ""),
+            round_number=int(data.get("round") or 0),
         )
 
     @classmethod

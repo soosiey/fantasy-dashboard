@@ -1,3 +1,4 @@
+from contextlib import ExitStack
 from math import ceil, log2
 
 import pandas as pd
@@ -6,6 +7,10 @@ import streamlit as st
 
 from fantasy_dashboard.components.comparison_selection import render_comparison_sidebar
 from fantasy_dashboard.components.data_disclaimer import render_data_disclaimer
+from fantasy_dashboard.components.draft_grades import (
+    render_draft_grade_cards,
+    render_overall_draft_grade_cards,
+)
 from fantasy_dashboard.components.matchup_board import (
     PlayerComparisonSelection,
     render_matchup_carousel,
@@ -16,6 +21,7 @@ from fantasy_dashboard.components.playoff_bracket import render_playoff_bracket
 from fantasy_dashboard.data import (
     get_data_update,
     get_default_nfl_week,
+    get_draft_picks,
     get_league,
     get_league_users,
     get_nfl_players,
@@ -24,6 +30,7 @@ from fantasy_dashboard.data import (
     get_rosters,
     get_weekly_matchup_schedules,
 )
+from fantasy_dashboard.draft_grading import DraftGradeWeights, grade_draft_picks
 from fantasy_dashboard.league_predictions import (
     build_optimized_week_matchups,
     project_playoffs,
@@ -57,6 +64,165 @@ st.markdown(
 )
 st.title("League Predictions")
 
+draft_grades_tab, season_predictions_tab = st.tabs(
+    ["Draft Grades", "Season Predictions"]
+)
+with draft_grades_tab:
+    draft_grade_league = get_league(league_id)
+    draft_id = draft_grade_league.draft_id if draft_grade_league is not None else ""
+    if not draft_id or draft_id == "None":
+        st.info("This league does not have a draft associated with it.")
+    else:
+        try:
+            draft_grade_picks = get_draft_picks(draft_id)
+            draft_grade_teams = get_league_users(league_id)
+        except (requests.RequestException, TypeError, ValueError) as error:
+            st.warning(f"Draft grades could not be loaded: {error}")
+        else:
+            draft_grade_players = get_nfl_players()
+            draft_grade_team_list = (
+                draft_grade_teams.users if draft_grade_teams is not None else []
+            )
+            try:
+                draft_grade_projections = get_projected_player_stats(
+                    draft_grade_league.season, None
+                )
+            except (OSError, requests.RequestException, TypeError, ValueError):
+                draft_grade_projections = {}
+                st.warning(
+                    "Season projections could not be loaded; unavailable players "
+                    "will receive zero projected value."
+                )
+
+            is_auction_draft = any(
+                pick.amount is not None for pick in draft_grade_picks.picks
+            )
+            with st.expander("Pick score weights"):
+                score_columns = st.columns(3 if is_auction_draft else 2)
+                strength_column, fit_column = score_columns[:2]
+                with strength_column:
+                    strength_weight = st.slider(
+                        "Positional strength",
+                        0,
+                        100,
+                        35 if is_auction_draft else 50,
+                        key=f"draft-grade-strength-weight-{league_id}",
+                    )
+                with fit_column:
+                    roster_fit_weight = st.slider(
+                        "Roster value",
+                        0,
+                        100,
+                        35 if is_auction_draft else 50,
+                        key=f"draft-grade-roster-weight-{league_id}",
+                    )
+                cost_weight = 0
+                if is_auction_draft:
+                    with score_columns[2]:
+                        cost_weight = st.slider(
+                            "Cost efficiency",
+                            0,
+                            100,
+                            30,
+                            key=f"draft-grade-cost-weight-{league_id}",
+                        )
+                depth_column, wait_column = st.columns(2)
+                with depth_column:
+                    bench_depth_weight = st.slider(
+                        "Bench depth importance",
+                        0.0,
+                        1.0,
+                        0.35,
+                        0.05,
+                        key=f"draft-grade-depth-weight-{league_id}",
+                    )
+                with wait_column:
+                    wait_cost_weight = st.slider(
+                        "Position tier-drop importance",
+                        0.0,
+                        1.0,
+                        0.25,
+                        0.05,
+                        key=f"draft-grade-wait-weight-{league_id}",
+                    )
+                st.caption(
+                    "The primary score metrics are normalized to their combined "
+                    "weight. Advanced weights tune depth and the cost of waiting "
+                    "until the owner's next selection."
+                )
+                st.markdown("""
+                    **Model:** Strength is the player's empirical percentile within
+                    their position. Roster value is the pick's marginal
+                    value-over-replacement, including diminishing bench depth and
+                    realized positional tier drop, divided by the best feasible
+                    player available at that pick. A feasibility constraint reserves
+                    enough future selections to fill every required starting slot.
+                    For auction drafts, cost efficiency compares the winning bid to
+                    a fair value recalculated from the players, roster spots, and
+                    realized dollars remaining immediately before that bid.
+                    """)
+
+            draft_grade_weights = DraftGradeWeights(
+                strength=float(strength_weight),
+                roster_fit=float(roster_fit_weight),
+                cost=float(cost_weight),
+                bench_depth=float(bench_depth_weight),
+                wait_cost=float(wait_cost_weight),
+            )
+            draft_pick_grades = grade_draft_picks(
+                draft_grade_league,
+                draft_grade_picks.picks,
+                draft_grade_players,
+                draft_grade_projections,
+                draft_grade_weights,
+            )
+            per_pick_tab, overall_tab = st.tabs(["Per Pick", "Overall"])
+            with per_pick_tab:
+                team_names_by_user_id = {
+                    team.user_id: team.display_team_name
+                    for team in draft_grade_team_list
+                }
+                selected_draft_team = st.selectbox(
+                    "Team",
+                    ["", *team_names_by_user_id],
+                    index=0,
+                    format_func=lambda user_id: (
+                        "Everyone"
+                        if not user_id
+                        else team_names_by_user_id.get(user_id, "Unknown Team")
+                    ),
+                    key=f"draft-grade-team-filter-{league_id}",
+                )
+                filtered_draft_picks = [
+                    pick
+                    for pick in draft_grade_picks.picks
+                    if not selected_draft_team or pick.picked_by == selected_draft_team
+                ]
+                render_draft_grade_cards(
+                    filtered_draft_picks,
+                    draft_grade_players,
+                    draft_grade_team_list,
+                    league_id,
+                    draft_pick_grades,
+                )
+            with overall_tab:
+                render_overall_draft_grade_cards(
+                    draft_grade_picks.picks,
+                    draft_grade_players,
+                    draft_grade_team_list,
+                    league_id,
+                    draft_pick_grades,
+                )
+            render_data_disclaimer(
+                get_data_update("draft_picks", draft_id),
+                get_data_update(
+                    "projected_player_stats", draft_grade_league.season, None
+                ),
+            )
+
+season_tab_context = ExitStack()
+season_tab_context.enter_context(season_predictions_tab)
+
 league = get_league(league_id)
 rosters = get_rosters(league_id)
 teams = get_league_users(league_id)
@@ -68,9 +234,7 @@ except (requests.RequestException, KeyError, TypeError, ValueError):
 
 regular_season_end = max(1, league.settings.playoff_start_week - 1)
 playoff_team_count = min(league.settings.playoff_teams, len(rosters.rosters))
-playoff_round_count = (
-    ceil(log2(playoff_team_count)) if playoff_team_count >= 2 else 0
-)
+playoff_round_count = ceil(log2(playoff_team_count)) if playoff_team_count >= 2 else 0
 last_projection_week = min(
     18,
     league.settings.playoff_start_week + playoff_round_count - 1,
@@ -159,9 +323,7 @@ standings_table = pd.DataFrame(
         {
             "Seed": standing.seed,
             "Team": standing.team_name,
-            "Projected Record": (
-                f"{standing.wins}-{standing.losses}-{standing.ties}"
-            ),
+            "Projected Record": (f"{standing.wins}-{standing.losses}-{standing.ties}"),
             "Projected PF": standing.points_for,
             "Projected PA": standing.points_against,
             "Tournament": (
@@ -219,9 +381,7 @@ if prediction_week_options:
     selected_player_id = render_matchup_carousel(
         predicted_matchups,
         current_user.user_id if current_user is not None else None,
-        context_key=(
-            f"league-prediction-{league_id}-{selected_prediction_week}"
-        ),
+        context_key=(f"league-prediction-{league_id}-{selected_prediction_week}"),
     )
 
     if isinstance(selected_player_id, PlayerComparisonSelection):
@@ -243,9 +403,7 @@ if prediction_week_options:
                 league.season,
                 league.season_type,
                 league.scoring_settings,
-                selected_stats=selected_projections.get(
-                    str(selected_player_id), {}
-                ),
+                selected_stats=selected_projections.get(str(selected_player_id), {}),
                 selected_week=selected_prediction_week,
                 stats_source="Predicted",
                 show_stat_filter=True,
@@ -268,8 +426,7 @@ if playoff_projection.champion is not None:
 render_playoff_bracket(playoff_projection.rounds)
 
 with st.expander("How this prediction works"):
-    st.markdown(
-        """
+    st.markdown("""
         - Each team's current roster is frozen for the rest of the season.
         - Every week uses the highest-scoring legal lineup from ESPN's player
           projections and this league's scoring settings.
@@ -279,8 +436,7 @@ with st.expander("How this prediction works"):
           byes for the highest seeds. Exact score ties advance the higher seed.
         - Trades, waiver moves, injuries after the projection update, league-median
           games, playoff reseeding, and multi-week playoff rounds are not modeled.
-        """
-    )
+        """)
 
 render_comparison_sidebar(players, league_id)
 render_data_disclaimer(
@@ -291,6 +447,7 @@ render_data_disclaimer(
         for week in projection_weeks
     ),
 )
+season_tab_context.close()
 
 with st.bottom:
     back_to_overview = st.button("Back to Overview")

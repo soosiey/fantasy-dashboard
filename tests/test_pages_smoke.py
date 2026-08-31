@@ -150,6 +150,17 @@ def test_authenticated_page_renders(
     _assert_page(app, expected_title)
 
 
+def test_auction_draft_results_omit_pick_round(authenticated_app) -> None:
+    app = authenticated_app()
+
+    app.switch_page("pages/draft_results.py").run()
+
+    _assert_page(app, "Draft Results")
+    markup = " ".join(markdown.value for markdown in app.markdown)
+    assert "<th>Round</th>" not in markup
+    assert 'class="draft-round"' not in markup
+
+
 def test_analysis_mode_hides_overview_navigation_and_can_exit(
     authenticated_app,
 ) -> None:
@@ -178,6 +189,54 @@ def test_league_predictions_projects_standings_and_tournament(
 
     _assert_page(app, "League Predictions")
     assert app.session_state["_analysis_mode"] is True
+    assert [tab.label for tab in app.tabs] == [
+        "Draft Grades",
+        "Per Pick",
+        "Overall",
+        "Season Predictions",
+    ]
+    assert not app.tabs[1].dataframe
+    assert app.tabs[3].dataframe
+    draft_grade_markup = " ".join(markdown.value for markdown in app.tabs[1].markdown)
+    assert "Test Team" in draft_grade_markup
+    assert "Test User" in draft_grade_markup
+    assert "First Quarterback" in draft_grade_markup
+    assert "draft-grade-mark" in draft_grade_markup
+    overall_grade_markup = " ".join(markdown.value for markdown in app.tabs[2].markdown)
+    assert "Test Team" in overall_grade_markup
+    assert "Other Team" in overall_grade_markup
+    assert "1 draft pick" in overall_grade_markup
+    assert "0 draft picks" in overall_grade_markup
+    assert overall_grade_markup.count('<div class="draft-grade-mark draft-grade-') == 2
+    assert (
+        next(
+            slider for slider in app.slider if slider.label == "Positional strength"
+        ).value
+        == 35
+    )
+    assert (
+        next(slider for slider in app.slider if slider.label == "Roster value").value
+        == 35
+    )
+    assert (
+        next(slider for slider in app.slider if slider.label == "Cost efficiency").value
+        == 30
+    )
+    draft_team_filter = next(
+        box for box in app.tabs[1].selectbox if box.label == "Team"
+    )
+    assert draft_team_filter.value == ""
+
+    draft_team_filter.set_value("user-2").run()
+
+    assert any(
+        "No draft picks are available" in info.value for info in app.tabs[1].info
+    )
+    draft_team_filter = next(
+        box for box in app.tabs[1].selectbox if box.label == "Team"
+    )
+    draft_team_filter.set_value("").run()
+
     assert "Projected Record" in app.dataframe[0].value.columns
     assert any(metric.label == "Projected Champion" for metric in app.metric)
     assert any(button.label == "Back to Overview" for button in app.button)
@@ -189,6 +248,25 @@ def test_league_predictions_projects_standings_and_tournament(
 
     _assert_page(app, "League Predictions")
     assert prediction_week.value == 2
+
+    next(
+        button for button in app.tabs[1].button if button.label == "View"
+    ).click().run()
+
+    insight_markup = " ".join(markdown.value for markdown in app.tabs[1].markdown)
+    assert "Positional strength" in insight_markup
+    assert "Roster value" in insight_markup
+    assert "projected points versus" in insight_markup
+
+    next(
+        button for button in app.tabs[2].button if button.label == "View"
+    ).click().run()
+
+    overall_insight_markup = " ".join(
+        markdown.value for markdown in app.tabs[2].markdown
+    )
+    assert "average pick score" in overall_insight_markup
+    assert "overall" in overall_insight_markup
 
 
 def test_statistics_filters_update_the_selected_view(authenticated_app) -> None:
@@ -245,7 +323,8 @@ def test_matchups_page_is_available_inside_analysis_mode(authenticated_app) -> N
     assert any(button.label == "Back to Overview" for button in app.button)
     assert not any(button.label == "Switch Leagues" for button in app.button)
     assert any(
-        "stMainBlockContainer" in markdown.value and "max-width: 95rem" in markdown.value
+        "stMainBlockContainer" in markdown.value
+        and "max-width: 95rem" in markdown.value
         for markdown in app.markdown
     )
 

@@ -8,6 +8,7 @@ from fantasy_dashboard.models.draft import DraftPickModel
 @dataclass(frozen=True, slots=True)
 class DraftResultRow:
     pick_number: int
+    round_number: int
     player_name: str
     drafted_by: str
     amount: float | None
@@ -43,6 +44,7 @@ def build_draft_result_rows(
         rows.append(
             DraftResultRow(
                 pick_number=pick.pick_number,
+                round_number=pick.round_number,
                 player_name=player_name,
                 drafted_by=display_names_by_user_id.get(pick.picked_by, "Unknown User"),
                 amount=pick.amount,

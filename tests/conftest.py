@@ -195,6 +195,7 @@ def fake_page_backend(monkeypatch, tmp_path) -> SleeperUser:
         [
             {
                 "pick_no": 1,
+                "round": 1,
                 "player_id": "player-1",
                 "picked_by": "user-1",
                 "metadata": {
