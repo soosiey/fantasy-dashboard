@@ -5,14 +5,23 @@ Fantasy fooball dashboard for sleeper. WIP
 # Installation
 Run
 
-```pip install -r requirements.txt```
+```bash
+pip install -r requirements.txt
+```
 
-in a python environment. 
+in a Python environment. For local development and tests, install the development
+requirements instead:
+
+```bash
+pip install -r requirements-dev.txt
+```
 
 # Running
 Run
 
-```streamlit run app.py```
+```bash
+streamlit run app.py
+```
 
 from the root directory.
 
@@ -33,9 +42,10 @@ Matchup week/stat source and player-page filters are also stored in the URL.
 Protected deep links return to their requested page after Sleeper login. The
 former `/ranking` and `/draft_results` routes remain available as redirects.
 
-Player projections are retrieved from ESPN and cached for one hour in memory
-and under `data/cache/espn_projections/`. Sleeper's shared NFL player catalog is
-stored at `data/nfl_players.json`.
+Player projections are retrieved from ESPN and cached under
+`data/cache/espn_projections/`. The raw ESPN response is reused for six hours
+outside live games and one hour during live games. Sleeper's shared NFL player
+catalog is stored at `data/nfl_players.json`.
 
 ## Manual historical snapshots
 

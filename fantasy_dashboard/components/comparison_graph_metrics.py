@@ -19,8 +19,7 @@ def get_comparison_player_name(
 ) -> str:
     player = players.get(player_id, {})
     name = (
-        f"{player.get('first_name') or ''} "
-        f"{player.get('last_name') or ''}"
+        f"{player.get('first_name') or ''} " f"{player.get('last_name') or ''}"
     ).strip()
     position = str(player.get("position") or "—")
     return f"{name or player_id} ({position})"
@@ -90,12 +89,10 @@ def build_comparison_category_statistics(
                 )
                 if week in selected_week_set
             ]
-            categories["Availability"][player_id] = (
-                build_availability_statistics(
-                    actual_rows[player_id],
-                    len(completed_weeks) if schedule else None,
-                    str(player.get("injury_status") or ""),
-                )
+            categories["Availability"][player_id] = build_availability_statistics(
+                actual_rows[player_id],
+                len(completed_weeks) if schedule else None,
+                str(player.get("injury_status") or ""),
             )
     return categories
 

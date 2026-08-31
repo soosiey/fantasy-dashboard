@@ -15,15 +15,6 @@ def _query_value(app: AppTest, key: str) -> str:
     return str(value[-1] if isinstance(value, list) else value)
 
 
-def _authenticated_app(fake_page_backend) -> AppTest:
-    app = AppTest.from_file(APP_PATH, default_timeout=10)
-    app.session_state["sleeper_user"] = fake_page_backend
-    app.session_state["league_id"] = "league-1"
-    app.session_state["user_id"] = "user-1"
-    app.query_params["league_id"] = "league-1"
-    return app.run()
-
-
 def _assert_page(app: AppTest, expected_title: str) -> None:
     assert not app.exception
     assert expected_title in [title.value for title in app.title]
@@ -45,9 +36,9 @@ def test_leagues_page_renders_for_authenticated_user(fake_page_backend) -> None:
 
 
 def test_authenticated_root_opens_selected_league_overview(
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
 
     _assert_page(app, "Overview")
     assert any(button.label == "Refresh Current Week" for button in app.button)
@@ -55,7 +46,7 @@ def test_authenticated_root_opens_selected_league_overview(
 
 def test_global_current_week_refresh_is_forced_from_bottom_bar(
     monkeypatch,
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
     from fantasy_dashboard import data
 
@@ -70,7 +61,7 @@ def test_global_current_week_refresh_is_forced_from_bottom_bar(
         "refresh_current_week_input_data",
         refresh_current_week_input_data,
     )
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
 
     app.button(key="refresh-current-week-input-data").click().run()
 
@@ -119,11 +110,11 @@ def test_authenticated_matchup_deep_link_restores_view(fake_page_backend) -> Non
     ],
 )
 def test_legacy_url_redirects(
-    fake_page_backend,
+    authenticated_app,
     legacy_page: str,
     expected_title: str,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
 
     app.switch_page(legacy_page).run()
 
@@ -146,11 +137,11 @@ def test_legacy_url_redirects(
     ],
 )
 def test_authenticated_page_renders(
-    fake_page_backend,
+    authenticated_app,
     page_path: str,
     expected_title: str,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
 
     app.switch_page(page_path).run()
 
@@ -158,9 +149,9 @@ def test_authenticated_page_renders(
 
 
 def test_analysis_mode_hides_overview_navigation_and_can_exit(
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
 
     app.switch_page("pages/analysis.py").run()
 
@@ -176,8 +167,8 @@ def test_analysis_mode_hides_overview_navigation_and_can_exit(
     assert "_analysis_mode" not in app.session_state
 
 
-def test_statistics_filters_update_the_selected_view(fake_page_backend) -> None:
-    app = _authenticated_app(fake_page_backend)
+def test_statistics_filters_update_the_selected_view(authenticated_app) -> None:
+    app = authenticated_app()
     app.switch_page("pages/analysis.py").run()
 
     position = next(box for box in app.selectbox if box.label == "Position")
@@ -200,8 +191,8 @@ def test_statistics_filters_update_the_selected_view(fake_page_backend) -> None:
     assert _query_value(app, "stats") == "predicted"
 
 
-def test_players_page_is_available_inside_analysis_mode(fake_page_backend) -> None:
-    app = _authenticated_app(fake_page_backend)
+def test_players_page_is_available_inside_analysis_mode(authenticated_app) -> None:
+    app = authenticated_app()
     app.switch_page("pages/analysis.py").run()
 
     app.switch_page("pages/players.py").run()
@@ -219,8 +210,8 @@ def test_players_page_is_available_inside_analysis_mode(fake_page_backend) -> No
     assert "_analysis_mode" not in app.session_state
 
 
-def test_matchups_page_is_available_inside_analysis_mode(fake_page_backend) -> None:
-    app = _authenticated_app(fake_page_backend)
+def test_matchups_page_is_available_inside_analysis_mode(authenticated_app) -> None:
+    app = authenticated_app()
     app.switch_page("pages/analysis.py").run()
 
     app.switch_page("pages/matchups.py").run()
@@ -238,8 +229,8 @@ def test_matchups_page_is_available_inside_analysis_mode(fake_page_backend) -> N
     assert "_analysis_mode" not in app.session_state
 
 
-def test_comparison_column_only_appears_in_analysis_state(fake_page_backend) -> None:
-    app = _authenticated_app(fake_page_backend)
+def test_comparison_column_only_appears_in_analysis_state(authenticated_app) -> None:
+    app = authenticated_app()
 
     app.switch_page("pages/players.py").run()
     assert COMPARISON_COLUMN not in app.dataframe[0].value.columns
@@ -253,10 +244,10 @@ def test_comparison_column_only_appears_in_analysis_state(fake_page_backend) -> 
 
 @pytest.mark.parametrize("page_path", ["pages/analysis.py", "pages/players.py"])
 def test_selected_players_appear_in_analysis_comparison_sidebar(
-    fake_page_backend,
+    authenticated_app,
     page_path: str,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["_analysis_mode"] = True
     app.session_state["comparison-player-ids-league-1"] = ["player-1"]
 
@@ -269,8 +260,8 @@ def test_selected_players_appear_in_analysis_comparison_sidebar(
     assert any(caption.value == "1/5" for caption in app.caption)
 
 
-def test_comparison_page_only_shows_checked_players(fake_page_backend) -> None:
-    app = _authenticated_app(fake_page_backend)
+def test_comparison_page_only_shows_checked_players(authenticated_app) -> None:
+    app = authenticated_app()
     app.session_state["comparison-player-ids-league-1"] = ["player-1"]
 
     app.switch_page("pages/comparison.py").run()
@@ -287,9 +278,9 @@ def test_comparison_page_only_shows_checked_players(fake_page_backend) -> None:
 
 
 def test_comparison_performance_tables_include_players_and_position_average(
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["comparison-player-ids-league-1"] = ["player-1", "player-2"]
     app.session_state["generated-comparison-player-ids-league-1"] = [
         "player-1",
@@ -318,7 +309,7 @@ def test_comparison_performance_tables_include_players_and_position_average(
 
 def test_comparison_performance_limits_mixed_position_groups_to_fantasy_points(
     monkeypatch,
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
     from fantasy_dashboard import data
 
@@ -329,7 +320,7 @@ def test_comparison_performance_limits_mixed_position_groups_to_fantasy_points(
     mixed_position_players["player-2"]["position"] = "WR"
     mixed_position_players["player-2"]["fantasy_positions"] = ["WR"]
     monkeypatch.setattr(data, "get_nfl_players", lambda: mixed_position_players)
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["comparison-player-ids-league-1"] = ["player-1", "player-2"]
     app.session_state["generated-comparison-player-ids-league-1"] = [
         "player-1",
@@ -383,9 +374,9 @@ def test_comparison_performance_limits_mixed_position_groups_to_fantasy_points(
 
 
 def test_comparison_can_show_union_of_relevant_position_stats(
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["comparison-player-ids-league-1"] = ["player-1"]
     app.switch_page("pages/comparison.py").run()
 
@@ -405,10 +396,10 @@ def test_comparison_can_show_union_of_relevant_position_stats(
     ["pages/players.py", "pages/analysis.py", "pages/comparison.py"],
 )
 def test_position_filters_include_flex(
-    fake_page_backend,
+    authenticated_app,
     page_path: str,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["comparison-player-ids-league-1"] = ["player-1"]
     app.switch_page(page_path).run()
 
@@ -417,9 +408,9 @@ def test_position_filters_include_flex(
 
 
 def test_comparison_tabs_require_generate_comparisons(
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["comparison-player-ids-league-1"] = ["player-1"]
     app.switch_page("pages/comparison.py").run()
 
@@ -431,9 +422,9 @@ def test_comparison_tabs_require_generate_comparisons(
 
 
 def test_generate_comparisons_snapshots_visible_checked_players(
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["comparison-player-ids-league-1"] = ["player-1", "player-2"]
     app.switch_page("pages/comparison.py").run()
 
@@ -450,9 +441,9 @@ def test_generate_comparisons_snapshots_visible_checked_players(
 
 
 def test_generate_comparisons_uses_only_rows_visible_after_filtering(
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["comparison-player-ids-league-1"] = ["player-1", "player-2"]
     app.switch_page("pages/comparison.py").run()
     next(box for box in app.selectbox if box.label == "Position").set_value(
@@ -468,9 +459,9 @@ def test_generate_comparisons_uses_only_rows_visible_after_filtering(
 
 
 def test_comparison_graphs_offer_week_and_statistic_controls(
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["comparison-player-ids-league-1"] = ["player-1", "player-2"]
     app.session_state["generated-comparison-player-ids-league-1"] = [
         "player-1",
@@ -503,9 +494,9 @@ def test_comparison_graphs_offer_week_and_statistic_controls(
 
 
 def test_comparison_graphs_limit_statistics_and_render_bars(
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["comparison-player-ids-league-1"] = ["player-1", "player-2"]
     app.session_state["generated-comparison-player-ids-league-1"] = [
         "player-1",
@@ -532,9 +523,9 @@ def test_comparison_graphs_limit_statistics_and_render_bars(
 
 
 def test_comparison_weekly_graphs_use_performance_metrics_without_week_filters(
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["comparison-player-ids-league-1"] = ["player-1", "player-2"]
     app.session_state["generated-comparison-player-ids-league-1"] = [
         "player-1",
@@ -567,8 +558,8 @@ def test_comparison_weekly_graphs_use_performance_metrics_without_week_filters(
     assert app.get("vega_lite_chart")
 
 
-def test_graphs_page_is_a_searchable_player_picker(fake_page_backend) -> None:
-    app = _authenticated_app(fake_page_backend)
+def test_graphs_page_is_a_searchable_player_picker(authenticated_app) -> None:
+    app = authenticated_app()
     app.switch_page("pages/graphs.py").run()
 
     _assert_page(app, "Single Player Selection")
@@ -582,9 +573,9 @@ def test_graphs_page_is_a_searchable_player_picker(fake_page_backend) -> None:
 
 
 def test_graph_player_opens_player_stats_state_and_can_return(
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["_graph_target_player_id"] = "player-1"
 
     app.switch_page("pages/graphs.py").run()
@@ -604,9 +595,9 @@ def test_graph_player_opens_player_stats_state_and_can_return(
 
 
 def test_graph_controls_offer_recent_years_and_relevant_player_stats(
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["graph_player_id"] = "player-1"
     app.session_state["_player_stats_mode"] = True
     app.query_params["player_id"] = "player-1"
@@ -632,9 +623,9 @@ def test_graph_controls_offer_recent_years_and_relevant_player_stats(
 
 
 def test_graph_recovers_from_empty_persisted_control_values(
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["graph_player_id"] = "player-1"
     app.session_state["_player_stats_mode"] = True
     app.session_state["graph-league-1-player-1-year"] = None
@@ -651,8 +642,8 @@ def test_graph_recovers_from_empty_persisted_control_values(
     )
 
 
-def test_player_stats_state_includes_full_stats_page(fake_page_backend) -> None:
-    app = _authenticated_app(fake_page_backend)
+def test_player_stats_state_includes_full_stats_page(authenticated_app) -> None:
+    app = authenticated_app()
     app.session_state["graph_player_id"] = "player-1"
     app.session_state["_player_stats_mode"] = True
     app.query_params["player_id"] = "player-1"
@@ -687,9 +678,9 @@ def test_player_stats_state_includes_full_stats_page(fake_page_backend) -> None:
 
 
 def test_player_stats_state_includes_core_performance(
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["graph_player_id"] = "player-1"
     app.session_state["_player_stats_mode"] = True
     app.query_params["player_id"] = "player-1"
@@ -803,9 +794,9 @@ def test_player_stats_state_includes_core_performance(
 
 
 def test_core_performance_graph_opens_for_selected_statistic(
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["graph_player_id"] = "player-1"
     app.session_state["_player_stats_mode"] = True
     app.session_state["_performance_core_graph_metric_key"] = "average"
@@ -851,12 +842,12 @@ def test_core_performance_graph_opens_for_selected_statistic(
     ],
 )
 def test_additional_performance_graphs_open_for_selected_statistic(
-    fake_page_backend,
+    authenticated_app,
     state_key: str,
     metric_key: str,
     expected_subheader: str,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["graph_player_id"] = "player-1"
     app.session_state["_player_stats_mode"] = True
     app.session_state[state_key] = metric_key
@@ -869,8 +860,8 @@ def test_additional_performance_graphs_open_for_selected_statistic(
     assert any(subheader.value == expected_subheader for subheader in app.subheader)
 
 
-def test_player_stats_state_includes_recent_news_page(fake_page_backend) -> None:
-    app = _authenticated_app(fake_page_backend)
+def test_player_stats_state_includes_recent_news_page(authenticated_app) -> None:
+    app = authenticated_app()
     app.session_state["graph_player_id"] = "player-1"
     app.session_state["_player_stats_mode"] = True
     app.query_params["player_id"] = "player-1"
@@ -890,9 +881,9 @@ def test_player_stats_state_includes_recent_news_page(fake_page_backend) -> None
 
 
 def test_player_stats_page_supports_predictions_and_relevant_stats(
-    fake_page_backend,
+    authenticated_app,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state["graph_player_id"] = "player-1"
     app.session_state["_player_stats_mode"] = True
     app.query_params["player_id"] = "player-1"
@@ -924,11 +915,11 @@ def test_player_stats_page_supports_predictions_and_relevant_stats(
     ],
 )
 def test_statistics_tables_open_recent_player_news(
-    fake_page_backend,
+    authenticated_app,
     page_path: str,
     state_key: str,
 ) -> None:
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
     app.session_state[state_key] = "player-1"
 
     app.switch_page(page_path).run()
@@ -937,7 +928,7 @@ def test_statistics_tables_open_recent_player_news(
     assert any(subheader.value == "Smoke Test News" for subheader in app.subheader)
 
 
-def test_matchups_handles_empty_week(monkeypatch, fake_page_backend) -> None:
+def test_matchups_handles_empty_week(monkeypatch, authenticated_app) -> None:
     from fantasy_dashboard import data
 
     monkeypatch.setattr(
@@ -945,7 +936,7 @@ def test_matchups_handles_empty_week(monkeypatch, fake_page_backend) -> None:
         "get_weekly_matchups",
         lambda *args: WeeklyMatchupContainer.from_api([]),
     )
-    app = _authenticated_app(fake_page_backend)
+    app = authenticated_app()
 
     app.switch_page("pages/matchups.py").run()
 
@@ -953,8 +944,8 @@ def test_matchups_handles_empty_week(monkeypatch, fake_page_backend) -> None:
     assert any("No matchups" in info.value for info in app.info)
 
 
-def test_matchup_week_and_prediction_controls_rerun(fake_page_backend) -> None:
-    app = _authenticated_app(fake_page_backend)
+def test_matchup_week_and_prediction_controls_rerun(authenticated_app) -> None:
+    app = authenticated_app()
     app.switch_page("pages/matchups.py").run()
 
     week_key = "matchup-week-v3-league-1-2026"
@@ -1010,8 +1001,8 @@ def test_players_deep_link_restores_filters(fake_page_backend) -> None:
     )
 
 
-def test_players_recovers_from_empty_segmented_controls(fake_page_backend) -> None:
-    app = _authenticated_app(fake_page_backend)
+def test_players_recovers_from_empty_segmented_controls(authenticated_app) -> None:
+    app = authenticated_app()
     app.session_state["players-league-1-period"] = None
     app.session_state["players-league-1-stat-source"] = None
 
@@ -1034,8 +1025,8 @@ def test_players_recovers_from_empty_segmented_controls(fake_page_backend) -> No
     assert _query_value(app, "stats") == "actual"
 
 
-def test_matchup_player_details_and_relevant_stats_open(fake_page_backend) -> None:
-    app = _authenticated_app(fake_page_backend)
+def test_matchup_player_details_and_relevant_stats_open(authenticated_app) -> None:
+    app = authenticated_app()
     app.switch_page("pages/matchups.py").run()
     player_button = next(
         button
@@ -1056,8 +1047,8 @@ def test_matchup_player_details_and_relevant_stats_open(fake_page_backend) -> No
     assert stats_control.value == "Relevant Stats"
 
 
-def test_matchup_player_recent_news_opens(fake_page_backend) -> None:
-    app = _authenticated_app(fake_page_backend)
+def test_matchup_player_recent_news_opens(authenticated_app) -> None:
+    app = authenticated_app()
     app.session_state["matchups_news_player_id"] = "player-1"
     app.switch_page("pages/matchups.py").run()
 

@@ -16,7 +16,15 @@ from fantasy_dashboard.player_performance import (
 )
 
 
-def render_opportunity_tab(position: str, selected_season: str, weekly_rows: list[dict[str, Any]], position_rows_by_player_id: dict[str, list[dict[str, Any]]], position_player_ids: list[str], data_update: Any, comparison_updates: list[Any]) -> None:
+def render_opportunity_tab(
+    position: str,
+    selected_season: str,
+    weekly_rows: list[dict[str, Any]],
+    position_rows_by_player_id: dict[str, list[dict[str, Any]]],
+    position_player_ids: list[str],
+    data_update: Any,
+    comparison_updates: list[Any],
+) -> None:
     opportunity_statistics = build_opportunity_statistics(
         weekly_rows,
         position,
@@ -33,8 +41,7 @@ def render_opportunity_tab(position: str, selected_season: str, weekly_rows: lis
             opportunity_statistics_by_player_id
         )
         st.caption(
-            f"{selected_season} season · {len(weekly_rows)} eligible "
-            "completed games"
+            f"{selected_season} season · {len(weekly_rows)} eligible " "completed games"
         )
         opportunity_metric_names = render_metric_table(
             opportunity_statistics,
@@ -66,10 +73,17 @@ def render_opportunity_tab(position: str, selected_season: str, weekly_rows: lis
     else:
         st.info("No opportunity statistics are available for this player.")
     render_data_disclaimer(data_update, *comparison_updates)
-        
 
 
-def render_efficiency_tab(position: str, selected_season: str, weekly_rows: list[dict[str, Any]], position_rows_by_player_id: dict[str, list[dict[str, Any]]], position_player_ids: list[str], data_update: Any, comparison_updates: list[Any]) -> None:
+def render_efficiency_tab(
+    position: str,
+    selected_season: str,
+    weekly_rows: list[dict[str, Any]],
+    position_rows_by_player_id: dict[str, list[dict[str, Any]]],
+    position_player_ids: list[str],
+    data_update: Any,
+    comparison_updates: list[Any],
+) -> None:
     efficiency_statistics = build_efficiency_statistics(weekly_rows, position)
     if efficiency_statistics:
         efficiency_statistics_by_player_id = {
@@ -116,4 +130,3 @@ def render_efficiency_tab(position: str, selected_season: str, weekly_rows: list
     else:
         st.info("No efficiency statistics are available for this player.")
     render_data_disclaimer(data_update, *comparison_updates)
-        

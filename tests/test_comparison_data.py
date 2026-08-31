@@ -29,9 +29,7 @@ def test_comparison_data_provider_reuses_full_season_data(
     def get_roster_data(league_id: str) -> SimpleNamespace:
         assert league_id == "league-1"
         calls["rosters"] += 1
-        return SimpleNamespace(
-            rosters=[SimpleNamespace(players=["p1", "p2"])]
-        )
+        return SimpleNamespace(rosters=[SimpleNamespace(players=["p1", "p2"])])
 
     def get_schedule_data(
         season: str,
@@ -69,12 +67,8 @@ def test_comparison_data_provider_reuses_full_season_data(
         ["p1"],
     )
 
-    full_context = provider.get_context(
-        "2026", comparison_data.FULL_SEASON_WEEKS
-    )
-    repeated_context = provider.get_context(
-        "2026", comparison_data.FULL_SEASON_WEEKS
-    )
+    full_context = provider.get_context("2026", comparison_data.FULL_SEASON_WEEKS)
+    repeated_context = provider.get_context("2026", comparison_data.FULL_SEASON_WEEKS)
     subset_context = provider.get_context("2026", [1, 2, 3])
 
     assert repeated_context is full_context

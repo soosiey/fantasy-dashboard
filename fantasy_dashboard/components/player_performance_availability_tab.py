@@ -40,7 +40,7 @@ def render_availability_tab(
         )
     except (requests.RequestException, TypeError, ValueError):
         st.warning("The completed NFL schedule could not be loaded.")
-        
+
     completed_team_weeks = get_team_completed_weeks(schedule, team)
     team_completed_games = len(completed_team_weeks) if schedule else None
     availability_statistics = build_availability_statistics(
@@ -65,9 +65,7 @@ def render_availability_tab(
     availability_position_averages = build_metric_average_values(
         availability_statistics_by_player_id
     )
-    st.caption(
-        f"{selected_season} season · Bye weeks are excluded from games missed"
-    )
+    st.caption(f"{selected_season} season · Bye weeks are excluded from games missed")
     availability_metric_names = render_metric_table(
         availability_statistics,
         position,

@@ -71,7 +71,7 @@ def render_core_performance_tab(
         )
     except (requests.RequestException, TypeError, ValueError):
         st.warning("Actual player statistics could not be loaded.")
-        
+
     statistics = build_core_performance_statistics(weekly_rows, selected_stat)
     if statistics:
         try:
@@ -130,7 +130,7 @@ def render_core_performance_tab(
         except (requests.RequestException, TypeError, ValueError):
             position_rows_by_player_id = {}
             st.warning("The positional league average could not be loaded.")
-        
+
         position_averages = build_position_average_statistics(
             position_rows_by_player_id,
             selected_stat,
@@ -216,7 +216,7 @@ def render_core_performance_tab(
             hide_index=True,
             width="stretch",
         )
-        
+
         graph_metric_key = st.session_state.pop(
             "_performance_core_graph_metric_key",
             None,
@@ -234,9 +234,9 @@ def render_core_performance_tab(
             )
     else:
         st.info("No completed-game statistics are available for this player.")
-        
+
     render_data_disclaimer(data_update, *comparison_updates)
-        
+
     return (
         weekly_rows,
         data_update,

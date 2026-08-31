@@ -204,5 +204,3 @@ def build_position_average_statistics(
         for metric_key, metric_values in values_by_metric_key.items()
         if metric_values
     }
-
-

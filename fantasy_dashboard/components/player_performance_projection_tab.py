@@ -91,7 +91,7 @@ def render_projection_accuracy_tab(
             position_projected_rows_by_player_id[player_id] = projected_rows
     except (requests.RequestException, TypeError, ValueError):
         st.warning("Projected player statistics could not be loaded.")
-        
+
     projection_statistics = build_projection_accuracy_statistics(
         weekly_rows,
         projected_rows,
@@ -150,5 +150,5 @@ def render_projection_accuracy_tab(
             "this statistic."
         )
     render_data_disclaimer(data_update, *projection_updates)
-        
+
     return projected_rows, position_projected_rows_by_player_id, projection_updates

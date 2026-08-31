@@ -141,7 +141,6 @@ def build_opportunity_statistics(
     ]
 
 
-
 def build_opportunity_trend(
     weekly_rows: list[dict[str, Any]],
     position: str,

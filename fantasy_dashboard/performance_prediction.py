@@ -321,4 +321,3 @@ def build_consistency_trend(
             boom_bust_tolerance=boom_bust_tolerance,
         ),
     )
-

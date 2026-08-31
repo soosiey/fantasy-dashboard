@@ -1,6 +1,9 @@
 import base64
+from collections.abc import Callable
+from pathlib import Path
 
 import pytest
+from streamlit.testing.v1 import AppTest
 
 from fantasy_dashboard import data
 from fantasy_dashboard.clients.sleeper import SleeperClient
@@ -16,6 +19,8 @@ from fantasy_dashboard.models.matchup import WeeklyMatchupContainer
 from fantasy_dashboard.models.news import PlayerNewsModel
 from fantasy_dashboard.models.transaction import TransactionContainer
 from fantasy_dashboard.models.user import SleeperUser, UserContainer
+
+APP_PATH = Path(__file__).resolve().parents[1] / "app.py"
 
 
 @pytest.fixture
@@ -265,3 +270,227 @@ def fake_page_backend(monkeypatch, tmp_path) -> SleeperUser:
     )
 
     return user
+
+
+@pytest.fixture
+def realistic_page_backend(
+    monkeypatch,
+    fake_page_backend: SleeperUser,
+) -> SleeperUser:
+    """Extend the offline backend with every fantasy position and week state."""
+    league = LeagueModel.from_api(
+        {
+            "league_id": "league-1",
+            "total_rosters": 2,
+            "status": "in_season",
+            "sport": "nfl",
+            "settings": {
+                "waiver_budget": 100,
+                "playoff_teams": 2,
+                "num_teams": 2,
+                "playoff_week_start": 15,
+                "waiver_day_of_week": 2,
+                "trade_deadline": 11,
+                "reserve_slots": 2,
+            },
+            "roster_positions": ["QB", "RB", "WR", "TE", "FLEX", "K", "DEF", "BN"],
+            "name": "Realistic Test League",
+            "draft_id": "draft-1",
+            "scoring_settings": {
+                "pass_yd": 0.04,
+                "pass_td": 4,
+                "rush_yd": 0.1,
+                "rush_td": 6,
+                "rec": 1,
+                "rec_yd": 0.1,
+                "rec_td": 6,
+                "fgm": 3,
+                "xpm": 1,
+                "sack": 1,
+                "int": 2,
+                "fum_rec": 2,
+                "def_td": 6,
+            },
+            "bracket_id": "winners-1",
+            "loser_bracket_id": "losers-1",
+            "avatar": "league-avatar",
+            "season": "2026",
+            "season_type": "regular",
+        }
+    )
+    player_specs = [
+        ("qb-1", "Quinn", "Quarterback", "QB", "BUF"),
+        ("rb-1", "Riley", "Runner", "RB", "NYJ"),
+        ("wr-1", "Will", "Receiver", "WR", "MIA"),
+        ("te-1", "Taylor", "End", "TE", "NE"),
+        ("k-1", "Kai", "Kicker", "K", "KC"),
+        ("def-1", "Denver", "Defense", "DEF", "DEN"),
+    ]
+    players = {
+        player_id: {
+            "player_id": player_id,
+            "first_name": first_name,
+            "last_name": last_name,
+            "position": position,
+            "fantasy_positions": [position],
+            "team": team,
+            "number": index,
+            "depth_chart_order": 1,
+            "injury_status": "",
+            "active": True,
+        }
+        for index, (player_id, first_name, last_name, position, team) in enumerate(
+            player_specs,
+            start=1,
+        )
+    }
+    week_one_stats = {
+        "qb-1": {"gp": 1, "pass_att": 32, "pass_cmp": 22, "pass_yd": 280, "pass_td": 2},
+        "rb-1": {
+            "gp": 1,
+            "rush_att": 18,
+            "rush_yd": 92,
+            "rec_tgt": 4,
+            "rec": 3,
+            "rec_yd": 24,
+        },
+        "wr-1": {"gp": 1, "rec_tgt": 9, "rec": 6, "rec_yd": 88, "rec_td": 1},
+        "te-1": {"gp": 1, "rec_tgt": 6, "rec": 5, "rec_yd": 54},
+        "k-1": {"gp": 1, "fga": 3, "fgm": 2, "xpa": 3, "xpm": 3},
+        "def-1": {"gp": 1, "sack": 4, "int": 1, "fum_rec": 1, "pts_allow": 17},
+    }
+    week_two_projections = {
+        player_id: {
+            stat_name: stat_value
+            for stat_name, stat_value in player_stats.items()
+            if stat_name != "gp"
+        }
+        for player_id, player_stats in week_one_stats.items()
+    }
+    rosters = RosterContainer.from_api(
+        [
+            {
+                "starters": ["qb-1", "rb-1", "wr-1"],
+                "players": ["qb-1", "rb-1", "wr-1"],
+                "roster_id": 1,
+                "owner_id": "user-1",
+                "league_id": "league-1",
+                "reserve": [],
+                "settings": {
+                    "wins": 1,
+                    "losses": 0,
+                    "ties": 0,
+                    "waiver_position": 1,
+                    "waiver_budget_used": 0,
+                    "total_moves": 1,
+                    "fpts": 50,
+                    "fpts_decimal": 0,
+                    "fpts_against": 40,
+                    "fpts_against_decimal": 0,
+                },
+            },
+            {
+                "starters": ["te-1", "k-1", "def-1"],
+                "players": ["te-1", "k-1", "def-1"],
+                "roster_id": 2,
+                "owner_id": "user-2",
+                "league_id": "league-1",
+                "reserve": [],
+                "settings": {
+                    "wins": 0,
+                    "losses": 1,
+                    "ties": 0,
+                    "waiver_position": 2,
+                    "waiver_budget_used": 5,
+                    "total_moves": 1,
+                    "fpts": 40,
+                    "fpts_decimal": 0,
+                    "fpts_against": 50,
+                    "fpts_against_decimal": 0,
+                },
+            },
+        ]
+    )
+    schedule = [
+        {"week": 1, "home": "BUF", "away": "NYJ", "status": "complete"},
+        {"week": 1, "home": "MIA", "away": "NE", "status": "complete"},
+        {"week": 1, "home": "KC", "away": "DEN", "status": "complete"},
+        {"week": 2, "home": "BUF", "away": "MIA", "status": "pre_game"},
+        {"week": 2, "home": "NYJ", "away": "NE", "status": "pre_game"},
+        {"week": 2, "home": "KC", "away": "DEN", "status": "pre_game"},
+    ]
+
+    monkeypatch.setattr(data, "get_league", lambda league_id: league)
+    monkeypatch.setattr(data, "get_leagues", lambda *args: LeagueContainer([league]))
+    monkeypatch.setattr(data, "get_rosters", lambda league_id: rosters)
+    monkeypatch.setattr(data, "get_nfl_players", lambda: players)
+    monkeypatch.setattr(data, "get_default_nfl_week", lambda season: 2)
+    monkeypatch.setattr(
+        data,
+        "get_player_stats",
+        lambda season, season_type="regular", week=None: (
+            week_one_stats if week in {None, 1} else {}
+        ),
+    )
+    monkeypatch.setattr(
+        data,
+        "get_projected_player_stats",
+        lambda season, week=None: (
+            week_two_projections if week in {None, 2} else week_one_stats
+        ),
+    )
+    monkeypatch.setattr(
+        data,
+        "get_player_weekly_stats",
+        lambda player_id, *args: (
+            {
+                1: {
+                    "week": 1,
+                    "opponent": "OPP",
+                    "stats": week_one_stats[player_id],
+                }
+            }
+            if player_id in week_one_stats
+            else {}
+        ),
+    )
+    monkeypatch.setattr(data, "get_nfl_schedule", lambda *args: schedule)
+    monkeypatch.setattr(
+        data,
+        "refresh_current_week_input_data",
+        lambda *args, **kwargs: ("2026", "regular", 2),
+    )
+    return fake_page_backend
+
+
+def _create_authenticated_app(user: SleeperUser) -> AppTest:
+    app = AppTest.from_file(APP_PATH, default_timeout=10)
+    app.session_state["sleeper_user"] = user
+    app.session_state["league_id"] = "league-1"
+    app.session_state["user_id"] = "user-1"
+    app.query_params["league_id"] = "league-1"
+    return app.run()
+
+
+@pytest.fixture
+def authenticated_app(
+    fake_page_backend: SleeperUser,
+) -> Callable[[], AppTest]:
+    """Create a fresh app already logged into the deterministic test league."""
+
+    def create_app() -> AppTest:
+        return _create_authenticated_app(fake_page_backend)
+
+    return create_app
+
+
+@pytest.fixture
+def realistic_authenticated_app(
+    realistic_page_backend: SleeperUser,
+) -> Callable[[], AppTest]:
+    """Create a logged-in app backed by the six-position realistic league."""
+
+    def create_app() -> AppTest:
+        return _create_authenticated_app(realistic_page_backend)
+
+    return create_app

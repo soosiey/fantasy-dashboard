@@ -86,6 +86,7 @@ def build_availability_statistics(
         ),
     ]
 
+
 def build_availability_trend(
     weekly_rows: list[dict[str, Any]],
     completed_team_weeks: list[int],

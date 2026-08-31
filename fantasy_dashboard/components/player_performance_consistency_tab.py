@@ -51,7 +51,7 @@ def render_consistency_tab(
                 "the projection."
             ),
         )
-        
+
     consistency_statistics = build_consistency_statistics(
         weekly_rows,
         projected_rows,
@@ -77,8 +77,7 @@ def render_consistency_tab(
             consistency_statistics_by_player_id
         )
         st.caption(
-            f"{selected_season} season · {len(weekly_rows)} eligible "
-            "completed games"
+            f"{selected_season} season · {len(weekly_rows)} eligible " "completed games"
         )
         consistency_metric_names = render_metric_table(
             consistency_statistics,
@@ -108,4 +107,3 @@ def render_consistency_tab(
     else:
         st.info("No completed-game statistics are available for this player.")
     render_data_disclaimer(data_update, *projection_updates)
-        

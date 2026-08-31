@@ -45,9 +45,7 @@ class ComparisonDataProvider:
         self.league = league
         self.players = players
         self.selected_player_ids = [
-            player_id
-            for player_id in comparison_player_ids
-            if player_id in players
+            player_id for player_id in comparison_player_ids if player_id in players
         ]
         self.selected_positions = [
             str(players[player_id].get("position") or "")
@@ -61,9 +59,7 @@ class ComparisonDataProvider:
         self._league_player_ids: list[str] | None = None
         self._roster_warning: str | None = None
         self._schedules: dict[str, tuple[list[dict[str, Any]], str | None]] = {}
-        self._contexts: dict[
-            tuple[str, tuple[int, ...]], ComparisonDataContext
-        ] = {}
+        self._contexts: dict[tuple[str, tuple[int, ...]], ComparisonDataContext] = {}
 
     def get_season_options(self) -> list[str]:
         if self._season_options is not None:
@@ -76,9 +72,7 @@ class ComparisonDataProvider:
             self.season_warning = (
                 "The current NFL season could not be detected from Sleeper."
             )
-        self._season_options = [
-            str(current_season - offset) for offset in range(3)
-        ]
+        self._season_options = [str(current_season - offset) for offset in range(3)]
         return self._season_options
 
     def get_stat_options(self) -> list[str]:
@@ -102,8 +96,7 @@ class ComparisonDataProvider:
     def player_name(self, player_id: str) -> str:
         player = self.players.get(player_id, {})
         name = (
-            f"{player.get('first_name') or ''} "
-            f"{player.get('last_name') or ''}"
+            f"{player.get('first_name') or ''} " f"{player.get('last_name') or ''}"
         ).strip()
         position = str(player.get("position") or "—")
         return f"{name or player_id} ({position})"
@@ -184,9 +177,7 @@ class ComparisonDataProvider:
 
         full_key = (str(season), FULL_SEASON_WEEKS)
         if normalized_weeks != FULL_SEASON_WEEKS and full_key in self._contexts:
-            context = self._subset_context(
-                self._contexts[full_key], normalized_weeks
-            )
+            context = self._subset_context(self._contexts[full_key], normalized_weeks)
             self._contexts[key] = context
             return context
 
@@ -196,12 +187,8 @@ class ComparisonDataProvider:
         warnings = [warning for warning in (self._roster_warning,) if warning]
         try:
             for week in normalized_weeks:
-                actual_stats = data.get_player_stats(
-                    str(season), "regular", week
-                )
-                projected_stats = data.get_projected_player_stats(
-                    str(season), week
-                )
+                actual_stats = data.get_player_stats(str(season), "regular", week)
+                projected_stats = data.get_projected_player_stats(str(season), week)
                 for player_id in league_player_ids:
                     player_actual_stats = actual_stats.get(player_id, {})
                     if is_eligible_game({"stats": player_actual_stats}):
