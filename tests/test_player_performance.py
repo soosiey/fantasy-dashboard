@@ -1,14 +1,21 @@
 import pytest
 
 from fantasy_dashboard.player_performance import (
+    build_availability_statistics,
+    build_availability_trend,
     build_consistency_statistics,
     build_consistency_trend,
     build_core_performance_statistics,
     build_core_performance_trend,
+    build_efficiency_statistics,
+    build_efficiency_trend,
     build_metric_average_values,
+    build_opportunity_statistics,
+    build_opportunity_trend,
     build_position_average_statistics,
     build_projection_accuracy_statistics,
     build_projection_accuracy_trend,
+    get_team_completed_weeks,
     is_eligible_game,
 )
 
@@ -214,3 +221,120 @@ def test_projection_and_consistency_trends_recalculate_through_each_week() -> No
 
     assert [row["Value"] for row in accuracy_trend] == [2, 3, 4]
     assert [row["Value"] for row in consistency_trend] == [None, None, 20]
+
+
+def test_opportunity_and_efficiency_use_cached_volume_with_context() -> None:
+    weekly_rows = [
+        {
+            "Week": 1,
+            "Fantasy Points": 12,
+            "_Raw Stats": {
+                "rush_att": 10,
+                "rush_yd": 50,
+                "rush_td": 1,
+                "rec": 4,
+                "rec_tgt": 5,
+                "rec_yd": 30,
+                "rec_td": 0,
+                "off_snp": 30,
+                "tm_off_snp": 60,
+                "rush_rz_att": 2,
+                "rec_rz_tgt": 1,
+            },
+        },
+        {
+            "Week": 2,
+            "Fantasy Points": 18,
+            "_Raw Stats": {
+                "rush_att": 15,
+                "rush_yd": 100,
+                "rush_td": 0,
+                "rec": 5,
+                "rec_tgt": 10,
+                "rec_yd": 60,
+                "rec_td": 1,
+                "off_snp": 45,
+                "tm_off_snp": 60,
+                "rush_rz_att": 3,
+                "rec_rz_tgt": 2,
+            },
+        },
+    ]
+    opportunity = {
+        row["Statistic"]: row
+        for row in build_opportunity_statistics(weekly_rows, "RB")
+    }
+    efficiency = {
+        row["Statistic"]: row
+        for row in build_efficiency_statistics(weekly_rows, "RB")
+    }
+
+    assert opportunity["Touches"]["Value"] == 34
+    assert opportunity["Targets"]["Value"] == 15
+    assert opportunity["Snap share"]["Value"] == 62.5
+    assert opportunity["Red-zone opportunities"]["Value"] == 8
+    assert efficiency["Fantasy points per touch"]["Value"] == pytest.approx(
+        30 / 34
+    )
+    assert efficiency["Yards per carry"]["Value"] == 6
+    assert efficiency["Catch rate"]["Value"] == 60
+    assert efficiency["Yards per target"]["Value"] == 6
+
+
+def test_availability_excludes_byes_and_retains_injury_context() -> None:
+    schedule = [
+        {"week": 1, "home": "BUF", "away": "NYJ", "status": "complete"},
+        {"week": 2, "home": "MIA", "away": "NYJ", "status": "complete"},
+        {"week": 3, "home": "BUF", "away": "MIA", "status": "scheduled"},
+    ]
+    assert get_team_completed_weeks(schedule, "BUF") == [1]
+    assert get_team_completed_weeks(schedule, "NYJ") == [1, 2]
+
+    statistics = build_availability_statistics(
+        [{"Week": 1, "Fantasy Points": 0}],
+        2,
+        "Questionable",
+    )
+    values = {row["Statistic"]: row["Value"] for row in statistics}
+
+    assert values["Games played"] == 1
+    assert values["Games missed"] == 1
+    assert values["Availability rate"] == 50
+    assert next(
+        row["Context"]
+        for row in statistics
+        if row["Statistic"] == "Injury status"
+    ) == "Current Sleeper designation: Questionable"
+
+
+def test_new_performance_metric_trends_recalculate_cumulatively() -> None:
+    weekly_rows = [
+        {
+            "Week": 1,
+            "Fantasy Points": 10,
+            "_Raw Stats": {"rush_att": 10, "rush_yd": 50, "rec": 2},
+        },
+        {
+            "Week": 2,
+            "Fantasy Points": 20,
+            "_Raw Stats": {"rush_att": 20, "rush_yd": 120, "rec": 2},
+        },
+    ]
+
+    assert [
+        row["Value"]
+        for row in build_opportunity_trend(weekly_rows, "RB", "touches")
+    ] == [12, 34]
+    assert [
+        row["Value"]
+        for row in build_efficiency_trend(weekly_rows, "RB", "yards_per_carry")
+    ] == [5, pytest.approx(170 / 30)]
+    assert [
+        row["Value"]
+        for row in build_availability_trend(
+            weekly_rows,
+            [1, 2, 3],
+            None,
+            "availability_rate",
+        )
+    ] == [100, 100, pytest.approx(200 / 3)]

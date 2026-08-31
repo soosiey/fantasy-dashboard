@@ -275,8 +275,65 @@ def test_comparison_page_only_shows_checked_players(fake_page_backend) -> None:
     app.switch_page("pages/comparison.py").run()
 
     _assert_page(app, "Comparison")
+    assert [tab.label for tab in app.tabs[:3]] == [
+        "Overview",
+        "Graphs",
+        "Performance Statistics",
+    ]
     assert app.session_state["_analysis_mode"] is True
     assert app.dataframe[0].value["Player ID"].tolist() == ["player-1"]
+
+
+def test_comparison_performance_tables_include_players_and_position_average(
+    fake_page_backend,
+) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["comparison-player-ids-league-1"] = ["player-1", "player-2"]
+
+    app.switch_page("pages/comparison.py").run()
+
+    assert [tab.label for tab in app.tabs[3:]] == [
+        "Core Performance Statistics",
+        "Projection Accuracy",
+        "Consistency",
+        "Opportunity",
+        "Efficiency",
+        "Availability",
+    ]
+    performance_table = app.dataframe[1].value
+    assert "First Quarterback (QB)" in performance_table.columns
+    assert "Second Quarterback (QB)" in performance_table.columns
+    assert "QB League Average" in performance_table.columns
+    assert not any(column.startswith("vs ") for column in performance_table.columns)
+
+
+def test_comparison_performance_limits_mixed_position_groups_to_fantasy_points(
+    monkeypatch,
+    fake_page_backend,
+) -> None:
+    from fantasy_dashboard import data
+
+    players = data.get_nfl_players()
+    mixed_position_players = {
+        player_id: dict(player) for player_id, player in players.items()
+    }
+    mixed_position_players["player-2"]["position"] = "WR"
+    mixed_position_players["player-2"]["fantasy_positions"] = ["WR"]
+    monkeypatch.setattr(data, "get_nfl_players", lambda: mixed_position_players)
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["comparison-player-ids-league-1"] = ["player-1", "player-2"]
+
+    app.switch_page("pages/comparison.py").run()
+
+    stat_selector = next(
+        box
+        for box in app.selectbox
+        if box.key == "comparison-performance-league-1-stat"
+    )
+    assert stat_selector.options == ["Fantasy Points"]
+    assert any(
+        "different position groups" in warning.value for warning in app.warning
+    )
 
 
 def test_comparison_can_show_union_of_relevant_position_stats(
@@ -353,10 +410,7 @@ def test_graphs_page_is_a_searchable_player_picker(fake_page_backend) -> None:
     app.switch_page("pages/graphs.py").run()
 
     _assert_page(app, "Single Player Selection")
-    assert [tab.label for tab in app.tabs] == [
-        "Single Player Stats",
-        "Comparison Stats",
-    ]
+    assert not app.tabs
     assert any(field.label == "Player name" for field in app.text_input)
     assert app.dataframe[0].value.columns.tolist() == [
         "Player ID",
@@ -487,6 +541,9 @@ def test_player_stats_state_includes_core_performance(
         "Core Performance Statistics",
         "Projection Accuracy",
         "Consistency",
+        "Opportunity",
+        "Efficiency",
+        "Availability",
     ]
     year_selector = next(box for box in app.selectbox if box.label == "Year")
     assert year_selector.value == "2026"
@@ -557,6 +614,29 @@ def test_player_stats_state_includes_core_performance(
         ).value
         == 20.0
     )
+    assert app.dataframe[3].value["Statistic"].tolist() == [
+        "Pass attempts",
+        "Snap share",
+        "Red-zone opportunities",
+    ]
+    assert "QB League Average" in app.dataframe[3].value.columns
+    assert "View Graph" in app.dataframe[3].value.columns
+    assert app.dataframe[4].value["Statistic"].tolist() == [
+        "Completion rate",
+        "Yards per pass attempt",
+        "Passing touchdown rate",
+        "Interception rate",
+    ]
+    assert "QB League Average" in app.dataframe[4].value.columns
+    assert "View Graph" in app.dataframe[4].value.columns
+    assert app.dataframe[5].value["Statistic"].tolist() == [
+        "Games played",
+        "Games missed",
+        "Availability rate",
+        "Injury status",
+    ]
+    assert "QB League Average" in app.dataframe[5].value.columns
+    assert "View Graph" in app.dataframe[5].value.columns
     assert any(button.label == "Back to Analysis" for button in app.button)
 
 
@@ -579,13 +659,32 @@ def test_core_performance_graph_opens_for_selected_statistic(
 
 
 @pytest.mark.parametrize(
-    ("state_key", "metric_key", "expected_heading"),
+    ("state_key", "metric_key", "expected_subheader"),
     [
-        ("_performance_projection_graph_metric_key", "mae", "MAE"),
+        (
+            "_performance_projection_graph_metric_key",
+            "mae",
+            "MAE · Fantasy Points",
+        ),
         (
             "_performance_consistency_graph_metric_key",
             "consistency_rate",
-            "Consistency rate",
+            "Consistency rate · Fantasy Points",
+        ),
+        (
+            "_performance_opportunity_graph_metric_key",
+            "pass_attempts",
+            "Pass attempts · Attempts",
+        ),
+        (
+            "_performance_efficiency_graph_metric_key",
+            "completion_rate",
+            "Completion rate · %",
+        ),
+        (
+            "_performance_availability_graph_metric_key",
+            "games_played",
+            "Games played · Games",
         ),
     ],
 )
@@ -593,7 +692,7 @@ def test_additional_performance_graphs_open_for_selected_statistic(
     fake_page_backend,
     state_key: str,
     metric_key: str,
-    expected_heading: str,
+    expected_subheader: str,
 ) -> None:
     app = _authenticated_app(fake_page_backend)
     app.session_state["graph_player_id"] = "player-1"
@@ -606,8 +705,7 @@ def test_additional_performance_graphs_open_for_selected_statistic(
     _assert_page(app, "Performance")
     assert app.get("vega_lite_chart")
     assert any(
-        subheader.value == f"{expected_heading} · Fantasy Points"
-        for subheader in app.subheader
+        subheader.value == expected_subheader for subheader in app.subheader
     )
 
 

@@ -15,6 +15,7 @@ from fantasy_dashboard.data import (
     get_data_update,
     get_league,
     get_nfl_players,
+    get_nfl_schedule,
     get_player_stats,
     get_player_weekly_stats,
     get_projected_player_stats,
@@ -22,14 +23,21 @@ from fantasy_dashboard.data import (
 )
 from fantasy_dashboard.graph_stats import build_actual_weekly_stat_rows
 from fantasy_dashboard.player_performance import (
+    build_availability_statistics,
+    build_availability_trend,
     build_consistency_statistics,
     build_consistency_trend,
     build_core_performance_statistics,
     build_core_performance_trend,
+    build_efficiency_statistics,
+    build_efficiency_trend,
     build_metric_average_values,
+    build_opportunity_statistics,
+    build_opportunity_trend,
     build_position_average_statistics,
     build_projection_accuracy_statistics,
     build_projection_accuracy_trend,
+    get_team_completed_weeks,
     is_eligible_game,
 )
 from fantasy_dashboard.player_stats import (
@@ -80,7 +88,9 @@ def render_metric_table(
             "Context",
         ]
     ].copy()
-    statistics_table["View Graph"] = "View"
+    statistics_table["View Graph"] = [
+        "View" if row.get("Graphable", True) else "" for row in statistics
+    ]
     st.dataframe(
         statistics_table,
         column_config={
@@ -136,6 +146,10 @@ if not st.session_state.get(PLAYER_STATS_MODE_KEY):
     st.session_state.pop(ANALYSIS_MODE_KEY, None)
     st.rerun()
 
+st.markdown(
+    "<style>[data-testid='stMainBlockContainer'] { max-width: 115rem; }</style>",
+    unsafe_allow_html=True,
+)
 st.title("Performance")
 
 players = get_nfl_players()
@@ -210,8 +224,22 @@ else:
         stat=selected_stat,
     )
 
-    core_performance_tab, projection_accuracy_tab, consistency_tab = st.tabs(
-        ["Core Performance Statistics", "Projection Accuracy", "Consistency"]
+    (
+        core_performance_tab,
+        projection_accuracy_tab,
+        consistency_tab,
+        opportunity_tab,
+        efficiency_tab,
+        availability_tab,
+    ) = st.tabs(
+        [
+            "Core Performance Statistics",
+            "Projection Accuracy",
+            "Consistency",
+            "Opportunity",
+            "Efficiency",
+            "Availability",
+        ]
     )
     weekly_rows: list[dict] = []
     data_update = None
@@ -234,6 +262,9 @@ else:
                 eligible_weekly_stats,
                 league.scoring_settings,
             )
+            for weekly_row in weekly_rows:
+                record = eligible_weekly_stats.get(int(weekly_row["Week"]), {})
+                weekly_row["_Raw Stats"] = record.get("stats", {})
             data_update = get_data_update(
                 "player_weekly_stats",
                 player_id,
@@ -286,13 +317,15 @@ else:
                         record = {"stats": player_week_stats}
                         if not is_eligible_game(record):
                             continue
+                        position_weekly_row = build_player_stat_row(
+                            player_week_stats,
+                            league.scoring_settings,
+                            week,
+                            stats_available=True,
+                        )
+                        position_weekly_row["_Raw Stats"] = player_week_stats
                         position_rows_by_player_id[position_player_id].append(
-                            build_player_stat_row(
-                                player_week_stats,
-                                league.scoring_settings,
-                                week,
-                                stats_available=True,
-                            )
+                            position_weekly_row
                         )
                 if player_id in position_rows_by_player_id:
                     position_rows_by_player_id[player_id] = weekly_rows
@@ -607,6 +640,179 @@ else:
             st.info("No completed-game statistics are available for this player.")
         render_data_disclaimer(data_update, *projection_updates)
 
+    with opportunity_tab:
+        opportunity_statistics = build_opportunity_statistics(
+            weekly_rows,
+            position,
+        )
+        if opportunity_statistics:
+            opportunity_statistics_by_player_id = {
+                position_player_id: build_opportunity_statistics(
+                    position_rows_by_player_id.get(position_player_id, []),
+                    position,
+                )
+                for position_player_id in position_player_ids
+            }
+            opportunity_position_averages = build_metric_average_values(
+                opportunity_statistics_by_player_id
+            )
+            st.caption(
+                f"{selected_season} season · {len(weekly_rows)} eligible "
+                "completed games"
+            )
+            opportunity_metric_names = render_metric_table(
+                opportunity_statistics,
+                position,
+                opportunity_position_averages,
+                click_key="performance-opportunity-graph-click",
+                selection_state_key="_performance_opportunity_graph_metric_key",
+            )
+            opportunity_graph_metric_key = st.session_state.pop(
+                "_performance_opportunity_graph_metric_key",
+                None,
+            )
+            if opportunity_graph_metric_key in opportunity_metric_names:
+                opportunity_metric = next(
+                    row
+                    for row in opportunity_statistics
+                    if row["Key"] == opportunity_graph_metric_key
+                )
+                show_performance_stat_graph(
+                    build_opportunity_trend(
+                        weekly_rows,
+                        position,
+                        str(opportunity_graph_metric_key),
+                    ),
+                    str(opportunity_metric["Unit"]),
+                    opportunity_metric_names[str(opportunity_graph_metric_key)],
+                    selected_season,
+                )
+        else:
+            st.info("No opportunity statistics are available for this player.")
+        render_data_disclaimer(data_update, *comparison_updates)
+
+    with efficiency_tab:
+        efficiency_statistics = build_efficiency_statistics(weekly_rows, position)
+        if efficiency_statistics:
+            efficiency_statistics_by_player_id = {
+                position_player_id: build_efficiency_statistics(
+                    position_rows_by_player_id.get(position_player_id, []),
+                    position,
+                )
+                for position_player_id in position_player_ids
+            }
+            efficiency_position_averages = build_metric_average_values(
+                efficiency_statistics_by_player_id
+            )
+            st.caption(
+                f"{selected_season} season · Efficiency is paired with its "
+                "opportunity sample in the Context column"
+            )
+            efficiency_metric_names = render_metric_table(
+                efficiency_statistics,
+                position,
+                efficiency_position_averages,
+                click_key="performance-efficiency-graph-click",
+                selection_state_key="_performance_efficiency_graph_metric_key",
+            )
+            efficiency_graph_metric_key = st.session_state.pop(
+                "_performance_efficiency_graph_metric_key",
+                None,
+            )
+            if efficiency_graph_metric_key in efficiency_metric_names:
+                efficiency_metric = next(
+                    row
+                    for row in efficiency_statistics
+                    if row["Key"] == efficiency_graph_metric_key
+                )
+                show_performance_stat_graph(
+                    build_efficiency_trend(
+                        weekly_rows,
+                        position,
+                        str(efficiency_graph_metric_key),
+                    ),
+                    str(efficiency_metric["Unit"]),
+                    efficiency_metric_names[str(efficiency_graph_metric_key)],
+                    selected_season,
+                )
+        else:
+            st.info("No efficiency statistics are available for this player.")
+        render_data_disclaimer(data_update, *comparison_updates)
+
+    with availability_tab:
+        schedule = []
+        schedule_update = None
+        try:
+            schedule = get_nfl_schedule(selected_season, "regular")
+            schedule_update = get_data_update(
+                "nfl_schedule",
+                selected_season,
+                "regular",
+            )
+        except (requests.RequestException, TypeError, ValueError):
+            st.warning("The completed NFL schedule could not be loaded.")
+
+        completed_team_weeks = get_team_completed_weeks(schedule, team)
+        team_completed_games = len(completed_team_weeks) if schedule else None
+        availability_statistics = build_availability_statistics(
+            weekly_rows,
+            team_completed_games,
+            str(player.get("injury_status") or ""),
+        )
+        availability_statistics_by_player_id = {}
+        for position_player_id in position_player_ids:
+            position_player = players.get(position_player_id, {})
+            position_team_weeks = get_team_completed_weeks(
+                schedule,
+                str(position_player.get("team") or ""),
+            )
+            availability_statistics_by_player_id[position_player_id] = (
+                build_availability_statistics(
+                    position_rows_by_player_id.get(position_player_id, []),
+                    len(position_team_weeks) if schedule else None,
+                    str(position_player.get("injury_status") or ""),
+                )
+            )
+        availability_position_averages = build_metric_average_values(
+            availability_statistics_by_player_id
+        )
+        st.caption(
+            f"{selected_season} season · Bye weeks are excluded from games missed"
+        )
+        availability_metric_names = render_metric_table(
+            availability_statistics,
+            position,
+            availability_position_averages,
+            click_key="performance-availability-graph-click",
+            selection_state_key="_performance_availability_graph_metric_key",
+        )
+        availability_graph_metric_key = st.session_state.pop(
+            "_performance_availability_graph_metric_key",
+            None,
+        )
+        if availability_graph_metric_key in availability_metric_names:
+            availability_metric = next(
+                row
+                for row in availability_statistics
+                if row["Key"] == availability_graph_metric_key
+            )
+            show_performance_stat_graph(
+                build_availability_trend(
+                    weekly_rows,
+                    completed_team_weeks,
+                    str(player.get("injury_status") or ""),
+                    str(availability_graph_metric_key),
+                ),
+                str(availability_metric["Unit"]),
+                availability_metric_names[str(availability_graph_metric_key)],
+                selected_season,
+            )
+        render_data_disclaimer(
+            data_update,
+            schedule_update,
+            *comparison_updates,
+        )
+
 with st.bottom:
     back_to_analysis = st.button("Back to Analysis")
 
@@ -617,3 +823,7 @@ if back_to_analysis:
         "pages/graphs.py",
         query_params={"league_id": league_id},
     )
+    build_efficiency_statistics,
+    build_efficiency_trend,
+    build_opportunity_statistics,
+    build_opportunity_trend,

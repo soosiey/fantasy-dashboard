@@ -522,3 +522,616 @@ def build_consistency_trend(
             boom_bust_tolerance=boom_bust_tolerance,
         ),
     )
+
+
+def _raw_stat_total(
+    weekly_rows: list[dict[str, Any]],
+    *stat_names: str,
+) -> float | None:
+    raw_stats = [
+        row.get("_Raw Stats")
+        for row in weekly_rows
+        if isinstance(row.get("_Raw Stats"), dict)
+    ]
+    if not any(stat_name in stats for stats in raw_stats for stat_name in stat_names):
+        return None
+    return float(
+        sum(
+            float(stats.get(stat_name) or 0)
+            for stats in raw_stats
+            for stat_name in stat_names
+            if isinstance(stats.get(stat_name), Real)
+        )
+    )
+
+
+def _raw_stat_total_alias(
+    weekly_rows: list[dict[str, Any]],
+    *stat_names: str,
+) -> float | None:
+    for stat_name in stat_names:
+        value = _raw_stat_total(weekly_rows, stat_name)
+        if value is not None:
+            return value
+    return None
+
+
+def _ratio(
+    numerator: float | None,
+    denominator: float | None,
+    *,
+    percentage: bool = False,
+) -> float | None:
+    if numerator is None or denominator is None or denominator == 0:
+        return None
+    value = numerator / denominator
+    return value * 100 if percentage else value
+
+
+def _metric_row(
+    key: str,
+    statistic: str,
+    value: float | None,
+    unit: str,
+    context: str,
+    *,
+    graphable: bool | None = None,
+) -> dict[str, Any]:
+    return {
+        "Key": key,
+        "Statistic": statistic,
+        "Value": value,
+        "Unit": unit,
+        "Context": context,
+        "Graphable": value is not None if graphable is None else graphable,
+    }
+
+
+def build_opportunity_statistics(
+    weekly_rows: list[dict[str, Any]],
+    position: str,
+) -> list[dict[str, Any]]:
+    """Summarize position-relevant opportunities from cached Sleeper fields."""
+    games_played = len(weekly_rows)
+    if games_played == 0:
+        return []
+    game_context = f"{games_played} eligible games"
+
+    rush_attempts = _raw_stat_total(weekly_rows, "rush_att")
+    receptions = _raw_stat_total(weekly_rows, "rec")
+    targets = _raw_stat_total(weekly_rows, "rec_tgt")
+    pass_attempts = _raw_stat_total(weekly_rows, "pass_att")
+    offensive_snaps = _raw_stat_total(weekly_rows, "off_snp")
+    team_offensive_snaps = _raw_stat_total(weekly_rows, "tm_off_snp")
+    snap_share = _ratio(offensive_snaps, team_offensive_snaps, percentage=True)
+    unavailable = "Unavailable in the cached Sleeper weekly fields"
+
+    if position == "QB":
+        red_zone_values = (
+            _raw_stat_total(weekly_rows, "pass_rz_att"),
+            _raw_stat_total(weekly_rows, "rush_rz_att"),
+        )
+        red_zone_opportunities = (
+            sum(value or 0 for value in red_zone_values)
+            if any(value is not None for value in red_zone_values)
+            else None
+        )
+        return [
+            _metric_row(
+                "pass_attempts",
+                "Pass attempts",
+                pass_attempts,
+                "Attempts",
+                game_context,
+            ),
+            _metric_row(
+                "snap_share",
+                "Snap share",
+                snap_share,
+                "%",
+                game_context if snap_share is not None else unavailable,
+            ),
+            _metric_row(
+                "red_zone_opportunities",
+                "Red-zone opportunities",
+                red_zone_opportunities,
+                "Attempts",
+                (
+                    "Pass attempts + rush attempts inside the 20"
+                    if red_zone_opportunities is not None
+                    else unavailable
+                ),
+                graphable=red_zone_opportunities is not None,
+            ),
+        ]
+
+    if position in {"RB", "WR", "TE"}:
+        touches = (
+            (rush_attempts or 0) + (receptions or 0)
+            if rush_attempts is not None or receptions is not None
+            else None
+        )
+        red_zone_values = (
+            _raw_stat_total(weekly_rows, "rush_rz_att"),
+            _raw_stat_total(weekly_rows, "rec_rz_tgt"),
+        )
+        red_zone_opportunities = (
+            sum(value or 0 for value in red_zone_values)
+            if any(value is not None for value in red_zone_values)
+            else None
+        )
+        return [
+            _metric_row("touches", "Touches", touches, "Touches", game_context),
+            _metric_row("targets", "Targets", targets, "Targets", game_context),
+            _metric_row(
+                "snap_share",
+                "Snap share",
+                snap_share,
+                "%",
+                game_context if snap_share is not None else unavailable,
+            ),
+            _metric_row(
+                "red_zone_opportunities",
+                "Red-zone opportunities",
+                red_zone_opportunities,
+                "Opportunities",
+                (
+                    "Carries + targets inside the 20"
+                    if red_zone_opportunities is not None
+                    else unavailable
+                ),
+                graphable=red_zone_opportunities is not None,
+            ),
+        ]
+
+    if position == "K":
+        return [
+            _metric_row(
+                "field_goal_attempts",
+                "Field-goal attempts",
+                _raw_stat_total(weekly_rows, "fga"),
+                "Attempts",
+                game_context,
+            ),
+            _metric_row(
+                "extra_point_attempts",
+                "Extra-point attempts",
+                _raw_stat_total(weekly_rows, "xpa"),
+                "Attempts",
+                game_context,
+            ),
+        ]
+
+    defensive_snaps = _raw_stat_total(weekly_rows, "def_snp")
+    team_defensive_snaps = _raw_stat_total(weekly_rows, "tm_def_snp")
+    defensive_snap_share = _ratio(
+        defensive_snaps,
+        team_defensive_snaps,
+        percentage=True,
+    )
+    return [
+        _metric_row(
+            "snap_share",
+            "Snap share",
+            defensive_snap_share,
+            "%",
+            game_context if defensive_snap_share is not None else unavailable,
+            graphable=defensive_snap_share is not None,
+        )
+    ]
+
+
+def build_efficiency_statistics(
+    weekly_rows: list[dict[str, Any]],
+    position: str,
+) -> list[dict[str, Any]]:
+    """Calculate position-specific season efficiency with volume context."""
+    games_played = len(weekly_rows)
+    if games_played == 0:
+        return []
+
+    fantasy_points = float(
+        sum(
+            float(row.get("Fantasy Points") or 0)
+            for row in weekly_rows
+            if isinstance(row.get("Fantasy Points"), Real)
+        )
+    )
+    pass_attempts = _raw_stat_total(weekly_rows, "pass_att")
+    completions = _raw_stat_total(weekly_rows, "pass_cmp")
+    passing_yards = _raw_stat_total(weekly_rows, "pass_yd")
+    passing_touchdowns = _raw_stat_total(weekly_rows, "pass_td")
+    interceptions = _raw_stat_total(weekly_rows, "pass_int")
+    carries = _raw_stat_total(weekly_rows, "rush_att")
+    rushing_yards = _raw_stat_total(weekly_rows, "rush_yd")
+    rushing_touchdowns = _raw_stat_total(weekly_rows, "rush_td")
+    targets = _raw_stat_total(weekly_rows, "rec_tgt")
+    receptions = _raw_stat_total(weekly_rows, "rec")
+    receiving_yards = _raw_stat_total(weekly_rows, "rec_yd")
+    receiving_touchdowns = _raw_stat_total(weekly_rows, "rec_td")
+    unavailable = "Unavailable: required opportunity count is zero or missing"
+
+    if position == "QB":
+        return [
+            _metric_row(
+                "completion_rate",
+                "Completion rate",
+                _ratio(completions, pass_attempts, percentage=True),
+                "%",
+                f"{pass_attempts or 0:g} pass attempts",
+            ),
+            _metric_row(
+                "yards_per_pass_attempt",
+                "Yards per pass attempt",
+                _ratio(passing_yards, pass_attempts),
+                "Yards/attempt",
+                f"{pass_attempts or 0:g} pass attempts",
+            ),
+            _metric_row(
+                "passing_touchdown_rate",
+                "Passing touchdown rate",
+                _ratio(passing_touchdowns, pass_attempts, percentage=True),
+                "%",
+                f"{pass_attempts or 0:g} pass attempts",
+            ),
+            _metric_row(
+                "interception_rate",
+                "Interception rate",
+                _ratio(interceptions, pass_attempts, percentage=True),
+                "%",
+                f"{pass_attempts or 0:g} pass attempts",
+            ),
+        ]
+
+    if position == "RB":
+        touches = (
+            (carries or 0) + (receptions or 0)
+            if carries is not None or receptions is not None
+            else None
+        )
+        return [
+            _metric_row(
+                "fantasy_points_per_touch",
+                "Fantasy points per touch",
+                _ratio(fantasy_points, touches),
+                "Points/touch",
+                f"{touches or 0:g} touches" if touches else unavailable,
+            ),
+            _metric_row(
+                "fantasy_points_per_target",
+                "Fantasy points per target",
+                _ratio(fantasy_points, targets),
+                "Points/target",
+                f"{targets or 0:g} targets" if targets else unavailable,
+            ),
+            _metric_row(
+                "yards_per_carry",
+                "Yards per carry",
+                _ratio(rushing_yards, carries),
+                "Yards/carry",
+                f"{carries or 0:g} carries" if carries else unavailable,
+            ),
+            _metric_row(
+                "catch_rate",
+                "Catch rate",
+                _ratio(receptions, targets, percentage=True),
+                "%",
+                f"{targets or 0:g} targets" if targets else unavailable,
+            ),
+            _metric_row(
+                "yards_per_target",
+                "Yards per target",
+                _ratio(receiving_yards, targets),
+                "Yards/target",
+                f"{targets or 0:g} targets" if targets else unavailable,
+            ),
+            _metric_row(
+                "rushing_touchdown_rate",
+                "Rushing touchdown rate",
+                _ratio(rushing_touchdowns, carries, percentage=True),
+                "%",
+                f"{carries or 0:g} carries" if carries else unavailable,
+            ),
+            _metric_row(
+                "receiving_touchdown_rate",
+                "Receiving touchdown rate",
+                _ratio(receiving_touchdowns, targets, percentage=True),
+                "%",
+                f"{targets or 0:g} targets" if targets else unavailable,
+            ),
+        ]
+
+    if position in {"WR", "TE"}:
+        return [
+            _metric_row(
+                "fantasy_points_per_target",
+                "Fantasy points per target",
+                _ratio(fantasy_points, targets),
+                "Points/target",
+                f"{targets or 0:g} targets" if targets else unavailable,
+            ),
+            _metric_row(
+                "catch_rate",
+                "Catch rate",
+                _ratio(receptions, targets, percentage=True),
+                "%",
+                f"{targets or 0:g} targets" if targets else unavailable,
+            ),
+            _metric_row(
+                "yards_per_target",
+                "Yards per target",
+                _ratio(receiving_yards, targets),
+                "Yards/target",
+                f"{targets or 0:g} targets" if targets else unavailable,
+            ),
+            _metric_row(
+                "receiving_touchdown_rate",
+                "Receiving touchdown rate",
+                _ratio(receiving_touchdowns, targets, percentage=True),
+                "%",
+                f"{targets or 0:g} targets" if targets else unavailable,
+            ),
+        ]
+
+    if position == "K":
+        field_goal_attempts = _raw_stat_total(weekly_rows, "fga")
+        extra_point_attempts = _raw_stat_total(weekly_rows, "xpa")
+        return [
+            _metric_row(
+                "field_goal_rate",
+                "Field-goal rate",
+                _ratio(
+                    _raw_stat_total(weekly_rows, "fgm"),
+                    field_goal_attempts,
+                    percentage=True,
+                ),
+                "%",
+                f"{field_goal_attempts or 0:g} attempts",
+            ),
+            _metric_row(
+                "extra_point_rate",
+                "Extra-point rate",
+                _ratio(
+                    _raw_stat_total(weekly_rows, "xpm"),
+                    extra_point_attempts,
+                    percentage=True,
+                ),
+                "%",
+                f"{extra_point_attempts or 0:g} attempts",
+            ),
+        ]
+
+    sacks = _raw_stat_total(weekly_rows, "sack")
+    if position in {"DL", "LB", "DB"}:
+        tackles = _raw_stat_total_alias(weekly_rows, "tkl", "idp_tkl")
+        solo_tackles = _raw_stat_total_alias(
+            weekly_rows,
+            "tkl_solo",
+            "idp_tkl_solo",
+        )
+        return [
+            _metric_row(
+                "tackles_per_game",
+                "Tackles per game",
+                _ratio(tackles, float(games_played)),
+                "Tackles/game",
+                f"{games_played} eligible games",
+            ),
+            _metric_row(
+                "solo_tackles_per_game",
+                "Solo tackles per game",
+                _ratio(solo_tackles, float(games_played)),
+                "Tackles/game",
+                f"{games_played} eligible games",
+            ),
+            _metric_row(
+                "sacks_per_game",
+                "Sacks per game",
+                _ratio(sacks, float(games_played)),
+                "Sacks/game",
+                f"{games_played} eligible games",
+            ),
+        ]
+
+    defensive_interceptions = _raw_stat_total(weekly_rows, "int")
+    fumble_recoveries = _raw_stat_total(weekly_rows, "fum_rec")
+    points_allowed = _raw_stat_total(weekly_rows, "pts_allow")
+    takeaways = (
+        (defensive_interceptions or 0) + (fumble_recoveries or 0)
+        if defensive_interceptions is not None or fumble_recoveries is not None
+        else None
+    )
+    return [
+        _metric_row(
+            "sacks_per_game",
+            "Sacks per game",
+            _ratio(sacks, float(games_played)),
+            "Sacks/game",
+            f"{games_played} eligible games",
+        ),
+        _metric_row(
+            "takeaways_per_game",
+            "Takeaways per game",
+            _ratio(takeaways, float(games_played)),
+            "Takeaways/game",
+            f"{games_played} eligible games",
+        ),
+        _metric_row(
+            "points_allowed_per_game",
+            "Points allowed per game",
+            _ratio(points_allowed, float(games_played)),
+            "Points/game",
+            f"{games_played} eligible games",
+        ),
+    ]
+
+
+def get_team_completed_weeks(
+    schedule: list[dict[str, Any]],
+    team: str,
+) -> list[int]:
+    """Return scheduled weeks whose game has a final status for one NFL team."""
+    completed_statuses = {
+        "post",
+        "post_game",
+        "complete",
+        "completed",
+        "final",
+        "closed",
+    }
+    normalized_team = team.strip().upper()
+    completed_weeks: set[int] = set()
+    for game in schedule:
+        home = str(game.get("home") or "").strip().upper()
+        away = str(game.get("away") or "").strip().upper()
+        status = str(game.get("status") or "").strip().casefold()
+        if normalized_team not in {home, away} or status not in completed_statuses:
+            continue
+        try:
+            completed_weeks.add(int(game.get("week")))
+        except (TypeError, ValueError):
+            continue
+    return sorted(week for week in completed_weeks if 1 <= week <= 18)
+
+
+def build_availability_statistics(
+    weekly_rows: list[dict[str, Any]],
+    team_completed_games: int | None,
+    injury_status: str | None,
+) -> list[dict[str, Any]]:
+    """Calculate availability without treating bye weeks as missed games."""
+    games_played = len(weekly_rows)
+    games_missed = (
+        max(team_completed_games - games_played, 0)
+        if team_completed_games is not None
+        else None
+    )
+    availability_rate = (
+        games_played / team_completed_games * 100
+        if team_completed_games
+        else None
+    )
+    schedule_context = (
+        f"{team_completed_games} completed team games"
+        if team_completed_games is not None
+        else "Unavailable: completed team schedule could not be determined"
+    )
+    designation = injury_status.strip() if injury_status else "No designation"
+    return [
+        _metric_row(
+            "games_played",
+            "Games played",
+            float(games_played),
+            "Games",
+            f"{games_played} eligible games",
+        ),
+        _metric_row(
+            "games_missed",
+            "Games missed",
+            float(games_missed) if games_missed is not None else None,
+            "Games",
+            schedule_context,
+            graphable=games_missed is not None,
+        ),
+        _metric_row(
+            "availability_rate",
+            "Availability rate",
+            availability_rate,
+            "%",
+            schedule_context,
+            graphable=availability_rate is not None,
+        ),
+        _metric_row(
+            "injury_status",
+            "Injury status",
+            None,
+            "Designation",
+            f"Current Sleeper designation: {designation}",
+            graphable=False,
+        ),
+    ]
+
+
+def _build_actual_statistics_trend(
+    weekly_rows: list[dict[str, Any]],
+    metric_key: str,
+    statistic_builder: Any,
+) -> list[dict[str, Any]]:
+    trend_rows: list[dict[str, Any]] = []
+    for end_index, weekly_row in enumerate(weekly_rows, start=1):
+        statistics = statistic_builder(weekly_rows[:end_index])
+        selected_metric = next(
+            (metric for metric in statistics if metric["Key"] == metric_key),
+            None,
+        )
+        if selected_metric is None:
+            continue
+        week = weekly_row.get("Week", end_index)
+        opponent = str(weekly_row.get("Opponent") or "—")
+        trend_rows.append(
+            {
+                "Week": week,
+                "Week Label": f"Week {week} · vs {opponent}",
+                "Value": selected_metric["Value"],
+            }
+        )
+    return trend_rows
+
+
+def build_opportunity_trend(
+    weekly_rows: list[dict[str, Any]],
+    position: str,
+    metric_key: str,
+) -> list[dict[str, Any]]:
+    return _build_actual_statistics_trend(
+        weekly_rows,
+        metric_key,
+        lambda rows: build_opportunity_statistics(rows, position),
+    )
+
+
+def build_efficiency_trend(
+    weekly_rows: list[dict[str, Any]],
+    position: str,
+    metric_key: str,
+) -> list[dict[str, Any]]:
+    return _build_actual_statistics_trend(
+        weekly_rows,
+        metric_key,
+        lambda rows: build_efficiency_statistics(rows, position),
+    )
+
+
+def build_availability_trend(
+    weekly_rows: list[dict[str, Any]],
+    completed_team_weeks: list[int],
+    injury_status: str | None,
+    metric_key: str,
+) -> list[dict[str, Any]]:
+    rows_by_week = {int(row["Week"]): row for row in weekly_rows}
+    trend_rows: list[dict[str, Any]] = []
+    trend_weeks = completed_team_weeks or sorted(rows_by_week)
+    for completed_game_count, week in enumerate(trend_weeks, start=1):
+        player_rows = [
+            row for row in weekly_rows if int(row.get("Week") or 0) <= week
+        ]
+        statistics = build_availability_statistics(
+            player_rows,
+            completed_game_count,
+            injury_status,
+        )
+        selected_metric = next(
+            (metric for metric in statistics if metric["Key"] == metric_key),
+            None,
+        )
+        if selected_metric is None:
+            continue
+        opponent = str(rows_by_week.get(week, {}).get("Opponent") or "—")
+        trend_rows.append(
+            {
+                "Week": week,
+                "Week Label": f"Week {week} · vs {opponent}",
+                "Value": selected_metric["Value"],
+            }
+        )
+    return trend_rows

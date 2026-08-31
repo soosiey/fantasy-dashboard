@@ -50,7 +50,7 @@ if not st.session_state.get(PLAYER_STATS_MODE_KEY):
     st.rerun()
 
 st.markdown(
-    "<style>[data-testid='stMainBlockContainer'] { max-width: 95rem; }</style>",
+    "<style>[data-testid='stMainBlockContainer'] { max-width: 115rem; }</style>",
     unsafe_allow_html=True,
 )
 st.title("Stats")

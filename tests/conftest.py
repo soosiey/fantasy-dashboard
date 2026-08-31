@@ -163,8 +163,28 @@ def fake_page_backend(monkeypatch, tmp_path) -> SleeperUser:
         },
     }
     stats = {
-        "player-1": {"pass_yd": 250, "pass_td": 2},
-        "player-2": {"pass_yd": 220, "pass_td": 1},
+        "player-1": {
+            "pass_att": 30,
+            "pass_cmp": 20,
+            "pass_yd": 250,
+            "pass_td": 2,
+            "pass_int": 1,
+            "off_snp": 60,
+            "tm_off_snp": 60,
+            "pass_rz_att": 3,
+            "rush_rz_att": 1,
+        },
+        "player-2": {
+            "pass_att": 28,
+            "pass_cmp": 18,
+            "pass_yd": 220,
+            "pass_td": 1,
+            "pass_int": 0,
+            "off_snp": 58,
+            "tm_off_snp": 60,
+            "pass_rz_att": 2,
+            "rush_rz_att": 0,
+        },
     }
     draft = DraftPickContainer.from_api(
         [

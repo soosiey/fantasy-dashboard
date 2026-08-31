@@ -2,6 +2,10 @@ import pandas as pd
 import requests
 import streamlit as st
 
+from fantasy_dashboard.components.comparison_performance import (
+    comparison_positions_are_compatible,
+    render_comparison_performance,
+)
 from fantasy_dashboard.components.comparison_selection import (
     COMPARISON_COLUMN,
     add_comparison_column,
@@ -121,12 +125,16 @@ if st.session_state[stats_source_filter_key] not in {"Actual", "Predicted"}:
 if st.session_state[period_filter_key] not in {"Season", "Week"}:
     st.session_state[period_filter_key] = filter_defaults[period_filter_key]
 
-only_relevant_stats = st.checkbox(
+overview_tab, graphs_tab, performance_statistics_tab = st.tabs(
+    ["Overview", "Graphs", "Performance Statistics"]
+)
+
+only_relevant_stats = overview_tab.checkbox(
     "Only Relevant Stats",
     key=relevant_stats_filter_key,
 )
 
-stats_source_column, position_column, period_column, week_column = st.columns(4)
+stats_source_column, position_column, period_column, week_column = overview_tab.columns(4)
 with stats_source_column:
     stats_source = (
         st.segmented_control(
@@ -194,7 +202,9 @@ except (requests.RequestException, TypeError, ValueError):
     source_name = (
         "ESPN projections" if stats_source == "Predicted" else "Player statistics"
     )
-    st.warning(f"{source_name} could not be loaded; values are shown as dashes.")
+    overview_tab.warning(
+        f"{source_name} could not be loaded; values are shown as dashes."
+    )
 
 nfl_players = get_nfl_players()
 roster_labels = build_player_roster_labels(rosters.rosters, teams.users)
@@ -206,6 +216,13 @@ comparison_player_ids = [
     str(player_id) for player_id in st.session_state.get(comparison_key, [])
 ]
 comparison_player_id_set = set(comparison_player_ids)
+comparison_positions = [
+    str(nfl_players.get(player_id, {}).get("position") or "")
+    for player_id in comparison_player_ids
+]
+comparison_positions_compatible = comparison_positions_are_compatible(
+    comparison_positions
+)
 player_rows = [
     row
     for row in build_player_stat_rows(
@@ -221,9 +238,9 @@ player_rows = [
 ]
 
 if not comparison_player_ids:
-    st.info("Select players from Statistics or Players to compare them here.")
+    overview_tab.info("Select players from Statistics or Players to compare them here.")
 elif not player_rows:
-    st.info("No selected players match the current filters.")
+    overview_tab.info("No selected players match the current filters.")
 else:
     player_table = pd.DataFrame(player_rows)
     player_ids = player_table["Player ID"].astype(str).tolist()
@@ -261,8 +278,9 @@ else:
             for column in row.index
         ]
 
-    render_comparison_column_label()
-    edited_player_table = st.data_editor(
+    with overview_tab:
+        render_comparison_column_label()
+    edited_player_table = overview_tab.data_editor(
         player_table.style.apply(highlight_relevant_stats, axis=1),
         column_config={
             COMPARISON_COLUMN: st.column_config.CheckboxColumn("", width="small"),
@@ -326,7 +344,9 @@ else:
     if selected_details_player_id:
         selected_player = nfl_players.get(str(selected_details_player_id))
         if selected_player is None:
-            st.warning("That player could not be found in the local player cache.")
+            overview_tab.warning(
+                "That player could not be found in the local player cache."
+            )
         else:
             show_player_details(
                 str(selected_details_player_id),
@@ -340,34 +360,51 @@ else:
     if selected_news_player_id:
         news_player = get_player_by_id(nfl_players, str(selected_news_player_id))
         if news_player is None:
-            st.warning("That player could not be found in the local player cache.")
+            overview_tab.warning(
+                "That player could not be found in the local player cache."
+            )
         else:
             show_player_news(news_player)
 
+with performance_statistics_tab:
+    render_comparison_performance(
+        league_id,
+        league,
+        nfl_players,
+        comparison_player_ids,
+    )
+
 render_comparison_sidebar(nfl_players, league_id)
-render_data_disclaimer(
-    (
-        get_data_update("projected_player_stats", league.season, selected_week)
-        if stats_source == "Predicted"
-        else get_data_update(
-            "player_stats",
-            league.season,
-            league.season_type,
-            selected_week,
-        )
-    ),
-    get_data_update("rosters", league_id),
-)
+with overview_tab:
+    render_data_disclaimer(
+        (
+            get_data_update("projected_player_stats", league.season, selected_week)
+            if stats_source == "Predicted"
+            else get_data_update(
+                "player_stats",
+                league.season,
+                league.season_type,
+                selected_week,
+            )
+        ),
+        get_data_update("rosters", league_id),
+    )
 
 with st.bottom:
     generate_graphs = st.button("Generate Graphs")
     back_to_overview = st.button("Back to Overview")
 
-if generate_graphs and selected_position_label == "All Positions":
-    st.warning(
-        "You have selected to graph players in All Positions, so only fantasy "
-        "points will be compared"
-    )
+if generate_graphs:
+    if not comparison_positions_compatible:
+        overview_tab.warning(
+            "You have selected players from different position groups, so only "
+            "fantasy points will be compared."
+        )
+    elif selected_position_label == "All Positions":
+        overview_tab.warning(
+            "You have selected to graph players in All Positions, so only fantasy "
+            "points will be compared"
+        )
 if back_to_overview:
     st.session_state.pop(ANALYSIS_MODE_KEY, None)
     st.switch_page(

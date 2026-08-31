@@ -52,13 +52,7 @@ rosters = get_rosters(league_id)
 teams = get_league_users(league_id)
 nfl_players = get_nfl_players()
 
-single_player_tab, comparison_stats_tab = st.tabs(
-    ["Single Player Stats", "Comparison Stats"]
-)
-with single_player_tab:
-    render_graph_player_picker(league_id, league, rosters, teams, nfl_players)
-with comparison_stats_tab:
-    pass
+render_graph_player_picker(league_id, league, rosters, teams, nfl_players)
 
 render_comparison_sidebar(nfl_players, league_id)
 render_data_disclaimer(
