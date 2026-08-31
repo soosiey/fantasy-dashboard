@@ -305,6 +305,11 @@ def test_comparison_performance_tables_include_players_and_position_average(
     assert "Second Quarterback (QB)" in performance_table.columns
     assert "QB League Average" in performance_table.columns
     assert not any(column.startswith("vs ") for column in performance_table.columns)
+    availability_table = app.dataframe[6].value
+    assert all(
+        value is None or isinstance(value, str)
+        for value in availability_table["First Quarterback (QB)"]
+    )
 
 
 def test_comparison_performance_limits_mixed_position_groups_to_fantasy_points(

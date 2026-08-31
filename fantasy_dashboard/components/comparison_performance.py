@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from datetime import datetime
+from numbers import Real
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -118,8 +119,27 @@ def _render_comparison_metric_table(
             row["Unit"] = details.get("Unit")
         table_rows.append(row)
 
+    statistics_table = pd.DataFrame(table_rows)
+    for column in statistics_table.columns:
+        non_null_values = statistics_table[column].dropna().tolist()
+        has_text = any(isinstance(value, str) for value in non_null_values)
+        has_numbers = any(
+            isinstance(value, Real) and not isinstance(value, bool)
+            for value in non_null_values
+        )
+        if has_text and has_numbers:
+            statistics_table[column] = statistics_table[column].map(
+                lambda value: (
+                    None
+                    if pd.isna(value)
+                    else f"{float(value):.2f}"
+                    if isinstance(value, Real) and not isinstance(value, bool)
+                    else str(value)
+                )
+            )
+
     st.dataframe(
-        pd.DataFrame(table_rows),
+        statistics_table,
         column_config={
             "Statistic": st.column_config.TextColumn("Statistic", width="large"),
             "Unit": st.column_config.TextColumn("Unit", width="small"),
