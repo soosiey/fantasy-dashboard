@@ -132,6 +132,7 @@ def test_legacy_url_redirects(
         ("pages/matchups.py", "Matchups"),
         ("pages/ranking.py", "User Rankings"),
         ("pages/analysis.py", "Statistics"),
+        ("pages/league_predictions.py", "League Predictions"),
         ("pages/comparison.py", "Comparison"),
         ("pages/graphs.py", "Single Player Selection"),
         ("pages/team.py", "Team Page"),
@@ -166,6 +167,28 @@ def test_analysis_mode_hides_overview_navigation_and_can_exit(
 
     _assert_page(app, "Overview")
     assert "_analysis_mode" not in app.session_state
+
+
+def test_league_predictions_projects_standings_and_tournament(
+    authenticated_app,
+) -> None:
+    app = authenticated_app()
+
+    app.switch_page("pages/league_predictions.py").run()
+
+    _assert_page(app, "League Predictions")
+    assert app.session_state["_analysis_mode"] is True
+    assert "Projected Record" in app.dataframe[0].value.columns
+    assert any(metric.label == "Projected Champion" for metric in app.metric)
+    assert any(button.label == "Back to Overview" for button in app.button)
+    prediction_week = next(box for box in app.selectbox if box.label == "Week")
+    assert prediction_week.value == 1
+    assert any("matchup-placard" in markdown.value for markdown in app.markdown)
+
+    prediction_week.set_value(2).run()
+
+    _assert_page(app, "League Predictions")
+    assert prediction_week.value == 2
 
 
 def test_statistics_filters_update_the_selected_view(authenticated_app) -> None:

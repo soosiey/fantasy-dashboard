@@ -15,10 +15,16 @@ def _render_slot(slot: PlayoffSlot) -> str:
         if slot.seed is not None
         else ""
     )
+    score = (
+        f'<span class="bracket-score">{slot.score:.2f}</span>'
+        if slot.score is not None
+        else ""
+    )
     return (
         f'<div class="bracket-slot{css_class}">'
         '<span class="bracket-team-label">'
-        f"<span>{escape(slot.label)}</span>{seed}</span>{winner_icon}</div>"
+        f"<span>{escape(slot.label)}</span>{seed}</span>"
+        f'<span class="bracket-slot-result">{score}{winner_icon}</span></div>'
     )
 
 
@@ -132,6 +138,15 @@ def render_playoff_bracket(rounds: dict[int, list[PlayoffMatchup]]) -> None:
                 color: #16a34a;
                 font-weight: 800;
                 margin-left: 0.5rem;
+            }}
+            .bracket-slot-result {{
+                align-items: center;
+                display: flex;
+                gap: 0.4rem;
+            }}
+            .bracket-score {{
+                font-variant-numeric: tabular-nums;
+                font-weight: 700;
             }}
         </style>
         <div class="playoff-bracket-scroll">

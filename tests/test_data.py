@@ -3,12 +3,51 @@ import os
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
+import requests
+
 from fantasy_dashboard import data
+from fantasy_dashboard.models.matchup import WeeklyMatchupContainer
 
 
 # A stateless API client must not survive a hot reload with stale model classes.
 def test_sleeper_client_is_not_cached() -> None:
     assert data.get_sleeper_client() is not data.get_sleeper_client()
+
+
+def test_prediction_matchup_schedules_are_batched_and_cached(monkeypatch) -> None:
+    calls: list[int] = []
+
+    class FakeClient:
+        def get_matchups(self, league_id: str, week: int) -> WeeklyMatchupContainer:
+            assert league_id == "league-1"
+            calls.append(week)
+            if week == 3:
+                raise requests.RequestException("unavailable")
+            return WeeklyMatchupContainer.from_api(
+                [
+                    {
+                        "starters": [],
+                        "players": [],
+                        "roster_id": 1,
+                        "matchup_id": week,
+                        "points": 0,
+                    }
+                ]
+            )
+
+    data.get_weekly_matchup_schedules.clear()
+    monkeypatch.setattr(data, "get_sleeper_client", FakeClient)
+
+    schedules, unavailable = data.get_weekly_matchup_schedules("league-1", 1, 3)
+    cached_schedules, cached_unavailable = data.get_weekly_matchup_schedules(
+        "league-1", 1, 3
+    )
+
+    assert set(schedules) == {1, 2}
+    assert unavailable == [3]
+    assert set(cached_schedules) == {1, 2}
+    assert cached_unavailable == [3]
+    assert sorted(calls) == [1, 2, 3]
 
 
 # The active NFL season and week should share one cached Sleeper state lookup.

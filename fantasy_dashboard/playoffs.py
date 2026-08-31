@@ -13,6 +13,7 @@ class PlayoffSlot:
     roster_id: int | None
     is_winner: bool
     seed: int | None = None
+    score: float | None = None
 
 
 # Store the presentation values needed for one bracket matchup card.

@@ -36,6 +36,7 @@ The application uses explicit, stable routes:
 - `/players?league_id=LEAGUE_ID`
 - `/matchups?league_id=LEAGUE_ID`
 - `/rankings?league_id=LEAGUE_ID`
+- `/league-predictions?league_id=LEAGUE_ID`
 - `/team?league_id=LEAGUE_ID&user_id=USER_ID`
 
 Matchup week/stat source and player-page filters are also stored in the URL.

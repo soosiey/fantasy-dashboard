@@ -1,4 +1,5 @@
 import json
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -342,6 +343,38 @@ def get_weekly_matchups(league_id: str, week: int) -> WeeklyMatchupContainer:
     return matchups
 
 
+# Prediction standings need every remaining schedule at once. Fetch those stable
+# roster pairings concurrently and retain them longer than live matchup scores.
+@st.cache_data(ttl=300, max_entries=32, show_spinner=False)
+def get_weekly_matchup_schedules(
+    league_id: str,
+    start_week: int,
+    end_week: int,
+) -> tuple[dict[int, WeeklyMatchupContainer], list[int]]:
+    weeks = list(range(start_week, end_week + 1))
+    if not weeks:
+        return {}, []
+
+    def fetch_week(
+        week: int,
+    ) -> tuple[int, WeeklyMatchupContainer | None]:
+        try:
+            return week, get_sleeper_client().get_matchups(league_id, week)
+        except (OSError, requests.RequestException, TypeError, ValueError):
+            return week, None
+
+    with ThreadPoolExecutor(max_workers=min(8, len(weeks))) as executor:
+        results = list(executor.map(fetch_week, weeks))
+
+    schedules = {
+        week: container for week, container in results if container is not None
+    }
+    unavailable_weeks = [week for week, container in results if container is None]
+    for week in schedules:
+        _record_data_update("Sleeper", "weekly_matchups", league_id, week)
+    return schedules, unavailable_weeks
+
+
 def get_player_stats(
     season: str,
     season_type: str = "regular",
@@ -674,6 +707,7 @@ def clear_matchup_data(
 ) -> None:
     clear_league_data(league_id)
     get_weekly_matchups.clear(league_id, week)
+    get_weekly_matchup_schedules.clear()
     _stats_cache_path("sleeper", season, season_type, week).unlink(missing_ok=True)
     _read_json_cache.clear()
     get_nfl_schedule.clear(season, season_type)

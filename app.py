@@ -100,6 +100,12 @@ analysis_page = st.Page(
     url_path="analysis",
     visibility=league_visibility,
 )
+league_predictions_page = st.Page(
+    PAGE_SOURCES["league-predictions"],
+    title="League Predictions",
+    url_path="league-predictions",
+    visibility=league_visibility,
+)
 comparison_page = st.Page(
     PAGE_SOURCES["comparison"],
     title="Comparison",
@@ -163,6 +169,7 @@ pages_by_route = {
     "matchups": matchups_page,
     "rankings": ranking_page,
     "analysis": analysis_page,
+    "league-predictions": league_predictions_page,
     "comparison": comparison_page,
     "graphs": graphs_page,
     "graph": graph_page,
@@ -184,6 +191,7 @@ page_route = st.navigation(
         matchups_page,
         ranking_page,
         analysis_page,
+        league_predictions_page,
         comparison_page,
         graphs_page,
         graph_page,
@@ -213,6 +221,7 @@ if (
     and page_route.url_path
     in {
         "analysis",
+        "league-predictions",
         "comparison",
         "graphs",
     }
@@ -242,6 +251,7 @@ if player_stats_mode and page_route.url_path not in {
     st.switch_page(graph_page, query_params={"league_id": league_id})
 if analysis_mode and page_route.url_path not in {
     "analysis",
+    "league-predictions",
     "players",
     "matchups",
     "comparison",
@@ -322,6 +332,7 @@ with st.sidebar:
             analysis_page,
             label="Statistics",
         )
+        st.page_link(league_predictions_page, label="League Predictions")
         st.page_link(players_page, label="Players")
         st.page_link(matchups_page, label="Matchups")
         st.page_link(comparison_page, label="Comparison")

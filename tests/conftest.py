@@ -235,6 +235,14 @@ def fake_page_backend(monkeypatch, tmp_path) -> SleeperUser:
     monkeypatch.setattr(data, "get_league_users", lambda league_id: users)
     monkeypatch.setattr(data, "get_rosters", lambda league_id: rosters)
     monkeypatch.setattr(data, "get_weekly_matchups", lambda *args: matchups)
+    monkeypatch.setattr(
+        data,
+        "get_weekly_matchup_schedules",
+        lambda league_id, start_week, end_week: (
+            {week: matchups for week in range(start_week, end_week + 1)},
+            [],
+        ),
+    )
     monkeypatch.setattr(data, "get_nfl_players", lambda: players)
     monkeypatch.setattr(data, "get_player_stats", lambda *args: stats)
     monkeypatch.setattr(data, "get_projected_player_stats", lambda *args: stats)
