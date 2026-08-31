@@ -39,7 +39,8 @@ def _render_team_placard(team: MatchupTeam, side: str) -> str:
         f'<div class="matchup-team-name">{escape(team.team_name)}</div>{owner}'
         "</div>"
     )
-    score = f'<div class="matchup-score">{team.points:,.2f}</div>'
+    displayed_score = "—" if team.points is None else f"{team.points:,.2f}"
+    score = f'<div class="matchup-score">{displayed_score}</div>'
     content = score + identity if side == "left" else identity + score
     return f'<div class="matchup-placard matchup-placard-{side}">{content}</div>'
 
@@ -64,7 +65,8 @@ def _render_player(
         f"{render_injury_badge(player.injury_status)}"
         f"<span>{escape(player.name)}</span></div>{metadata}</div>"
     )
-    score = f'<div class="matchup-player-score">{player.points:g}</div>'
+    displayed_score = "—" if player.points is None else f"{player.points:g}"
+    score = f'<div class="matchup-player-score">{displayed_score}</div>'
     content = score + identity if side == "left" else identity + score
     status_class = (
         f" matchup-player-status-{player.game_status}"

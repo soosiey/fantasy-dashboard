@@ -12,7 +12,12 @@ def build_actual_weekly_stat_rows(
     for week in sorted(week for week in weekly_stats if 1 <= week <= 18):
         record = weekly_stats[week]
         stats = record.get("stats") if isinstance(record.get("stats"), dict) else {}
-        row = build_player_stat_row(stats, scoring_settings, week)
+        row = build_player_stat_row(
+            stats,
+            scoring_settings,
+            week,
+            stats_available=True,
+        )
         row["Opponent"] = str(record.get("opponent") or "—").strip().upper()
         rows.append(row)
     return rows

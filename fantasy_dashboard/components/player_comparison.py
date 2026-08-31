@@ -34,7 +34,14 @@ def _render_comparison_table(
     right_stats: dict[str, Any],
     scoring_settings: dict[str, Any],
     stat_fields: list[tuple[str, str | None]],
+    *,
+    left_stats_available: bool | None = None,
+    right_stats_available: bool | None = None,
 ) -> str:
+    if left_stats_available is None:
+        left_stats_available = bool(left_stats)
+    if right_stats_available is None:
+        right_stats_available = bool(right_stats)
     left_points = calculate_fantasy_points(left_stats, scoring_settings)
     right_points = calculate_fantasy_points(right_stats, scoring_settings)
     rows: list[str] = []
@@ -50,12 +57,12 @@ def _render_comparison_table(
         numeric_right = float(right_value) if isinstance(right_value, Real) else 0.0
         displayed_left = truncate_decimal(numeric_left)
         displayed_right = truncate_decimal(numeric_right)
-        left_wins = (
+        left_wins = left_stats_available and right_stats_available and (
             numeric_left < numeric_right
             if label in LOWER_IS_BETTER
             else numeric_left > numeric_right
         )
-        right_wins = (
+        right_wins = left_stats_available and right_stats_available and (
             numeric_right < numeric_left
             if label in LOWER_IS_BETTER
             else numeric_right > numeric_left
@@ -65,10 +72,10 @@ def _render_comparison_table(
         rows.append(
             "<tr>"
             f'<td class="comparison-stat-value comparison-stat-left{left_class}">'
-            f"{displayed_left:.2f}</td>"
+            f"{'—' if not left_stats_available else f'{displayed_left:.2f}'}</td>"
             f'<td class="comparison-stat-label">{escape(label)}</td>'
             f'<td class="comparison-stat-value comparison-stat-right{right_class}">'
-            f"{displayed_right:.2f}</td>"
+            f"{'—' if not right_stats_available else f'{displayed_right:.2f}'}</td>"
             "</tr>"
         )
 
@@ -189,6 +196,14 @@ def show_player_comparison(
             right_stats,
             scoring_settings,
             stat_fields,
+            left_stats_available=(
+                left_player_id is not None
+                and str(left_player_id) in stats_by_player_id
+            ),
+            right_stats_available=(
+                right_player_id is not None
+                and str(right_player_id) in stats_by_player_id
+            ),
         ),
         unsafe_allow_html=True,
     )

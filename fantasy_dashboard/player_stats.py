@@ -1,5 +1,5 @@
 from html import escape
-from math import trunc
+from math import isfinite, trunc
 from numbers import Real
 from typing import Any
 from urllib.parse import quote
@@ -205,7 +205,18 @@ def build_player_stat_row(
     stats: dict[str, Any],
     scoring_settings: dict[str, Any],
     week: int,
+    *,
+    stats_available: bool | None = None,
 ) -> dict[str, Any]:
+    if stats_available is None:
+        stats_available = bool(stats)
+    if not stats_available:
+        return {
+            "Week": week,
+            "Fantasy Points": None,
+            **{label: None for label, _ in ALL_STATS},
+        }
+
     return {
         "Week": week,
         "Fantasy Points": calculate_fantasy_points(stats, scoring_settings),
@@ -230,7 +241,12 @@ def build_player_weekly_stat_rows(
             opponent = (
                 f"@ {opponent}" if record.get("is_away_team") else f"vs {opponent}"
             )
-        row = build_player_stat_row(stats, scoring_settings, week)
+        row = build_player_stat_row(
+            stats,
+            scoring_settings,
+            week,
+            stats_available=week in weekly_stats,
+        )
         row["Opponent"] = opponent
         rows.append(row)
     return rows
@@ -288,7 +304,9 @@ def build_player_stat_rows(
         if available_only and not is_available:
             continue
 
-        player_stats = stats_by_player_id.get(str(player_id), {})
+        player_key = str(player_id)
+        stats_available = player_key in stats_by_player_id
+        player_stats = stats_by_player_id.get(player_key, {})
         player_name = (
             f"{player_data.get('first_name') or ''} "
             f"{player_data.get('last_name') or ''}"
@@ -305,11 +323,19 @@ def build_player_stat_rows(
                 "Position": position,
                 "Team": str(player_data.get("team") or "FA"),
                 "Availability": "Available" if is_available else "Rostered",
-                "Fantasy Points": truncate_decimal(
-                    calculate_fantasy_points(player_stats, scoring_settings)
+                "Fantasy Points": (
+                    truncate_decimal(
+                        calculate_fantasy_points(player_stats, scoring_settings)
+                    )
+                    if stats_available
+                    else None
                 ),
                 **{
-                    label: truncate_decimal(player_stats.get(stat_name, 0) or 0)
+                    label: (
+                        truncate_decimal(player_stats.get(stat_name, 0) or 0)
+                        if stats_available
+                        else None
+                    )
                     for label, stat_name in ALL_STATS
                 },
             }
@@ -317,5 +343,24 @@ def build_player_stat_rows(
 
     return sorted(
         rows,
-        key=lambda row: (-row["Fantasy Points"], row["Player"]),
+        key=lambda row: (
+            row["Fantasy Points"] is None,
+            -(row["Fantasy Points"] or 0),
+            row["Player"],
+        ),
     )
+
+
+# Give unavailable stat cells an explicit display value without changing real zeroes.
+def format_stat_table_for_display(table: Any) -> Any:
+    formatted = table.copy()
+    stat_columns = {"Fantasy Points", *(label for label, _ in ALL_STATS)}
+    for column in stat_columns.intersection(formatted.columns):
+        formatted[column] = formatted[column].map(
+            lambda value: (
+                f"{float(value):.2f}"
+                if isinstance(value, Real) and isfinite(float(value))
+                else "—"
+            )
+        )
+    return formatted

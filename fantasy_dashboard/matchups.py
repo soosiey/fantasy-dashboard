@@ -12,6 +12,7 @@ POSITION_LABELS = {
     "REC_FLEX": "FLEX",
     "WRRB_FLEX": "FLEX",
 }
+_UNSET_POINTS = object()
 
 
 # Store the compact player identity shown on either side of a matchup.
@@ -20,7 +21,7 @@ class MatchupPlayer:
     name: str
     nfl_team: str
     opponent: str = ""
-    points: float = 0
+    points: float | None = None
     player_id: str | None = None
     injury_status: str | None = None
     game_status: str = ""
@@ -32,7 +33,7 @@ class MatchupPlayer:
 class MatchupTeam:
     team_name: str
     display_name: str
-    points: float
+    points: float | None
     user_id: str | None
     to_play_count: int = 0
 
@@ -57,7 +58,7 @@ class HeadToHeadMatchup:
 def _get_matchup_player(
     players: dict[str, dict[str, Any]],
     player_id: str | None,
-    player_points: dict[str, float] | None = None,
+    player_points: dict[str, float | None] | None = None,
     opponents_by_team: dict[str, str] | None = None,
     game_statuses_by_team: dict[str, str] | None = None,
 ) -> MatchupPlayer:
@@ -72,7 +73,7 @@ def _get_matchup_player(
         name=player_name or player.player_id,
         nfl_team=player.team,
         opponent=(opponents_by_team or {}).get(player.team, ""),
-        points=(player_points or {}).get(player_id, 0),
+        points=(player_points or {}).get(player_id),
         player_id=player_id,
         injury_status=player.injury_status or None,
         game_status=(game_statuses_by_team or {}).get(player.team, ""),
@@ -135,7 +136,7 @@ def _get_matchup_team(
     matchup: WeeklyMatchupModel | None,
     rosters_by_id: dict[int, RosterModel],
     teams_by_user_id: dict[str, SleeperTeam],
-    starter_points: float | None = None,
+    starter_points: float | None | object = _UNSET_POINTS,
     to_play_count: int = 0,
 ) -> MatchupTeam:
     if matchup is None:
@@ -150,7 +151,11 @@ def _get_matchup_team(
             else f"Roster {matchup.roster_id}"
         ),
         display_name=team.display_name if team is not None else "",
-        points=(matchup.displayed_points if starter_points is None else starter_points),
+        points=(
+            matchup.displayed_points
+            if starter_points is _UNSET_POINTS
+            else starter_points
+        ),
         user_id=team.user_id if team is not None else None,
         to_play_count=to_play_count,
     )
@@ -161,7 +166,7 @@ def _get_player_points(
     matchup: WeeklyMatchupModel | None,
     stats_by_player_id: dict[str, dict[str, Any]] | None,
     scoring_settings: dict[str, Any],
-) -> dict[str, float]:
+) -> dict[str, float | None]:
     if matchup is None:
         return {}
     if stats_by_player_id is None:
@@ -169,8 +174,10 @@ def _get_player_points(
 
     player_ids = set(matchup.players) | set(matchup.starters)
     return {
-        player_id: calculate_fantasy_points(
-            stats_by_player_id.get(player_id, {}), scoring_settings
+        player_id: (
+            calculate_fantasy_points(stats_by_player_id[player_id], scoring_settings)
+            if player_id in stats_by_player_id
+            else None
         )
         for player_id in player_ids
         if player_id and player_id != "0"
@@ -296,8 +303,10 @@ def build_head_to_head_matchups(
                     left_matchup,
                     rosters_by_id,
                     teams_by_user_id,
-                    sum(
-                        row.left_player.points for row in lineup if row.position != "BN"
+                    _sum_available_points(
+                        row.left_player.points
+                        for row in lineup
+                        if row.position != "BN"
                     ),
                     sum(
                         row.left_player.game_status == "to-play"
@@ -309,7 +318,7 @@ def build_head_to_head_matchups(
                     right_matchup,
                     rosters_by_id,
                     teams_by_user_id,
-                    sum(
+                    _sum_available_points(
                         row.right_player.points
                         for row in lineup
                         if row.position != "BN"
@@ -324,3 +333,8 @@ def build_head_to_head_matchups(
             )
         )
     return head_to_head_matchups
+
+
+def _sum_available_points(points: Any) -> float | None:
+    available_points = [point for point in points if point is not None]
+    return sum(available_points) if available_points else None

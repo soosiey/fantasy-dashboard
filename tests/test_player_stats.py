@@ -45,6 +45,8 @@ def test_weekly_player_rows_include_every_week_opponent_and_scoring() -> None:
     assert rows[0]["Pass Yds"] == 250
     assert rows[1]["Week"] == 2
     assert rows[1]["Opponent"] == "—"
+    assert rows[1]["Fantasy Points"] is None
+    assert rows[1]["Pass Yds"] is None
 
 
 def test_single_week_player_row_uses_selected_stats_and_league_scoring() -> None:
@@ -80,7 +82,7 @@ def test_rosterable_positions_expand_flex_slots() -> None:
     assert positions == ["QB", "RB", "WR", "TE"]
 
 
-# Availability must use current league rosters and missing stats must remain zero.
+# Availability must use current league rosters and missing stats must be unavailable.
 def test_available_players_exclude_currently_rostered_players() -> None:
     players = {
         "rostered": {
@@ -115,10 +117,17 @@ def test_available_players_exclude_currently_rostered_players() -> None:
     assert len(rows) == 1
     assert rows[0]["Player"] == "Available Player"
     assert rows[0]["Availability"] == "Available"
-    assert rows[0]["Fantasy Points"] == 0
-    assert rows[0]["Pass Yds"] == 0
-    assert rows[0]["Rush Yds"] == 0
-    assert rows[0]["FG Made"] == 0
+    assert rows[0]["Fantasy Points"] is None
+    assert rows[0]["Pass Yds"] is None
+    assert rows[0]["Rush Yds"] is None
+    assert rows[0]["FG Made"] is None
+
+
+def test_recorded_empty_week_preserves_real_zeroes() -> None:
+    row = build_player_stat_row({}, {}, 1, stats_available=True)
+
+    assert row["Fantasy Points"] == 0
+    assert row["Pass Yds"] == 0
 
 
 def test_flex_position_filter_includes_running_backs_receivers_and_tight_ends() -> None:

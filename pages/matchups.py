@@ -139,7 +139,7 @@ except (requests.RequestException, TypeError, ValueError):
     source_name = (
         "ESPN projections" if stats_source == "Predicted" else "Player statistics"
     )
-    st.warning(f"{source_name} could not be loaded; scores default to zero.")
+    st.warning(f"{source_name} could not be loaded; scores are shown as dashes.")
 
 try:
     nfl_schedule = get_nfl_schedule(stats_season, league.season_type)

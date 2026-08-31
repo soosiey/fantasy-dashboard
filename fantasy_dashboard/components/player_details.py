@@ -9,6 +9,7 @@ from fantasy_dashboard.player_stats import (
     ALL_STATS,
     build_player_stat_row,
     build_player_weekly_stat_rows,
+    format_stat_table_for_display,
     get_relevant_stat_labels,
 )
 
@@ -70,21 +71,21 @@ def render_player_stats_table(
             for column in row.index
         ]
 
+    weekly_table = format_stat_table_for_display(weekly_table)
     st.dataframe(
         weekly_table.style.apply(highlight_relevant_stats, axis=1),
         column_config={
             **{
-                label: st.column_config.NumberColumn(
+                label: st.column_config.TextColumn(
                     label,
-                    format="%.2f",
                     width="small",
                 )
                 for label, _ in ALL_STATS
             },
             "Week": st.column_config.NumberColumn("Week", width="small"),
             "Opponent": st.column_config.TextColumn("Opponent", width="small"),
-            "Fantasy Points": st.column_config.NumberColumn(
-                "Fantasy Points", format="%.2f", width="small"
+            "Fantasy Points": st.column_config.TextColumn(
+                "Fantasy Points", width="small"
             ),
         },
         hide_index=True,

@@ -28,6 +28,7 @@ from fantasy_dashboard.player_stats import (
     build_player_identity_image,
     build_player_roster_labels,
     build_player_stat_rows,
+    format_stat_table_for_display,
     get_relevant_stat_labels,
     get_rosterable_positions,
 )
@@ -222,7 +223,7 @@ else:
         source_name = (
             "ESPN projections" if stats_source == "Predicted" else "Player statistics"
         )
-        st.warning(f"{source_name} could not be loaded; values default to zero.")
+        st.warning(f"{source_name} could not be loaded; values are shown as dashes.")
 
     nfl_players = get_nfl_players()
     roster_labels = build_player_roster_labels(rosters.rosters, teams.users)
@@ -275,6 +276,7 @@ else:
             player_ids,
             league_id,
         )
+        player_table = format_stat_table_for_display(player_table)
 
         def highlight_relevant_stats(row: pd.Series) -> list[str]:
             relevant_columns = get_relevant_stat_labels(str(row["Position"]))
@@ -296,9 +298,8 @@ else:
                     width="small",
                 ),
                 **{
-                    label: st.column_config.NumberColumn(
+                    label: st.column_config.TextColumn(
                         label,
-                        format="%.2f",
                         width="small",
                     )
                     for label, _ in ALL_STATS
@@ -334,9 +335,8 @@ else:
                 "Availability": st.column_config.TextColumn(
                     "Availability", width="small"
                 ),
-                "Fantasy Points": st.column_config.NumberColumn(
+                "Fantasy Points": st.column_config.TextColumn(
                     "Fantasy Points",
-                    format="%.2f",
                     width="small",
                 ),
             },

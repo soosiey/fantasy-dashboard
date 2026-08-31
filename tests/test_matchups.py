@@ -66,12 +66,12 @@ def test_incomplete_matchup_builds_fallback_team_and_empty_players() -> None:
     assert result[0].left_team.team_name == "Roster 1"
     assert result[0].right_team.team_name == "Bye"
     assert result[0].lineup[0].left_player.name == "Empty"
-    assert result[0].lineup[0].left_player.points == 0
+    assert result[0].lineup[0].left_player.points is None
     assert result[0].lineup[0].right_player.name == "Empty"
 
 
-# Sleeper player scores should be retained, with absent scores defaulting to zero.
-def test_missing_player_score_defaults_to_zero() -> None:
+# Sleeper player scores should be retained, with absent scores shown as unavailable.
+def test_missing_player_score_is_unavailable() -> None:
     matchup = _weekly_matchup(
         starters=["scored-player"],
         players=["scored-player", "unscored-player"],
@@ -96,7 +96,27 @@ def test_missing_player_score_defaults_to_zero() -> None:
 
     assert result[0].lineup[0].left_player.points == 12.5
     assert result[0].lineup[0].left_player.player_id == "scored-player"
-    assert result[0].lineup[1].left_player.points == 0
+    assert result[0].lineup[1].left_player.points is None
+
+
+def test_empty_current_week_stats_leave_matchup_scores_unavailable() -> None:
+    matchup = _weekly_matchup(starters=["starter"], players=["starter"])
+    players = {
+        "starter": {
+            "player_id": "starter",
+            "first_name": "Starting",
+            "last_name": "Player",
+        }
+    }
+
+    result = build_head_to_head_matchups(
+        [matchup], _league("QB"), [], [], players, {}
+    )
+
+    assert result[0].lineup[0].left_player.points is None
+    assert result[0].left_team.points is None
+    assert "—" in matchup_board._render_player(result[0].lineup[0].left_player, "left")
+    assert "—" in matchup_board._render_team_placard(result[0].left_team, "left")
 
 
 # NFL stats should drive player scores and starter-only team totals.
