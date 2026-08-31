@@ -521,15 +521,24 @@ def get_projected_player_stats(
 ) -> dict[str, dict[str, float]]:
     _clear_data_update("projected_player_stats", season, week)
     normalized_path = _stats_cache_path("espn", season, "regular", week)
-    if not normalized_path.exists():
+    raw_cache_path = ESPN_PROJECTIONS_CACHE_DIR / f"{season}.json"
+    normalized_is_older_than_raw = (
+        normalized_path.exists()
+        and raw_cache_path.exists()
+        and normalized_path.stat().st_mtime_ns < raw_cache_path.stat().st_mtime_ns
+    )
+    if not normalized_path.exists() or normalized_is_older_than_raw:
         refresh_projected_player_stats_cache(season, week)
     stats = _load_json_cache(normalized_path)
+    provider_cache_path = (
+        raw_cache_path if raw_cache_path.exists() else normalized_path
+    )
     _record_data_update(
         "ESPN",
         "projected_player_stats",
         season,
         week,
-        updated_at=_cache_updated_at(normalized_path),
+        updated_at=_cache_updated_at(provider_cache_path),
     )
     return {
         str(player_id): {

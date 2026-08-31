@@ -192,6 +192,50 @@ def test_projected_stats_reuse_normalized_week_cache(monkeypatch, tmp_path) -> N
     assert mapping_calls == 1
 
 
+def test_projected_stats_report_raw_espn_refresh_and_rebuild_stale_normalized_cache(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    raw_path = tmp_path / "raw" / "2026.json"
+    normalized_path = tmp_path / "weekly" / "espn" / "2026" / "regular" / "week_4.json"
+    raw_path.parent.mkdir(parents=True)
+    normalized_path.parent.mkdir(parents=True)
+    raw_path.write_text('{"players": []}')
+    normalized_path.write_text('{"player-1": {"pass_yd": 200}}')
+    normalized_time = datetime(2026, 8, 31, 12, 0, tzinfo=timezone.utc)
+    raw_time = datetime(2026, 8, 31, 18, 0, tzinfo=timezone.utc)
+    os.utime(
+        normalized_path,
+        (normalized_time.timestamp(), normalized_time.timestamp()),
+    )
+    os.utime(raw_path, (raw_time.timestamp(), raw_time.timestamp()))
+    mapping_calls = 0
+
+    class FakeEspnClient:
+        def get_nfl_projections(self, *args, **kwargs) -> dict:
+            return {"players": []}
+
+    def map_projections(*args, **kwargs) -> dict[str, dict[str, float]]:
+        nonlocal mapping_calls
+        mapping_calls += 1
+        return {"player-1": {"pass_yd": 275.0}}
+
+    monkeypatch.setattr(data, "WEEKLY_STATS_CACHE_DIR", tmp_path / "weekly")
+    monkeypatch.setattr(data, "ESPN_PROJECTIONS_CACHE_DIR", tmp_path / "raw")
+    monkeypatch.setattr(data, "EspnClient", FakeEspnClient)
+    monkeypatch.setattr(data, "map_projections_to_sleeper", map_projections)
+    monkeypatch.setattr(data, "get_nfl_players", dict)
+    data._read_json_cache.clear()
+
+    stats = data.get_projected_player_stats("2026", 4)
+    update = data.get_data_update("projected_player_stats", "2026", 4)
+
+    assert stats == {"player-1": {"pass_yd": 275.0}}
+    assert mapping_calls == 1
+    assert update is not None
+    assert update.updated_at == raw_time
+
+
 def test_projection_refresh_uses_six_hour_raw_espn_cache(
     monkeypatch,
     tmp_path,
