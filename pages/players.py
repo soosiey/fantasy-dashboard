@@ -295,7 +295,7 @@ with players_list_tab:
             "Player ID": None,
             "Player": st.column_config.ImageColumn("Player", width=260),
             "Details": st.column_config.ButtonColumn(
-                "",
+                "Stats",
                 width="small",
                 type="secondary",
                 on_click=open_player_from_button,
@@ -411,7 +411,7 @@ with trends_tab:
                     **trend_columns,
                     "Player ID": None,
                     "Details": st.column_config.ButtonColumn(
-                        "",
+                        "Stats",
                         width="small",
                         type="secondary",
                         on_click=open_player_from_button,
@@ -455,7 +455,7 @@ with trends_tab:
                     **trend_columns,
                     "Player ID": None,
                     "Details": st.column_config.ButtonColumn(
-                        "",
+                        "Stats",
                         width="small",
                         type="secondary",
                         on_click=open_player_from_button,

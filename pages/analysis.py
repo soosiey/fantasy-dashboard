@@ -306,7 +306,7 @@ else:
                 "Player ID": None,
                 "Player": st.column_config.ImageColumn("Player", width=260),
                 "Details": st.column_config.ButtonColumn(
-                    "",
+                    "Stats",
                     width="small",
                     type="secondary",
                     on_click=open_player_from_button,
