@@ -107,7 +107,7 @@ comparison_page = st.Page(
 )
 graphs_page = st.Page(
     PAGE_SOURCES["graphs"],
-    title="Graphs",
+    title="Single Player Selection",
     url_path="graphs",
     visibility=league_visibility,
 )
@@ -123,10 +123,10 @@ stats_page = st.Page(
     url_path="stats",
     visibility=league_visibility,
 )
-insights_page = st.Page(
-    PAGE_SOURCES["insights"],
-    title="Insights",
-    url_path="insights",
+performance_page = st.Page(
+    PAGE_SOURCES["performance"],
+    title="Performance",
+    url_path="performance",
     visibility=league_visibility,
 )
 news_page = st.Page(
@@ -166,7 +166,7 @@ pages_by_route = {
     "graphs": graphs_page,
     "graph": graph_page,
     "stats": stats_page,
-    "insights": insights_page,
+    "performance": performance_page,
     "news": news_page,
     "ranking": legacy_ranking_page,
     "draft_results": legacy_draft_results_page,
@@ -187,7 +187,7 @@ page_route = st.navigation(
         graphs_page,
         graph_page,
         stats_page,
-        insights_page,
+        performance_page,
         news_page,
         team_page,
         legacy_ranking_page,
@@ -220,7 +220,7 @@ if (
 if (
     authenticated
     and league_id
-    and page_route.url_path in {"graph", "stats", "insights", "news"}
+    and page_route.url_path in {"graph", "stats", "performance", "news"}
 ):
     st.session_state[PLAYER_STATS_MODE_KEY] = True
     st.session_state.pop(ANALYSIS_MODE_KEY, None)
@@ -235,13 +235,14 @@ if analysis_mode and (not authenticated or not league_id):
 if player_stats_mode and page_route.url_path not in {
     "graph",
     "stats",
-    "insights",
+    "performance",
     "news",
 }:
     st.switch_page(graph_page, query_params={"league_id": league_id})
 if analysis_mode and page_route.url_path not in {
     "analysis",
     "players",
+    "matchups",
     "comparison",
     "graphs",
 }:
@@ -313,7 +314,7 @@ with st.sidebar:
     if player_stats_mode:
         st.page_link(graph_page, label="Graph")
         st.page_link(stats_page, label="Stats")
-        st.page_link(insights_page, label="Insights")
+        st.page_link(performance_page, label="Performance")
         st.page_link(news_page, label="News")
     elif analysis_mode:
         st.page_link(
@@ -321,8 +322,9 @@ with st.sidebar:
             label="Statistics",
         )
         st.page_link(players_page, label="Players")
+        st.page_link(matchups_page, label="Matchups")
         st.page_link(comparison_page, label="Comparison")
-        st.page_link(graphs_page, label="Graphs")
+        st.page_link(graphs_page, label="Single Player Selection")
     elif not authenticated:
         st.page_link(start_page, label="User Login")
     elif not league_id:

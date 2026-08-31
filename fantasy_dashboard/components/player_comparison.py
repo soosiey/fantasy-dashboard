@@ -57,15 +57,23 @@ def _render_comparison_table(
         numeric_right = float(right_value) if isinstance(right_value, Real) else 0.0
         displayed_left = truncate_decimal(numeric_left)
         displayed_right = truncate_decimal(numeric_right)
-        left_wins = left_stats_available and right_stats_available and (
-            numeric_left < numeric_right
-            if label in LOWER_IS_BETTER
-            else numeric_left > numeric_right
+        left_wins = (
+            left_stats_available
+            and right_stats_available
+            and (
+                numeric_left < numeric_right
+                if label in LOWER_IS_BETTER
+                else numeric_left > numeric_right
+            )
         )
-        right_wins = left_stats_available and right_stats_available and (
-            numeric_right < numeric_left
-            if label in LOWER_IS_BETTER
-            else numeric_right > numeric_left
+        right_wins = (
+            left_stats_available
+            and right_stats_available
+            and (
+                numeric_right < numeric_left
+                if label in LOWER_IS_BETTER
+                else numeric_right > numeric_left
+            )
         )
         left_class = " comparison-stat-winner" if left_wins else ""
         right_class = " comparison-stat-winner" if right_wins else ""
@@ -197,8 +205,7 @@ def show_player_comparison(
             scoring_settings,
             stat_fields,
             left_stats_available=(
-                left_player_id is not None
-                and str(left_player_id) in stats_by_player_id
+                left_player_id is not None and str(left_player_id) in stats_by_player_id
             ),
             right_stats_available=(
                 right_player_id is not None

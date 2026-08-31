@@ -1,6 +1,9 @@
 import requests
 import streamlit as st
 
+from fantasy_dashboard.components.comparison_selection import (
+    render_comparison_sidebar,
+)
 from fantasy_dashboard.components.data_disclaimer import render_data_disclaimer
 from fantasy_dashboard.components.matchup_board import (
     PlayerComparisonSelection,
@@ -29,6 +32,7 @@ from fantasy_dashboard.matchups import (
 )
 from fantasy_dashboard.models.player import PlayerModel
 from fantasy_dashboard.routing import (
+    ANALYSIS_MODE_KEY,
     require_authentication,
     resolve_league_id,
     sync_query_params,
@@ -36,6 +40,7 @@ from fantasy_dashboard.routing import (
 
 require_authentication("matchups")
 league_id = resolve_league_id()
+analysis_mode = bool(st.session_state.get(ANALYSIS_MODE_KEY))
 
 if league_id is None:
     st.warning("Select a league first.")
@@ -212,18 +217,30 @@ render_data_disclaimer(
     stats_update,
 )
 
-# Keep league and account navigation available beneath the weekly matchups.
-with st.bottom:
-    league_change = st.button("Switch Leagues")
-    reset = st.button("Log Out")
+if analysis_mode:
+    render_comparison_sidebar(players, league_id)
+    with st.bottom:
+        back_to_overview = st.button("Back to Overview")
 
-if league_change:
-    st.session_state.pop("league_id", None)
-    st.session_state.pop("user_id", None)
-    if "league_id" in st.query_params:
-        st.query_params.pop("league_id")
-    st.switch_page("pages/leagues.py")
-if reset:
-    st.session_state.clear()
-    st.query_params.clear()
-    st.rerun()
+    if back_to_overview:
+        st.session_state.pop(ANALYSIS_MODE_KEY, None)
+        st.switch_page(
+            "pages/overview.py",
+            query_params={"league_id": league_id},
+        )
+else:
+    # Keep league and account navigation available beneath overview matchups.
+    with st.bottom:
+        league_change = st.button("Switch Leagues")
+        reset = st.button("Log Out")
+
+    if league_change:
+        st.session_state.pop("league_id", None)
+        st.session_state.pop("user_id", None)
+        if "league_id" in st.query_params:
+            st.query_params.pop("league_id")
+        st.switch_page("pages/leagues.py")
+    if reset:
+        st.session_state.clear()
+        st.query_params.clear()
+        st.rerun()

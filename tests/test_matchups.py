@@ -109,9 +109,7 @@ def test_empty_current_week_stats_leave_matchup_scores_unavailable() -> None:
         }
     }
 
-    result = build_head_to_head_matchups(
-        [matchup], _league("QB"), [], [], players, {}
-    )
+    result = build_head_to_head_matchups([matchup], _league("QB"), [], [], players, {})
 
     assert result[0].lineup[0].left_player.points is None
     assert result[0].left_team.points is None

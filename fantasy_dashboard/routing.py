@@ -17,7 +17,7 @@ PAGE_SOURCES = {
     "graphs": "pages/graphs.py",
     "graph": "pages/graph.py",
     "stats": "pages/stats.py",
-    "insights": "pages/insights.py",
+    "performance": "pages/performance.py",
     "news": "pages/news.py",
     "team": "pages/team.py",
 }

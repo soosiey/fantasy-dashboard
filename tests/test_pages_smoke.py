@@ -141,7 +141,7 @@ def test_legacy_url_redirects(
         ("pages/ranking.py", "User Rankings"),
         ("pages/analysis.py", "Statistics"),
         ("pages/comparison.py", "Comparison"),
-        ("pages/graphs.py", "Graphs"),
+        ("pages/graphs.py", "Single Player Selection"),
         ("pages/team.py", "Team Page"),
     ],
 )
@@ -207,6 +207,25 @@ def test_players_page_is_available_inside_analysis_mode(fake_page_backend) -> No
     app.switch_page("pages/players.py").run()
 
     _assert_page(app, "Players")
+    assert app.session_state["_analysis_mode"] is True
+    assert any(button.label == "Back to Overview" for button in app.button)
+    assert not any(button.label == "Switch Leagues" for button in app.button)
+
+    next(
+        button for button in app.button if button.label == "Back to Overview"
+    ).click().run()
+
+    _assert_page(app, "Overview")
+    assert "_analysis_mode" not in app.session_state
+
+
+def test_matchups_page_is_available_inside_analysis_mode(fake_page_backend) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.switch_page("pages/analysis.py").run()
+
+    app.switch_page("pages/matchups.py").run()
+
+    _assert_page(app, "Matchups")
     assert app.session_state["_analysis_mode"] is True
     assert any(button.label == "Back to Overview" for button in app.button)
     assert not any(button.label == "Switch Leagues" for button in app.button)
@@ -333,7 +352,7 @@ def test_graphs_page_is_a_searchable_player_picker(fake_page_backend) -> None:
     app = _authenticated_app(fake_page_backend)
     app.switch_page("pages/graphs.py").run()
 
-    _assert_page(app, "Graphs")
+    _assert_page(app, "Single Player Selection")
     assert [tab.label for tab in app.tabs] == [
         "Single Player Stats",
         "Comparison Stats",
@@ -363,7 +382,7 @@ def test_graph_player_opens_player_stats_state_and_can_return(
         button for button in app.button if button.label == "Back to Analysis"
     ).click().run()
 
-    _assert_page(app, "Graphs")
+    _assert_page(app, "Single Player Selection")
     assert "_player_stats_mode" not in app.session_state
     assert app.session_state["_analysis_mode"] is True
 
@@ -451,17 +470,145 @@ def test_player_stats_state_includes_full_stats_page(fake_page_backend) -> None:
     assert any(button.label == "Back to Analysis" for button in app.button)
 
 
-def test_player_stats_state_includes_empty_insights_page(fake_page_backend) -> None:
+def test_player_stats_state_includes_core_performance(
+    fake_page_backend,
+) -> None:
     app = _authenticated_app(fake_page_backend)
     app.session_state["graph_player_id"] = "player-1"
     app.session_state["_player_stats_mode"] = True
     app.query_params["player_id"] = "player-1"
 
-    app.switch_page("pages/insights.py").run()
+    app.switch_page("pages/performance.py").run()
 
-    _assert_page(app, "Insights")
+    _assert_page(app, "Performance")
     assert app.session_state["_player_stats_mode"] is True
+    assert any(header.value == "First Quarterback" for header in app.header)
+    assert [tab.label for tab in app.tabs] == [
+        "Core Performance Statistics",
+        "Projection Accuracy",
+        "Consistency",
+    ]
+    year_selector = next(box for box in app.selectbox if box.label == "Year")
+    assert year_selector.value == "2026"
+    assert year_selector.options == ["2026", "2025", "2024"]
+    stat_selector = next(box for box in app.selectbox if box.label == "Stat")
+    assert stat_selector.value == "Fantasy Points"
+    assert stat_selector.options == [
+        "Fantasy Points",
+        "Pass Att",
+        "Completions",
+        "Pass Yds",
+        "Pass TD",
+        "Pass INT",
+        "Rush Yds",
+        "Rush TD",
+    ]
+    assert app.dataframe[0].value["Statistic"].tolist() == [
+        "μ",
+        "Median",
+        "σ",
+        "Q25",
+        "Q75",
+        "Q90",
+        "Season total",
+        "Games played",
+        "Last-1-game average",
+        "Recent difference from season average",
+        "Recent percent change",
+        "Best week",
+        "Worst week",
+    ]
+    assert app.dataframe[0].value["View Graph"].tolist() == ["View"] * 13
+    assert "QB League Average" in app.dataframe[0].value.columns
+    assert "vs QB Average" in app.dataframe[0].value.columns
+    assert app.dataframe[1].value["Statistic"].tolist() == [
+        "Actual average",
+        "Predicted average",
+        "MAE",
+        "Bias",
+        "RMSE",
+        "Hit rate",
+        "r",
+    ]
+    assert "QB League Average" in app.dataframe[1].value.columns
+    assert "vs QB Average" in app.dataframe[1].value.columns
+    assert app.dataframe[1].value["View Graph"].tolist() == ["View"] * 7
+    assert app.dataframe[2].value["Statistic"].tolist() == [
+        "Consistency rate",
+        "Boom rate",
+        "Bust rate",
+        "Rolling 3-game average",
+        "Trend slope",
+    ]
+    assert "QB League Average" in app.dataframe[2].value.columns
+    assert "vs QB Average" in app.dataframe[2].value.columns
+    assert app.dataframe[2].value["View Graph"].tolist() == ["View"] * 5
+    assert (
+        next(
+            control for control in app.number_input if control.label == "Hit tolerance"
+        ).value
+        == 3.0
+    )
+    assert (
+        next(
+            control
+            for control in app.number_input
+            if control.label == "Consistency band (%)"
+        ).value
+        == 20.0
+    )
     assert any(button.label == "Back to Analysis" for button in app.button)
+
+
+def test_core_performance_graph_opens_for_selected_statistic(
+    fake_page_backend,
+) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["graph_player_id"] = "player-1"
+    app.session_state["_player_stats_mode"] = True
+    app.session_state["_performance_core_graph_metric_key"] = "average"
+    app.query_params["player_id"] = "player-1"
+
+    app.switch_page("pages/performance.py").run()
+
+    _assert_page(app, "Performance")
+    assert app.get("vega_lite_chart")
+    assert any(
+        subheader.value == "Average · Fantasy Points" for subheader in app.subheader
+    )
+
+
+@pytest.mark.parametrize(
+    ("state_key", "metric_key", "expected_heading"),
+    [
+        ("_performance_projection_graph_metric_key", "mae", "MAE"),
+        (
+            "_performance_consistency_graph_metric_key",
+            "consistency_rate",
+            "Consistency rate",
+        ),
+    ],
+)
+def test_additional_performance_graphs_open_for_selected_statistic(
+    fake_page_backend,
+    state_key: str,
+    metric_key: str,
+    expected_heading: str,
+) -> None:
+    app = _authenticated_app(fake_page_backend)
+    app.session_state["graph_player_id"] = "player-1"
+    app.session_state["_player_stats_mode"] = True
+    app.session_state[state_key] = metric_key
+    app.query_params["player_id"] = "player-1"
+
+    app.switch_page("pages/performance.py").run()
+
+    _assert_page(app, "Performance")
+    assert app.get("vega_lite_chart")
+    assert any(
+        subheader.value == f"{expected_heading} · Fantasy Points"
+        for subheader in app.subheader
+    )
 
 
 def test_player_stats_state_includes_recent_news_page(fake_page_backend) -> None:

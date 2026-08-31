@@ -212,9 +212,7 @@ class RotoworldClient:
                         title=post["title"],
                         date=post["date"],
                         author=post["author"],
-                        source_url=(
-                            post["source_url"] or self.PLAYER_NEWS_URL
-                        ),
+                        source_url=(post["source_url"] or self.PLAYER_NEWS_URL),
                     )
                 )
 

@@ -45,7 +45,7 @@ st.markdown(
     "<style>[data-testid='stMainBlockContainer'] { max-width: 95rem; }</style>",
     unsafe_allow_html=True,
 )
-st.title("Graphs")
+st.title("Single Player Selection")
 
 league = get_league(league_id)
 rosters = get_rosters(league_id)

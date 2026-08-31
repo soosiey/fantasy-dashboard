@@ -304,9 +304,7 @@ def build_head_to_head_matchups(
                     rosters_by_id,
                     teams_by_user_id,
                     _sum_available_points(
-                        row.left_player.points
-                        for row in lineup
-                        if row.position != "BN"
+                        row.left_player.points for row in lineup if row.position != "BN"
                     ),
                     sum(
                         row.left_player.game_status == "to-play"
