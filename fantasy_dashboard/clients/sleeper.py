@@ -39,7 +39,6 @@ class SleeperClient:
         if cache_path.exists():
             age_seconds = time.time() - cache_path.stat().st_mtime
             if age_seconds <= max_age.total_seconds():
-                print("No refresh for player file.")
                 return False
 
         # Fetch and validate the complete NFL player payload.
