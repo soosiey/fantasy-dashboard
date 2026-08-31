@@ -4,6 +4,8 @@ import streamlit as st
 from fantasy_dashboard.clients.sleeper import SleeperClient
 from fantasy_dashboard.data import (
     PLAYER_CATALOG_MAX_AGE,
+    get_manual_refresh_cooldown_remaining,
+    record_manual_refresh,
     refresh_current_week_input_data,
 )
 from fantasy_dashboard.paths import NFL_PLAYERS_PATH
@@ -257,22 +259,54 @@ def request_current_week_refresh() -> None:
     st.session_state["_refresh_current_week_input_data"] = True
 
 
+def format_cooldown(remaining_seconds: float) -> str:
+    total_minutes = max(1, int((remaining_seconds + 59) // 60))
+    hours, minutes = divmod(total_minutes, 60)
+    if hours and minutes:
+        return f"{hours}h {minutes}m"
+    if hours:
+        return f"{hours}h"
+    return f"{minutes}m"
+
+
+if st.session_state.pop("_manual_refresh_success", False):
+    st.toast("Current-week actual stats refreshed.")
+
+refresh_cooldown = get_manual_refresh_cooldown_remaining()
+refresh_disabled = refresh_cooldown.total_seconds() > 0
+refresh_help = "Pull fresh actual stats for the current NFL week"
+if refresh_disabled:
+    refresh_help = (
+        "Manual refresh available in "
+        f"{format_cooldown(refresh_cooldown.total_seconds())}"
+    )
+
 if authenticated:
     with st.bottom:
         st.button(
             "Refresh Current Week",
             key="refresh-current-week-input-data",
-            help="Pull fresh actual stats for the current NFL week",
+            help=refresh_help,
+            disabled=refresh_disabled,
             on_click=request_current_week_refresh,
         )
 
 if st.session_state.pop("_refresh_current_week_input_data", False):
-    try:
-        with st.spinner("Refreshing current-week actual stats..."):
-            refresh_current_week_input_data(force=True)
-        st.toast("Current-week actual stats refreshed.")
-    except (OSError, TypeError, ValueError, requests.RequestException) as error:
-        st.warning(f"Unable to refresh current-week player data: {error}")
+    remaining = get_manual_refresh_cooldown_remaining()
+    if remaining.total_seconds() > 0:
+        st.warning(
+            "Manual refresh is on cooldown for "
+            f"{format_cooldown(remaining.total_seconds())}."
+        )
+    else:
+        try:
+            with st.spinner("Refreshing current-week actual stats..."):
+                refresh_current_week_input_data(force=True)
+            record_manual_refresh()
+            st.session_state["_manual_refresh_success"] = True
+            st.rerun()
+        except (OSError, TypeError, ValueError, requests.RequestException) as error:
+            st.warning(f"Unable to refresh current-week player data: {error}")
 
 # Render an explicit sidebar so overview and analysis can behave as separate states.
 with st.sidebar:

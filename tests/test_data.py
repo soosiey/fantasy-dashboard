@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 from fantasy_dashboard import data
@@ -261,9 +261,33 @@ def test_actual_cache_uses_live_and_finalized_refresh_windows(tmp_path) -> None:
 def test_projection_cache_is_six_hourly_except_when_a_game_is_live() -> None:
     assert data.CURRENT_PROJECTION_CACHE_MAX_AGE.total_seconds() == 6 * 60 * 60
     assert data._projection_cache_max_age([]) == data.CURRENT_PROJECTION_CACHE_MAX_AGE
-    assert data._projection_cache_max_age(
-        [{"status": "pre_game"}, {"status": "complete"}]
-    ) == data.CURRENT_PROJECTION_CACHE_MAX_AGE
-    assert data._projection_cache_max_age(
-        [{"status": "complete"}, {"status": "in_progress"}]
-    ) == data.LIVE_PROJECTION_CACHE_MAX_AGE
+    assert (
+        data._projection_cache_max_age([{"status": "pre_game"}, {"status": "complete"}])
+        == data.CURRENT_PROJECTION_CACHE_MAX_AGE
+    )
+    assert (
+        data._projection_cache_max_age(
+            [{"status": "complete"}, {"status": "in_progress"}]
+        )
+        == data.LIVE_PROJECTION_CACHE_MAX_AGE
+    )
+
+
+def test_manual_refresh_cooldown_persists_for_six_hours(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    state_path = tmp_path / "manual_refresh.json"
+    monkeypatch.setattr(data, "MANUAL_REFRESH_STATE_PATH", state_path)
+    data._read_json_cache.clear()
+    refreshed_at = datetime(2026, 9, 14, 12, 0, tzinfo=timezone.utc)
+
+    assert data.get_manual_refresh_cooldown_remaining(now=refreshed_at) == timedelta(0)
+
+    data.record_manual_refresh(refreshed_at=refreshed_at)
+    assert data.get_manual_refresh_cooldown_remaining(
+        now=refreshed_at + timedelta(hours=1)
+    ) == timedelta(hours=5)
+    assert data.get_manual_refresh_cooldown_remaining(
+        now=refreshed_at + timedelta(hours=6)
+    ) == timedelta(0)

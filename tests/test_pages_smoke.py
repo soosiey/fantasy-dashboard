@@ -76,6 +76,7 @@ def test_global_current_week_refresh_is_forced_from_bottom_bar(
 
     _assert_page(app, "Overview")
     assert True in refresh_calls
+    assert app.button(key="refresh-current-week-input-data").disabled
 
 
 def test_cold_deep_link_redirects_to_login(fake_page_backend) -> None:

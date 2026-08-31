@@ -19,9 +19,14 @@ from fantasy_dashboard.models.user import SleeperUser, UserContainer
 
 
 @pytest.fixture
-def fake_page_backend(monkeypatch) -> SleeperUser:
+def fake_page_backend(monkeypatch, tmp_path) -> SleeperUser:
     """Replace every page data source with one small, deterministic league."""
     user = SleeperUser("user-1", "test_user", "Test User", "avatar-1")
+    monkeypatch.setattr(
+        data,
+        "MANUAL_REFRESH_STATE_PATH",
+        tmp_path / "manual_refresh.json",
+    )
     league = LeagueModel.from_api(
         {
             "league_id": "league-1",

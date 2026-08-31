@@ -25,6 +25,7 @@ from fantasy_dashboard.models.transaction import TransactionContainer
 from fantasy_dashboard.models.user import SleeperUser, UserContainer
 from fantasy_dashboard.paths import (
     ESPN_PROJECTIONS_CACHE_DIR,
+    MANUAL_REFRESH_STATE_PATH,
     NFL_PLAYERS_PATH,
     WEEKLY_STATS_CACHE_DIR,
 )
@@ -35,6 +36,7 @@ LIVE_PROJECTION_CACHE_MAX_AGE = timedelta(hours=1)
 PREGAME_ACTUAL_CACHE_MAX_AGE = timedelta(days=1)
 LIVE_ACTUAL_CACHE_MAX_AGE = timedelta(minutes=1)
 CORRECTION_WINDOW = timedelta(days=3)
+MANUAL_REFRESH_COOLDOWN = timedelta(hours=6)
 LIVE_GAME_STATUSES = {"in_progress", "in-progress", "live"}
 COMPLETE_GAME_STATUSES = {"complete", "completed", "final", "post_game"}
 
@@ -140,6 +142,34 @@ def _load_json_cache(path: Path) -> dict[str, Any]:
 
 def _cache_updated_at(path: Path) -> datetime:
     return datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+
+
+def get_manual_refresh_cooldown_remaining(
+    *,
+    now: datetime | None = None,
+) -> timedelta:
+    if not MANUAL_REFRESH_STATE_PATH.exists():
+        return timedelta(0)
+    try:
+        state = _load_json_cache(MANUAL_REFRESH_STATE_PATH)
+        refreshed_at = datetime.fromisoformat(str(state["refreshed_at"]))
+    except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError):
+        return timedelta(0)
+    if refreshed_at.tzinfo is None:
+        refreshed_at = refreshed_at.replace(tzinfo=timezone.utc)
+    elapsed = (now or datetime.now(timezone.utc)) - refreshed_at
+    return max(MANUAL_REFRESH_COOLDOWN - elapsed, timedelta(0))
+
+
+def record_manual_refresh(*, refreshed_at: datetime | None = None) -> None:
+    timestamp = refreshed_at or datetime.now(timezone.utc)
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    _write_json_cache(
+        MANUAL_REFRESH_STATE_PATH,
+        {"refreshed_at": timestamp.astimezone(timezone.utc).isoformat()},
+    )
+    _read_json_cache.clear()
 
 
 def _correction_deadline(games: list[dict[str, Any]]) -> datetime | None:
