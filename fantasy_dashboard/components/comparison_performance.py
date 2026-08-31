@@ -39,6 +39,28 @@ def comparison_positions_are_compatible(positions: list[str]) -> bool:
     return len(distinct_positions) <= 1 or distinct_positions <= FLEX_POSITIONS
 
 
+def make_arrow_compatible(statistics_table: pd.DataFrame) -> pd.DataFrame:
+    statistics_table = statistics_table.copy()
+    for column in statistics_table.columns:
+        non_null_values = statistics_table[column].dropna().tolist()
+        has_text = any(isinstance(value, str) for value in non_null_values)
+        has_numbers = any(
+            isinstance(value, Real) and not isinstance(value, bool)
+            for value in non_null_values
+        )
+        if has_text and has_numbers:
+            statistics_table[column] = statistics_table[column].map(
+                lambda value: (
+                    None
+                    if pd.isna(value)
+                    else f"{float(value):.2f}"
+                    if isinstance(value, Real) and not isinstance(value, bool)
+                    else str(value)
+                )
+            )
+    return statistics_table
+
+
 def _player_name(player_id: str, players: dict[str, dict[str, Any]]) -> str:
     player = players.get(player_id, {})
     name = f"{player.get('first_name') or ''} {player.get('last_name') or ''}".strip()
@@ -119,24 +141,7 @@ def _render_comparison_metric_table(
             row["Unit"] = details.get("Unit")
         table_rows.append(row)
 
-    statistics_table = pd.DataFrame(table_rows)
-    for column in statistics_table.columns:
-        non_null_values = statistics_table[column].dropna().tolist()
-        has_text = any(isinstance(value, str) for value in non_null_values)
-        has_numbers = any(
-            isinstance(value, Real) and not isinstance(value, bool)
-            for value in non_null_values
-        )
-        if has_text and has_numbers:
-            statistics_table[column] = statistics_table[column].map(
-                lambda value: (
-                    None
-                    if pd.isna(value)
-                    else f"{float(value):.2f}"
-                    if isinstance(value, Real) and not isinstance(value, bool)
-                    else str(value)
-                )
-            )
+    statistics_table = make_arrow_compatible(pd.DataFrame(table_rows))
 
     st.dataframe(
         statistics_table,
