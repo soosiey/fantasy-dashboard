@@ -27,6 +27,20 @@ def test_login_page_renders_without_provider_requests(fake_page_backend) -> None
     assert any("v0.2" in markdown.value for markdown in app.markdown)
 
 
+def test_app_reloads_a_stale_cached_version_module(
+    monkeypatch,
+    fake_page_backend,
+) -> None:
+    import about.version as version_module
+
+    monkeypatch.setattr(version_module, "VERSION", "0.1")
+
+    app = AppTest.from_file(APP_PATH, default_timeout=10).run()
+
+    _assert_page(app, "Fantasy Football Dashboard")
+    assert any("v0.2" in markdown.value for markdown in app.markdown)
+
+
 def test_app_tolerates_stale_page_source_cache(
     monkeypatch,
     fake_page_backend,

@@ -1,7 +1,9 @@
+from importlib import reload
+
 import requests
 import streamlit as st
 
-from about.version import VERSION
+import about.version as version_module
 from fantasy_dashboard.clients.sleeper import SleeperClient
 from fantasy_dashboard.data import (
     PLAYER_CATALOG_MAX_AGE,
@@ -19,6 +21,10 @@ from fantasy_dashboard.routing import (
     resolve_league_id,
     store_pending_route,
 )
+
+# Streamlit hot reloads app.py but can retain imported modules from the previous
+# deployment. Reload the tiny version module so the release badge tracks GitHub.
+VERSION = reload(version_module).VERSION
 
 # Refresh the shared player cache without preventing the app from starting on failure.
 try:
