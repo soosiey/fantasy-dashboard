@@ -94,6 +94,12 @@ matchups_page = st.Page(
     url_path="matchups",
     visibility=league_visibility,
 )
+trade_analysis_page = st.Page(
+    PAGE_SOURCES.get("trade-analysis", "pages/trade_analysis.py"),
+    title="Trade Analysis",
+    url_path="trade-analysis",
+    visibility=league_visibility,
+)
 ranking_page = st.Page(
     PAGE_SOURCES["rankings"],
     title="Rankings",
@@ -180,6 +186,7 @@ pages_by_route = {
     "transactions": transactions_page,
     "players": players_page,
     "matchups": matchups_page,
+    "trade-analysis": trade_analysis_page,
     "rankings": ranking_page,
     "analysis": analysis_page,
     "league-predictions": league_predictions_page,
@@ -203,6 +210,7 @@ page_route = st.navigation(
         transactions_page,
         players_page,
         matchups_page,
+        trade_analysis_page,
         ranking_page,
         analysis_page,
         league_predictions_page,
@@ -236,6 +244,7 @@ if (
     and page_route.url_path
     in {
         "analysis",
+        "trade-analysis",
         "league-predictions",
         "regression",
         "comparison",
@@ -271,6 +280,7 @@ if analysis_mode and page_route.url_path not in {
     "regression",
     "players",
     "matchups",
+    "trade-analysis",
     "comparison",
     "graphs",
 }:
@@ -355,6 +365,7 @@ with st.sidebar:
         st.page_link(graphs_page, label="Single Player Selection")
         st.page_link(league_predictions_page, label="League Predictions")
         st.page_link(regression_page, label="Regression")
+        st.page_link(trade_analysis_page, label="Trade Analysis")
     elif not authenticated:
         st.page_link(start_page, label="User Login")
     elif not league_id:

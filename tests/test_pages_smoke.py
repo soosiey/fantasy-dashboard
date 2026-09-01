@@ -24,7 +24,7 @@ def test_login_page_renders_without_provider_requests(fake_page_backend) -> None
     app = AppTest.from_file(APP_PATH, default_timeout=10).run()
 
     _assert_page(app, "Fantasy Football Dashboard")
-    assert any("v0.2" in markdown.value for markdown in app.markdown)
+    assert any("v0.3" in markdown.value for markdown in app.markdown)
 
 
 def test_app_reloads_a_stale_cached_version_module(
@@ -38,7 +38,7 @@ def test_app_reloads_a_stale_cached_version_module(
     app = AppTest.from_file(APP_PATH, default_timeout=10).run()
 
     _assert_page(app, "Fantasy Football Dashboard")
-    assert any("v0.2" in markdown.value for markdown in app.markdown)
+    assert any("v0.3" in markdown.value for markdown in app.markdown)
 
 
 def test_app_tolerates_stale_page_source_cache(
@@ -158,6 +158,7 @@ def test_legacy_url_redirects(
         ("pages/transactions.py", "Transactions"),
         ("pages/players.py", "Players"),
         ("pages/matchups.py", "Matchups"),
+        ("pages/trade_analysis.py", "Trade Analysis"),
         ("pages/ranking.py", "User Rankings"),
         ("pages/analysis.py", "Statistics"),
         ("pages/league_predictions.py", "League Predictions"),
@@ -177,6 +178,29 @@ def test_authenticated_page_renders(
     app.switch_page(page_path).run()
 
     _assert_page(app, expected_title)
+
+
+def test_trade_analysis_simulates_both_sides_without_submitting_transaction(
+    authenticated_app,
+) -> None:
+    app = authenticated_app()
+
+    app.switch_page("pages/trade_analysis.py").run()
+
+    assert [box.label for box in app.selectbox[:2]] == ["First team", "Second team"]
+    assert len(app.multiselect) == 2
+    app.multiselect[0].set_value(["player-1"])
+    app.multiselect[1].set_value(["player-2"])
+    app.run()
+
+    trade_grade_metrics = [
+        metric for metric in app.metric if metric.label == "Trade Grade"
+    ]
+    assert len(trade_grade_metrics) == 2
+    assert all(
+        metric.value[0] in {"A", "B", "C", "D", "F"} and " · " in metric.value
+        for metric in trade_grade_metrics
+    )
 
 
 def test_auction_draft_results_omit_pick_round(authenticated_app) -> None:

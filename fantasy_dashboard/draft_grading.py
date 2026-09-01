@@ -62,7 +62,7 @@ def _eligible_positions(player: dict[str, Any]) -> set[str]:
     return {position} if position else set()
 
 
-def _position_replacement_levels(
+def position_replacement_levels(
     league: LeagueModel,
     points: dict[str, float],
     players: dict[str, dict[str, Any]],
@@ -90,7 +90,7 @@ def _position_replacement_levels(
     return replacements
 
 
-def _roster_utility(
+def roster_utility(
     player_ids: tuple[str, ...],
     league: LeagueModel,
     points: dict[str, float],
@@ -280,14 +280,14 @@ def grade_draft_picks(
         for player_id, stats in projected_stats.items()
         if player_id in players
     }
-    replacements = _position_replacement_levels(league, points, players)
+    replacements = position_replacement_levels(league, points, players)
     available_ids = set(points)
     drafted_by_user: dict[str, list[str]] = {}
     grades: dict[int, DraftPickGrade] = {}
 
     for index, pick in enumerate(picks):
         roster_ids = tuple(drafted_by_user.get(pick.picked_by, []))
-        base_utility = _roster_utility(
+        base_utility = roster_utility(
             roster_ids,
             league,
             points,
@@ -356,7 +356,7 @@ def grade_draft_picks(
             if starting_slot_count - filled_slots > remaining_team_picks:
                 candidate_values[candidate_id] = 0.0
                 continue
-            candidate_utility = _roster_utility(
+            candidate_utility = roster_utility(
                 (*roster_ids, candidate_id),
                 league,
                 points,

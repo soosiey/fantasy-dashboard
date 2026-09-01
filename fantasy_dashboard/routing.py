@@ -11,6 +11,7 @@ PAGE_SOURCES = {
     "transactions": "pages/transactions.py",
     "players": "pages/players.py",
     "matchups": "pages/matchups.py",
+    "trade-analysis": "pages/trade_analysis.py",
     "rankings": "pages/ranking.py",
     "analysis": "pages/analysis.py",
     "league-predictions": "pages/league_predictions.py",
