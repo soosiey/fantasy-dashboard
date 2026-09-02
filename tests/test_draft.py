@@ -45,8 +45,8 @@ def test_non_auction_amount_is_formatted_as_empty() -> None:
 def test_snake_draft_table_includes_round(monkeypatch) -> None:
     rendered_markup: list[str] = []
     monkeypatch.setattr(
-        "fantasy_dashboard.components.draft_table.st.markdown",
-        lambda markup, **kwargs: rendered_markup.append(markup),
+        "fantasy_dashboard.components.draft_table.st.html",
+        rendered_markup.append,
     )
 
     render_draft_table(

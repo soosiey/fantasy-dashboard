@@ -266,8 +266,24 @@ else:
     with st.expander("How trade grades work"):
         st.markdown(
             r"""
-            **Package strength** uses projected value over replacement (VOR), so
-            positions are compared on league-specific scarcity rather than raw points.
+            **Value over replacement (VOR)** measures how many projected points a
+            player provides above a readily replaceable option at the same position.
+            The replacement baseline is league-specific: it uses the number of teams
+            and required starting slots, with FLEX and SUPER_FLEX demand distributed
+            across their eligible positions. Negative values are treated as zero.
+
+            $$
+            VOR_{\mathrm{player}}
+            =\max\left(0,
+            P_{\mathrm{player}}-P_{\mathrm{replacement,position}}
+            \right)
+            $$
+
+            This lets a scarce-position player with fewer raw points still be more
+            valuable than a higher-scoring player at a deeper position. A package's
+            VOR is the sum of the VOR for every player in it.
+
+            **Package strength** compares the projected VOR received and sent:
 
             $$
             S_{\mathrm{strength}}

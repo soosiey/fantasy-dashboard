@@ -39,7 +39,7 @@ def render_draft_table(
     round_header = "<th>Round</th>" if show_round else ""
     player_width = "36%" if show_round else "46%"
 
-    st.markdown(
+    st.html(
         dedent(f"""
         <style>
             .draft-table {{
@@ -99,5 +99,4 @@ def render_draft_table(
             <tbody>{table_rows}</tbody>
         </table>
         """),
-        unsafe_allow_html=True,
     )

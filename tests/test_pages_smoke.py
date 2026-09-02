@@ -201,6 +201,9 @@ def test_trade_analysis_simulates_both_sides_without_submitting_transaction(
         metric.value[0] in {"A", "B", "C", "D", "F"} and " · " in metric.value
         for metric in trade_grade_metrics
     )
+    grade_explanation = " ".join(markdown.value for markdown in app.markdown)
+    assert "Value over replacement (VOR)" in grade_explanation
+    assert "readily replaceable option at the same position" in grade_explanation
 
 
 def test_auction_draft_results_omit_pick_round(authenticated_app) -> None:
