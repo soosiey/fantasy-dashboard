@@ -1,17 +1,9 @@
 from contextlib import ExitStack
-from importlib import reload
 from math import ceil, log2
 
 import pandas as pd
 import requests
 import streamlit as st
-
-import fantasy_dashboard.league_predictions as league_predictions_module
-
-# Streamlit can retain imported modules across deployments. Reload the prediction
-# implementation so simulation constants, including positional CVs, track the
-# deployed source just as the application version does.
-reload(league_predictions_module)
 
 from fantasy_dashboard.components.comparison_selection import render_comparison_sidebar
 from fantasy_dashboard.components.data_disclaimer import render_data_disclaimer
