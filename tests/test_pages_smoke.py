@@ -249,6 +249,13 @@ def test_league_predictions_projects_standings_and_tournament(
 
     _assert_page(app, "League Predictions")
     assert app.session_state["_analysis_mode"] is True
+    refresh_draft_analysis = next(
+        button
+        for button in app.button
+        if button.label == "Refresh Draft Grading & Simulation"
+    )
+    refresh_draft_analysis.click().run()
+    _assert_page(app, "League Predictions")
     assert any(
         "originally drafted" in info.value and "current roster" in info.value
         for info in app.info

@@ -72,7 +72,9 @@ def _render_card_summary(
     )
 
 
-def _render_pick_insight(grade: DraftPickGrade) -> str:
+def _render_pick_insight(
+    grade: DraftPickGrade, players: dict[str, dict[str, Any]]
+) -> str:
     auction_insight = ""
     if (
         grade.cost_score is not None
@@ -85,6 +87,26 @@ def _render_pick_insight(grade: DraftPickGrade) -> str:
             f"${grade.amount_paid:,.0f} paid versus a ${grade.fair_value:,.2f} "
             "fair value immediately before the winning bid."
         )
+    alternatives_insight = ""
+    if grade.alternatives is not None:
+        if grade.alternatives:
+            options = "".join(
+                "<li>"
+                f"{escape(_player_name_from_catalog(option.player_id, players))} "
+                f"({escape(str((players.get(option.player_id) or {}).get('position') or '—'))})"
+                f" · hypothetical grade {option.score:.1f}/100"
+                "</li>"
+                for option in grade.alternatives
+            )
+            alternatives_insight = (
+                "<br><br><strong>Better options at this pick</strong>"
+                f'<ol class="draft-grade-alternatives">{options}</ol>'
+            )
+        else:
+            alternatives_insight = (
+                "<br><br><strong>Better options at this pick</strong><br>"
+                "No higher-scoring feasible option was available at this pick."
+            )
     return (
         '<div class="draft-grade-insight">'
         f"<strong>Positional strength · {grade.strength_score:.1f}/100</strong><br>"
@@ -95,8 +117,24 @@ def _render_pick_insight(grade: DraftPickGrade) -> str:
         f"{grade.best_available_roster_value:.2f} for the best available choice; "
         f"the position's wait cost was {grade.wait_cost:.2f}."
         f"{auction_insight}"
+        f"{alternatives_insight}"
         "</div>"
     )
+
+
+def _player_name_from_catalog(
+    player_id: str, players: dict[str, dict[str, Any]]
+) -> str:
+    player = players.get(player_id) or {}
+    name = " ".join(
+        part
+        for part in (
+            str(player.get("first_name") or "").strip(),
+            str(player.get("last_name") or "").strip(),
+        )
+        if part
+    )
+    return name or str(player.get("full_name") or "").strip() or player_id
 
 
 def _toggle_insight(insight_key: str) -> None:
@@ -190,12 +228,17 @@ def _render_card_styles() -> None:
                 margin-top: 0.6rem;
                 padding: 0.65rem;
             }
+            .draft-grade-alternatives {
+                margin: 0.35rem 0 0;
+                padding-left: 1.2rem;
+            }
         </style>
         """,
         unsafe_allow_html=True,
     )
 
 
+@st.fragment
 def render_draft_grade_cards(
     picks: list[DraftPickModel],
     players: dict[str, dict[str, Any]],
@@ -227,7 +270,7 @@ def render_draft_grade_cards(
                 )
                 if st.session_state.get(insight_key):
                     st.markdown(
-                        _render_pick_insight(grade),
+                        _render_pick_insight(grade, players),
                         unsafe_allow_html=True,
                     )
                 st.button(
@@ -291,6 +334,7 @@ def _render_overall_summary(
     )
 
 
+@st.fragment
 def render_overall_draft_grade_cards(
     picks: list[DraftPickModel],
     players: dict[str, dict[str, Any]],

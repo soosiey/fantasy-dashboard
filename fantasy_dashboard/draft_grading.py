@@ -21,6 +21,12 @@ class DraftGradeWeights:
 
 
 @dataclass(frozen=True, slots=True)
+class DraftPickAlternative:
+    player_id: str
+    score: float
+
+
+@dataclass(frozen=True, slots=True)
 class DraftPickGrade:
     score: float
     letter: str
@@ -34,6 +40,7 @@ class DraftPickGrade:
     cost_score: float | None
     fair_value: float | None
     amount_paid: float | None
+    alternatives: tuple[DraftPickAlternative, ...] | None
 
 
 def letter_grade(score: float) -> str:
@@ -268,6 +275,22 @@ def _auction_cost_score(amount_paid: float, fair_value: float) -> float:
     return 100.0 * fair_value / amount_paid
 
 
+def _weighted_pick_score(
+    strength_score: float,
+    roster_fit_score: float,
+    weights: DraftGradeWeights,
+    cost_score: float | None = None,
+) -> float:
+    score_weight_total = weights.strength + weights.roster_fit
+    weighted_score = (
+        weights.strength * strength_score + weights.roster_fit * roster_fit_score
+    )
+    if cost_score is not None:
+        score_weight_total += weights.cost
+        weighted_score += weights.cost * cost_score
+    return weighted_score / score_weight_total if score_weight_total > 0 else 0.0
+
+
 def grade_draft_picks(
     league: LeagueModel,
     picks: list[DraftPickModel],
@@ -284,6 +307,7 @@ def grade_draft_picks(
     available_ids = set(points)
     drafted_by_user: dict[str, list[str]] = {}
     grades: dict[int, DraftPickGrade] = {}
+    is_auction_draft = any(pick.amount is not None for pick in picks)
 
     for index, pick in enumerate(picks):
         roster_ids = tuple(drafted_by_user.get(pick.picked_by, []))
@@ -341,7 +365,26 @@ def grade_draft_picks(
             ):
                 best_by_position[player_position] = player_id
         candidate_ids = set(best_by_position.values()) | {pick.player_id}
+        alternative_candidate_ids: set[str] = set()
+        if not is_auction_draft:
+            candidates_by_role: dict[tuple[str, tuple[str, ...]], list[str]] = {}
+            for player_id in available_ids | {pick.player_id}:
+                player = players.get(player_id, {})
+                role = (
+                    _primary_position(player),
+                    tuple(sorted(_eligible_positions(player))),
+                )
+                candidates_by_role.setdefault(role, []).append(player_id)
+            for role_candidates in candidates_by_role.values():
+                role_candidates.sort(
+                    key=lambda player_id: (-points.get(player_id, 0.0), player_id)
+                )
+                alternative_candidate_ids.update(role_candidates[:3])
+            alternative_candidate_ids.add(pick.player_id)
+
+        evaluated_candidate_ids = candidate_ids | alternative_candidate_ids
         candidate_values: dict[str, float] = {}
+        feasible_candidate_ids: set[str] = set()
         remaining_team_picks = sum(
             future_pick.picked_by == pick.picked_by
             for future_pick in picks[index + 1 :]
@@ -349,13 +392,14 @@ def grade_draft_picks(
         starting_slot_count = sum(
             slot not in NON_STARTING_SLOTS for slot in league.roster_positions
         )
-        for candidate_id in candidate_ids:
+        for candidate_id in evaluated_candidate_ids:
             filled_slots = _filled_starting_slots(
                 (*roster_ids, candidate_id), league, players
             )
             if starting_slot_count - filled_slots > remaining_team_picks:
                 candidate_values[candidate_id] = 0.0
                 continue
+            feasible_candidate_ids.add(candidate_id)
             candidate_utility = roster_utility(
                 (*roster_ids, candidate_id),
                 league,
@@ -370,7 +414,10 @@ def grade_draft_picks(
             ) + (weights.wait_cost * wait_costs.get(candidate_position, 0.0))
 
         actual_value = candidate_values.get(pick.player_id, 0.0)
-        best_value = max(candidate_values.values(), default=0.0)
+        best_value = max(
+            (candidate_values[candidate_id] for candidate_id in candidate_ids),
+            default=0.0,
+        )
         roster_fit_score = 100.0 if best_value <= 0 else 100 * actual_value / best_value
         fair_value = (
             _auction_fair_value(
@@ -390,16 +437,42 @@ def grade_draft_picks(
             if pick.amount is not None and fair_value is not None
             else None
         )
-        score_weight_total = weights.strength + weights.roster_fit
-        weighted_score = (
-            weights.strength * strength_score + weights.roster_fit * roster_fit_score
+        overall_score = _weighted_pick_score(
+            strength_score, roster_fit_score, weights, cost_score
         )
-        if cost_score is not None:
-            score_weight_total += weights.cost
-            weighted_score += weights.cost * cost_score
-        overall_score = (
-            weighted_score / score_weight_total if score_weight_total > 0 else 0.0
-        )
+        alternatives: tuple[DraftPickAlternative, ...] | None = None
+        if not is_auction_draft:
+            better_options: list[DraftPickAlternative] = []
+            for candidate_id in alternative_candidate_ids - {pick.player_id}:
+                if candidate_id not in feasible_candidate_ids:
+                    continue
+                candidate_position = _primary_position(players.get(candidate_id, {}))
+                candidate_strength, _ = _position_percentile(
+                    candidate_id, candidate_position, points, players
+                )
+                candidate_value = candidate_values[candidate_id]
+                hypothetical_best_value = max(best_value, candidate_value)
+                candidate_fit = (
+                    100.0
+                    if hypothetical_best_value <= 0
+                    else 100 * candidate_value / hypothetical_best_value
+                )
+                candidate_score = _weighted_pick_score(
+                    candidate_strength, candidate_fit, weights
+                )
+                if round(candidate_score, 1) > round(overall_score, 1):
+                    better_options.append(
+                        DraftPickAlternative(candidate_id, round(candidate_score, 2))
+                    )
+            better_options.sort(
+                key=lambda option: (
+                    -option.score,
+                    -points.get(option.player_id, 0.0),
+                    option.player_id,
+                )
+            )
+            alternatives = tuple(better_options[:3])
+
         grades[pick.pick_number] = DraftPickGrade(
             score=round(overall_score, 2),
             letter=letter_grade(overall_score),
@@ -413,6 +486,7 @@ def grade_draft_picks(
             cost_score=round(cost_score, 2) if cost_score is not None else None,
             fair_value=round(fair_value, 2) if fair_value is not None else None,
             amount_paid=pick.amount,
+            alternatives=alternatives,
         )
         drafted_by_user.setdefault(pick.picked_by, []).append(pick.player_id)
         available_ids.discard(pick.player_id)

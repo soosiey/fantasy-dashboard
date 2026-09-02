@@ -48,6 +48,37 @@ from fantasy_dashboard.routing import (
     resolve_league_id,
 )
 
+DRAFT_ANALYSIS_CACHE_TTL_SECONDS = 6 * 60 * 60
+
+
+@st.cache_data(ttl=DRAFT_ANALYSIS_CACHE_TTL_SECONDS, show_spinner=False)
+def _cached_draft_pick_grades(
+    league,
+    picks,
+    players,
+    projections,
+    weights,
+):
+    return grade_draft_picks(league, picks, players, projections, weights)
+
+
+@st.cache_data(ttl=DRAFT_ANALYSIS_CACHE_TTL_SECONDS, show_spinner=False)
+def _cached_draft_team_projections(
+    league,
+    picks,
+    teams,
+    players,
+    projections,
+):
+    return project_draft_championship_odds(
+        league,
+        picks,
+        teams,
+        players,
+        projections,
+    )
+
+
 require_authentication("league-predictions")
 league_id = resolve_league_id()
 
@@ -103,6 +134,18 @@ with draft_grades_tab:
             is_auction_draft = any(
                 pick.amount is not None for pick in draft_grade_picks.picks
             )
+            if st.button(
+                "Refresh Draft Grading & Simulation",
+                key=f"refresh-draft-analysis-{league_id}",
+                help=(
+                    "Recalculate the per-pick grades and 5,000-season simulation "
+                    "using the currently loaded draft and projection data."
+                ),
+            ):
+                _cached_draft_pick_grades.clear()
+                _cached_draft_team_projections.clear()
+                st.toast("Draft grading and simulation refreshed.")
+
             with st.expander("Pick score weights"):
                 score_columns = st.columns(3 if is_auction_draft else 2)
                 strength_column, fit_column = score_columns[:2]
@@ -182,14 +225,14 @@ with draft_grades_tab:
                 bench_depth=float(bench_depth_weight),
                 wait_cost=float(wait_cost_weight),
             )
-            draft_pick_grades = grade_draft_picks(
+            draft_pick_grades = _cached_draft_pick_grades(
                 draft_grade_league,
                 draft_grade_picks.picks,
                 draft_grade_players,
                 draft_grade_projections,
                 draft_grade_weights,
             )
-            draft_team_projections = project_draft_championship_odds(
+            draft_team_projections = _cached_draft_team_projections(
                 draft_grade_league,
                 draft_grade_picks.picks,
                 draft_grade_team_list,

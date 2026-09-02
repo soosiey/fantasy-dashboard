@@ -168,3 +168,33 @@ def test_snake_pick_does_not_include_auction_cost_weight() -> None:
     assert grades[1].cost_score is None
     assert grades[1].fair_value is None
     assert grades[1].score == grades[1].strength_score
+
+
+def test_snake_pick_lists_up_to_three_higher_scoring_available_options() -> None:
+    grades = grade_draft_picks(
+        _league(),
+        [
+            DraftPickModel(1, "rb-4", "RB Four", None, "user-1", 1),
+            DraftPickModel(2, "k-1", "K One", None, "user-1", 2),
+        ],
+        _players(),
+        _projections(),
+        DraftGradeWeights(strength=1, roster_fit=0, wait_cost=0),
+    )
+
+    alternatives = grades[1].alternatives
+    assert alternatives is not None
+    assert [option.player_id for option in alternatives] == ["rb-1", "k-1", "rb-2"]
+    assert all(option.score > grades[1].score for option in alternatives)
+
+
+def test_auction_pick_does_not_include_snake_alternatives() -> None:
+    grades = grade_draft_picks(
+        _league(),
+        [DraftPickModel(1, "rb-4", "RB Four", 1, "user-1", 1)],
+        _players(),
+        _projections(),
+        DraftGradeWeights(),
+    )
+
+    assert grades[1].alternatives is None
