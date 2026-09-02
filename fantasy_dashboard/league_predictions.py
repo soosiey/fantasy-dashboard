@@ -52,12 +52,12 @@ class DraftTeamProjection:
 
 
 POSITION_WEEKLY_CV = {
-    "QB": 0.30,
-    "RB": 0.45,
-    "WR": 0.50,
-    "TE": 0.55,
-    "K": 0.40,
-    "DEF": 0.45,
+    "QB": 0.45,
+    "RB": 0.59,
+    "WR": 0.64,
+    "TE": 0.67,
+    "K": 0.55,
+    "DEF": 1.02,
 }
 DEFAULT_WEEKLY_CV = 0.50
 NFL_GAMES_PER_TEAM = 17
