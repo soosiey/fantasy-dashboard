@@ -48,7 +48,7 @@ class DraftTeamProjection:
     average_weekly_win_probability: float
     playoff_probability: float
     championship_probability: float
-    relative_championship_score: float
+    championship_grade_score: float
 
 
 POSITION_WEEKLY_CV = {
@@ -61,6 +61,18 @@ POSITION_WEEKLY_CV = {
 }
 DEFAULT_WEEKLY_CV = 0.50
 NFL_GAMES_PER_TEAM = 17
+
+
+def championship_grade_score(
+    championship_probability: float,
+    team_count: int,
+) -> float:
+    """Map title odds to a conventional grade using equal-share odds as a C."""
+    if team_count <= 0:
+        return 0.0
+    fair_share_probability = 1 / team_count
+    score = 50 + 25 * championship_probability / fair_share_probability
+    return min(100.0, max(0.0, score))
 
 
 def _eligible_positions(player: dict[str, Any]) -> set[str]:
@@ -335,7 +347,6 @@ def project_draft_championship_odds(
         user_id: championship_counts[user_id] / simulation_count
         for user_id in drafting_user_ids
     }
-    favorite_probability = max(championship_probabilities.values(), default=0.0)
     return {
         user_id: DraftTeamProjection(
             user_id=user_id,
@@ -346,11 +357,9 @@ def project_draft_championship_odds(
             ),
             playoff_probability=round(playoff_counts[user_id] / simulation_count, 4),
             championship_probability=round(championship_probabilities[user_id], 4),
-            relative_championship_score=round(
-                (
-                    100 * championship_probabilities[user_id] / favorite_probability
-                    if favorite_probability > 0
-                    else 100.0
+            championship_grade_score=round(
+                championship_grade_score(
+                    championship_probabilities[user_id], len(drafting_user_ids)
                 ),
                 2,
             ),

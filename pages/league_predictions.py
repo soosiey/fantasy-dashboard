@@ -225,8 +225,9 @@ with draft_grades_tab:
                 st.caption(
                     "Overall grades come from 5,000 simulated seasons using each "
                     "drafted roster's best projected legal lineup. The favorite is "
-                    "normalized to 100; raw playoff and championship probabilities "
-                    "are shown inside each card."
+                    "not automatically assigned 100: an equal-share championship "
+                    "chance is graded as 75, and nearby title odds receive nearby "
+                    "scores. Raw probabilities are shown inside each card."
                 )
                 render_overall_draft_grade_cards(
                     draft_grade_picks.picks,

@@ -24,7 +24,7 @@ def test_login_page_renders_without_provider_requests(fake_page_backend) -> None
     app = AppTest.from_file(APP_PATH, default_timeout=10).run()
 
     _assert_page(app, "Fantasy Football Dashboard")
-    assert any("v0.4" in markdown.value for markdown in app.markdown)
+    assert any("v0.5" in markdown.value for markdown in app.markdown)
 
 
 def test_app_reloads_a_stale_cached_version_module(
@@ -38,7 +38,7 @@ def test_app_reloads_a_stale_cached_version_module(
     app = AppTest.from_file(APP_PATH, default_timeout=10).run()
 
     _assert_page(app, "Fantasy Football Dashboard")
-    assert any("v0.4" in markdown.value for markdown in app.markdown)
+    assert any("v0.5" in markdown.value for markdown in app.markdown)
 
 
 def test_app_tolerates_stale_page_source_cache(
@@ -320,7 +320,7 @@ def test_league_predictions_projects_standings_and_tournament(
     )
     assert "Championship probability" in overall_insight_markup
     assert "one-week win probability" in overall_insight_markup
-    assert "relative score" in overall_insight_markup
+    assert "equal-share championship baseline" in overall_insight_markup
 
 
 def test_statistics_filters_update_the_selected_view(authenticated_app) -> None:

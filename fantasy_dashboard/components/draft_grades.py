@@ -268,7 +268,7 @@ def _render_overall_summary(
         else f"{len(picks)} rounds represented"
     )
     pick_label = "pick" if len(picks) == 1 else "picks"
-    grade_score = projection.relative_championship_score
+    grade_score = projection.championship_grade_score
     grade_letter = letter_grade(grade_score)
 
     return (
@@ -334,10 +334,10 @@ def render_overall_draft_grade_cards(
                         f"The projected best lineup averages {projection.weekly_mean:.2f} "
                         f"points with a {projection.weekly_standard_deviation:.2f}-point "
                         f"weekly standard deviation. Championship odds are normalized "
-                        f"against the league favorite for a relative score of "
-                        f"{projection.relative_championship_score:.1f}/100, giving "
+                        f"against an equal-share championship baseline for a score of "
+                        f"{projection.championship_grade_score:.1f}/100, giving "
                         f"{escape(team.display_team_name)} an overall "
-                        f"{letter_grade(projection.relative_championship_score)} grade."
+                        f"{letter_grade(projection.championship_grade_score)} grade."
                         "</div>",
                         unsafe_allow_html=True,
                     )

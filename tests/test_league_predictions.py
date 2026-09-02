@@ -1,5 +1,6 @@
 from fantasy_dashboard.league_predictions import (
     build_optimized_week_matchups,
+    championship_grade_score,
     optimize_lineup,
     project_draft_championship_odds,
     project_playoffs,
@@ -219,7 +220,15 @@ def test_playoff_projection_applies_byes_and_weekly_optimal_scores() -> None:
     assert projection.runner_up.roster_id == 2
 
 
-def test_draft_championship_odds_reward_close_contenders_relative_to_favorite() -> None:
+def test_championship_grade_score_uses_equal_share_instead_of_favorite() -> None:
+    assert championship_grade_score(0, 10) == 50
+    assert championship_grade_score(0.05, 10) == 62.5
+    assert championship_grade_score(0.10, 10) == 75
+    assert championship_grade_score(0.16, 10) == 90
+    assert championship_grade_score(0.20, 10) == 100
+
+
+def test_draft_championship_odds_keep_close_contenders_close() -> None:
     league = _league(["QB", "BN"], playoff_teams=2)
     teams = [
         SleeperTeam("user-1", "One", "", "Team One"),
@@ -250,11 +259,17 @@ def test_draft_championship_odds_reward_close_contenders_relative_to_favorite() 
         projection.championship_probability for projection in projections.values()
     ]
     assert abs(sum(probabilities) - 1) < 0.001
-    assert projections["user-1"].relative_championship_score == 100
-    assert projections["user-2"].relative_championship_score >= 85
+    assert projections["user-1"].championship_grade_score < 100
     assert (
-        projections["user-3"].relative_championship_score
-        < projections["user-2"].relative_championship_score
+        abs(
+            projections["user-1"].championship_grade_score
+            - projections["user-2"].championship_grade_score
+        )
+        < 5
+    )
+    assert (
+        projections["user-3"].championship_grade_score
+        < projections["user-2"].championship_grade_score
     )
     assert (
         projections["user-1"].average_weekly_win_probability
