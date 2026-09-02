@@ -1,11 +1,13 @@
 from dataclasses import fields
+from html import escape
+from urllib.parse import quote
 
 import streamlit as st
 
+from fantasy_dashboard.clients.sleeper import SleeperClient
 from fantasy_dashboard.components.data_disclaimer import render_data_disclaimer
 from fantasy_dashboard.data import (
     clear_league_data,
-    get_avatar,
     get_data_update,
     get_league,
     get_league_users,
@@ -53,17 +55,106 @@ with teams_tab:
     roster_owner_ids = {roster.user_id for roster in rosters.rosters}
     visible_teams = [team for team in teams.users if team.user_id in roster_owner_ids]
 
-    for row_start in range(0, len(visible_teams), 2):
-        team_columns = st.columns(2, gap="large")
-        for column, team in zip(team_columns, visible_teams[row_start : row_start + 2]):
-            with column, st.container(border=True, height=280):
-                image = get_avatar(team.avatar_id)
-                st.image(image, width=96)
-                st.subheader(team.display_team_name)
-                st.caption(team.display_name)
+    st.markdown(
+        """
+        <style>
+            [class*="st-key-overview-team-card-"] {
+                min-height: 10.5rem;
+            }
+            [class*="st-key-overview-team-card-"] [data-testid="stVerticalBlock"] {
+                gap: 0.3rem;
+            }
+            .overview-team-avatar-wrap {
+                display: flex;
+                justify-content: center;
+                width: 100%;
+            }
+            .overview-team-avatar,
+            .overview-team-avatar-fallback {
+                width: 3.5rem;
+                height: 3.5rem;
+                border-radius: 50%;
+            }
+            .overview-team-avatar {
+                object-fit: cover;
+            }
+            .overview-team-avatar-fallback {
+                align-items: center;
+                background: rgba(128, 128, 128, 0.14);
+                display: flex;
+                font-size: 1.6rem;
+                justify-content: center;
+            }
+            [class*="st-key-overview-team-card-"]
+            [data-testid="stElementContainer"]:has([data-testid="stPageLink"]) {
+                display: flex;
+                justify-content: center;
+                width: 100%;
+            }
+            [class*="st-key-overview-team-card-"] [data-testid="stPageLink"] {
+                display: flex;
+                justify-content: center;
+                width: 100%;
+            }
+            [class*="st-key-overview-team-card-"] [data-testid="stPageLink"] a {
+                justify-content: center;
+                margin: 0.25rem auto 0;
+                min-height: 1.8rem;
+                padding: 0.25rem 0.4rem;
+                font-size: 0.72rem;
+                width: fit-content;
+            }
+            .overview-team-name,
+            .overview-team-owner {
+                overflow: hidden;
+                text-align: center;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .overview-team-name {
+                font-size: 0.82rem;
+                font-weight: 650;
+                line-height: 1.1rem;
+            }
+            .overview-team-owner {
+                color: #808495;
+                font-size: 0.68rem;
+                line-height: 0.9rem;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    for row_start in range(0, len(visible_teams), 5):
+        team_columns = st.columns(5, gap="small")
+        for column, team in zip(team_columns, visible_teams[row_start : row_start + 5]):
+            with column, st.container(
+                border=True,
+                key=f"overview-team-card-{team.user_id}",
+            ):
+                avatar_id = str(team.avatar_id or "")
+                avatar = (
+                    '<img class="overview-team-avatar" '
+                    f'src="{SleeperClient.AVATAR_URL}/{quote(avatar_id, safe="")}" '
+                    f'alt="{escape(team.display_team_name)} avatar">'
+                    if avatar_id and avatar_id != "None"
+                    else '<span class="overview-team-avatar-fallback">🏈</span>'
+                )
+                st.markdown(
+                    f'<div class="overview-team-avatar-wrap">{avatar}</div>'
+                    '<div class="overview-team-name" '
+                    f'title="{escape(team.display_team_name)}">'
+                    f"{escape(team.display_team_name)}</div>"
+                    '<div class="overview-team-owner" '
+                    f'title="{escape(team.display_name)}">'
+                    f"{escape(team.display_name)}</div>",
+                    unsafe_allow_html=True,
+                )
                 st.page_link(
                     "pages/team.py",
                     label="View Team",
+                    width="stretch",
                     query_params={
                         "league_id": league_id,
                         "user_id": team.user_id,

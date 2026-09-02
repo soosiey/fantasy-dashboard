@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 from fantasy_dashboard.models.transaction import TransactionModel
 
@@ -9,6 +11,8 @@ class TransactionRow:
     transaction_id: str
     transaction_type: str
     user: str
+    created_at: int
+    timestamp: str
 
 
 # Hold one player movement rendered inside a transaction details dialog.
@@ -34,6 +38,19 @@ def _transaction_type_label(transaction: TransactionModel) -> str:
 
 
 # Resolve each transaction's initiating Sleeper user for table display.
+def _format_transaction_timestamp(created_at: int) -> str:
+    if created_at <= 0:
+        return "Unknown"
+    timestamp = datetime.fromtimestamp(created_at / 1000, UTC).astimezone(
+        ZoneInfo("America/New_York")
+    )
+    hour = timestamp.strftime("%I").lstrip("0") or "0"
+    return (
+        f"{timestamp:%b} {timestamp.day}, {timestamp.year} · "
+        f"{hour}:{timestamp:%M %p}"
+    )
+
+
 def build_transaction_rows(
     transactions: list[TransactionModel],
     display_names_by_user_id: dict[str, str],
@@ -43,8 +60,14 @@ def build_transaction_rows(
             transaction_id=transaction.transaction_id,
             transaction_type=_transaction_type_label(transaction),
             user=display_names_by_user_id.get(transaction.creator_id, "Unknown User"),
+            created_at=transaction.created_at,
+            timestamp=_format_transaction_timestamp(transaction.created_at),
         )
-        for transaction in transactions
+        for transaction in sorted(
+            transactions,
+            key=lambda transaction: transaction.created_at,
+            reverse=True,
+        )
     ]
 
 

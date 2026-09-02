@@ -33,6 +33,32 @@ def test_transaction_rows_resolve_creator_names() -> None:
     assert [row.transaction_type for row in rows] == ["Trade", "Add"]
     assert [row.user for row in rows] == ["Second User", "First User"]
     assert [row.transaction_id for row in rows] == ["newer", "older"]
+    assert [row.created_at for row in rows] == [200, 100]
+
+
+def test_transaction_rows_sort_and_format_timestamps() -> None:
+    transactions = TransactionContainer.from_api(
+        [
+            {
+                "transaction_id": "new-year",
+                "type": "free_agent",
+                "creator": "user-1",
+                "created": 1_767_243_600_000,
+            },
+            {
+                "transaction_id": "unknown-time",
+                "type": "free_agent",
+                "creator": "user-1",
+                "created": 0,
+            },
+        ]
+    )
+
+    rows = build_transaction_rows(list(reversed(transactions.transactions)), {})
+
+    assert [row.transaction_id for row in rows] == ["new-year", "unknown-time"]
+    assert rows[0].timestamp == "Jan 1, 2026 · 12:00 AM"
+    assert rows[1].timestamp == "Unknown"
 
 
 # Missing creator identities should not prevent the table from rendering.

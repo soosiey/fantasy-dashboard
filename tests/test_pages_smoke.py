@@ -24,7 +24,7 @@ def test_login_page_renders_without_provider_requests(fake_page_backend) -> None
     app = AppTest.from_file(APP_PATH, default_timeout=10).run()
 
     _assert_page(app, "Fantasy Football Dashboard")
-    assert any("v0.6" in markdown.value for markdown in app.markdown)
+    assert any("v0.7" in markdown.value for markdown in app.markdown)
 
 
 def test_app_reloads_a_stale_cached_version_module(
@@ -38,7 +38,7 @@ def test_app_reloads_a_stale_cached_version_module(
     app = AppTest.from_file(APP_PATH, default_timeout=10).run()
 
     _assert_page(app, "Fantasy Football Dashboard")
-    assert any("v0.6" in markdown.value for markdown in app.markdown)
+    assert any("v0.7" in markdown.value for markdown in app.markdown)
 
 
 def test_app_tolerates_stale_page_source_cache(
@@ -401,6 +401,10 @@ def test_matchups_page_is_available_inside_analysis_mode(authenticated_app) -> N
 
     _assert_page(app, "Matchups")
     assert app.session_state["_analysis_mode"] is True
+    assert any(
+        "Click a player" in caption.value and "position button" in caption.value
+        for caption in app.caption
+    )
     assert any(button.label == "Back to Overview" for button in app.button)
     assert not any(button.label == "Switch Leagues" for button in app.button)
     assert any(

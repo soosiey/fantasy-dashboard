@@ -84,6 +84,7 @@ else:
         transaction_table = pd.DataFrame(
             [
                 {
+                    "Time (ET)": row.timestamp,
                     "Transaction Type": row.transaction_type,
                     "User": row.user,
                     "Details": "View",
@@ -94,14 +95,18 @@ else:
         st.dataframe(
             transaction_table,
             column_config={
-                "Transaction Type": st.column_config.TextColumn(
-                    "Transaction Type",
-                    width="medium",
+                "Time (ET)": st.column_config.TextColumn(
+                    "Time (ET)",
+                    width=165,
                 ),
-                "User": st.column_config.TextColumn("User", width="large"),
+                "Transaction Type": st.column_config.TextColumn(
+                    "Type",
+                    width=115,
+                ),
+                "User": st.column_config.TextColumn("User", width=145),
                 "Details": st.column_config.ButtonColumn(
                     "Details",
-                    width="small",
+                    width=75,
                     type="secondary",
                     on_click=open_transaction_from_button,
                     args=("transactions-click", transaction_ids),

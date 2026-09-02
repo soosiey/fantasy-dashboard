@@ -51,6 +51,29 @@ if analysis_mode:
         unsafe_allow_html=True,
     )
 
+st.markdown(
+    """
+    <style>
+        [class*="st-key-refresh-matchups"] [data-testid="stButton"] button {
+            align-items: center;
+            display: flex;
+            height: 2.5rem;
+            justify-content: center;
+            padding: 0;
+        }
+        [class*="st-key-refresh-matchups"] [data-testid="stButton"] button p {
+            align-items: center;
+            display: flex;
+            justify-content: center;
+            line-height: 1;
+            margin: 0;
+            transform: translateY(-0.05rem);
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 if league_id is None:
     st.warning("Select a league first.")
     st.switch_page("pages/leagues.py")
@@ -101,7 +124,7 @@ with filter_column:
             "↻",
             key="refresh-matchups",
             help="Reload this week's scores and lineups from Sleeper",
-            width="content",
+            width="stretch",
         )
     stats_source = (
         st.segmented_control(
@@ -112,6 +135,11 @@ with filter_column:
         )
         or "Actual"
     )
+
+st.caption(
+    "Tip: Click a player to open their player stats, or click a position button "
+    "to compare the two players in that lineup spot."
+)
 
 sync_query_params(
     league_id=league_id,
