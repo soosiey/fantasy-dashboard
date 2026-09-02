@@ -13,11 +13,11 @@ NON_STARTING_SLOTS = {"BN", "IR", "TAXI"}
 
 @dataclass(frozen=True, slots=True)
 class DraftGradeWeights:
-    strength: float = 0.5
-    roster_fit: float = 0.5
-    cost: float = 0.3
-    bench_depth: float = 0.35
-    wait_cost: float = 0.25
+    strength: float = 0.4
+    roster_fit: float = 0.6
+    cost: float = 0.25
+    bench_depth: float = 0.10
+    wait_cost: float = 0.05
 
 
 @dataclass(frozen=True, slots=True)

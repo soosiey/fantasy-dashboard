@@ -106,7 +106,7 @@ with draft_grades_tab:
                         "Positional strength",
                         0,
                         100,
-                        35 if is_auction_draft else 50,
+                        30 if is_auction_draft else 40,
                         key=f"draft-grade-strength-weight-{league_id}",
                     )
                 with fit_column:
@@ -114,7 +114,7 @@ with draft_grades_tab:
                         "Roster value",
                         0,
                         100,
-                        35 if is_auction_draft else 50,
+                        45 if is_auction_draft else 60,
                         key=f"draft-grade-roster-weight-{league_id}",
                     )
                 cost_weight = 0
@@ -124,7 +124,7 @@ with draft_grades_tab:
                             "Cost efficiency",
                             0,
                             100,
-                            30,
+                            25,
                             key=f"draft-grade-cost-weight-{league_id}",
                         )
                 depth_column, wait_column = st.columns(2)
@@ -133,7 +133,7 @@ with draft_grades_tab:
                         "Bench depth importance",
                         0.0,
                         1.0,
-                        0.35,
+                        0.10,
                         0.05,
                         key=f"draft-grade-depth-weight-{league_id}",
                     )
@@ -142,7 +142,7 @@ with draft_grades_tab:
                         "Position tier-drop importance",
                         0.0,
                         1.0,
-                        0.25,
+                        0.05,
                         0.05,
                         key=f"draft-grade-wait-weight-{league_id}",
                     )

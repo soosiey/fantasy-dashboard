@@ -24,7 +24,7 @@ def test_login_page_renders_without_provider_requests(fake_page_backend) -> None
     app = AppTest.from_file(APP_PATH, default_timeout=10).run()
 
     _assert_page(app, "Fantasy Football Dashboard")
-    assert any("v0.5" in markdown.value for markdown in app.markdown)
+    assert any("v0.6" in markdown.value for markdown in app.markdown)
 
 
 def test_app_reloads_a_stale_cached_version_module(
@@ -38,7 +38,7 @@ def test_app_reloads_a_stale_cached_version_module(
     app = AppTest.from_file(APP_PATH, default_timeout=10).run()
 
     _assert_page(app, "Fantasy Football Dashboard")
-    assert any("v0.5" in markdown.value for markdown in app.markdown)
+    assert any("v0.6" in markdown.value for markdown in app.markdown)
 
 
 def test_app_tolerates_stale_page_source_cache(
@@ -265,15 +265,31 @@ def test_league_predictions_projects_standings_and_tournament(
         next(
             slider for slider in app.slider if slider.label == "Positional strength"
         ).value
-        == 35
+        == 30
     )
     assert (
         next(slider for slider in app.slider if slider.label == "Roster value").value
-        == 35
+        == 45
     )
     assert (
         next(slider for slider in app.slider if slider.label == "Cost efficiency").value
-        == 30
+        == 25
+    )
+    assert (
+        next(
+            slider
+            for slider in app.slider
+            if slider.label == "Bench depth importance"
+        ).value
+        == 0.10
+    )
+    assert (
+        next(
+            slider
+            for slider in app.slider
+            if slider.label == "Position tier-drop importance"
+        ).value
+        == 0.05
     )
     draft_team_filter = next(
         box for box in app.tabs[1].selectbox if box.label == "Team"
