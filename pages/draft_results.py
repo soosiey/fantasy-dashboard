@@ -13,6 +13,7 @@ from fantasy_dashboard.data import (
 )
 from fantasy_dashboard.draft import build_draft_result_rows
 from fantasy_dashboard.routing import (
+    ANALYSIS_MODE_KEY,
     require_authentication,
     resolve_league_id,
     sync_query_params,
@@ -39,6 +40,12 @@ with refresh_column:
         key="refresh-draft-results",
         help="Reload draft results from Sleeper",
         width="content",
+    )
+
+if not st.session_state.get(ANALYSIS_MODE_KEY):
+    st.warning(
+        "For draft analysis and grading, enter Analysis and open the League "
+        "Predictions page."
     )
 
 if not draft_id or draft_id == "None":

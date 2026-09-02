@@ -64,6 +64,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 st.title("League Predictions")
+st.info(
+    "Draft grades assess each roster as it was originally drafted. Season "
+    "predictions use the current roster, record, schedule, and projection state, "
+    "so the two outlooks may differ."
+)
 
 draft_grades_tab, season_predictions_tab = st.tabs(
     ["Draft Grades", "Season Predictions"]
@@ -160,7 +165,14 @@ with draft_grades_tab:
                     enough future selections to fill every required starting slot.
                     For auction drafts, cost efficiency compares the winning bid to
                     a fair value recalculated from the players, roster spots, and
-                    realized dollars remaining immediately before that bid.
+                    realized dollars remaining immediately before that bid. **Bench
+                    depth importance** controls how much above-replacement value from
+                    non-starters contributes to roster value; higher settings reward
+                    depth more, while lower settings prioritize the starting lineup.
+                    **Position tier-drop importance** controls how strongly a pick is
+                    rewarded for avoiding the projected drop at that position before
+                    the owner's next selection; higher settings make the cost of
+                    waiting more influential.
                     """)
 
             draft_grade_weights = DraftGradeWeights(

@@ -209,6 +209,10 @@ def test_auction_draft_results_omit_pick_round(authenticated_app) -> None:
     app.switch_page("pages/draft_results.py").run()
 
     _assert_page(app, "Draft Results")
+    assert any(
+        "enter Analysis and open the League Predictions page" in warning.value
+        for warning in app.warning
+    )
     markup = " ".join(markdown.value for markdown in app.markdown)
     assert "<th>Round</th>" not in markup
     assert 'class="draft-round"' not in markup
@@ -242,6 +246,10 @@ def test_league_predictions_projects_standings_and_tournament(
 
     _assert_page(app, "League Predictions")
     assert app.session_state["_analysis_mode"] is True
+    assert any(
+        "originally drafted" in info.value and "current roster" in info.value
+        for info in app.info
+    )
     assert [tab.label for tab in app.tabs] == [
         "Draft Grades",
         "Per Pick",
@@ -291,6 +299,9 @@ def test_league_predictions_projects_standings_and_tournament(
         ).value
         == 0.05
     )
+    weight_markup = " ".join(markdown.value for markdown in app.markdown)
+    assert "non-starters contributes to roster value" in weight_markup
+    assert "waiting more influential" in weight_markup
     draft_team_filter = next(
         box for box in app.tabs[1].selectbox if box.label == "Team"
     )
