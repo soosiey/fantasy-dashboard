@@ -221,3 +221,6 @@ __marimo__/
 # Locally collected fantasy data, caches, databases, and provider snapshots
 /data/
 /nfl_players.json
+
+# Generated calibration reports
+/analysis/results/

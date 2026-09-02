@@ -18,11 +18,11 @@ import requests
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from fantasy_dashboard.league_predictions import (  # noqa: E402
+from fantasy_dashboard.league_predictions import (
     DEFAULT_WEEKLY_CV,
     POSITION_WEEKLY_CV,
 )
-from fantasy_dashboard.player_stats import calculate_fantasy_points  # noqa: E402
+from fantasy_dashboard.player_stats import calculate_fantasy_points
 
 POSITIONS = ("QB", "RB", "WR", "TE", "K", "DEF")
 DEFAULT_POOL = {
@@ -114,9 +114,7 @@ def load_scoring_settings(
                     {key: float(value) for key, value in settings.items()},
                     f"latest saved half-PPR league {league_id}",
                 )
-    raise RuntimeError(
-        "No half-PPR scoring settings found. Pass --scoring-league-id."
-    )
+    raise RuntimeError("No half-PPR scoring settings found. Pass --scoring-league-id.")
 
 
 def participated(position: str, stats: dict[str, Any]) -> bool:
@@ -125,9 +123,7 @@ def participated(position: str, stats: dict[str, Any]) -> bool:
     if position == "QB":
         return bool(stats.get("pass_att") or stats.get("rush_att"))
     if position in {"RB", "WR", "TE"}:
-        return bool(
-            stats.get("rush_att") or stats.get("rec_tgt") or stats.get("rec")
-        )
+        return bool(stats.get("rush_att") or stats.get("rec_tgt") or stats.get("rec"))
     if position == "K":
         return bool(stats.get("fga") or stats.get("xpa"))
     return position == "DEF"
@@ -175,9 +171,7 @@ def select_starter_pool(
     for season in seasons:
         for position in POSITIONS:
             candidates = [
-                row
-                for row in rows
-                if row.season == season and row.position == position
+                row for row in rows if row.season == season and row.position == position
             ]
             candidates.sort(
                 key=lambda row: (row.mean, float(np.sum(row.points))),
@@ -188,17 +182,13 @@ def select_starter_pool(
 
 
 def variance_coefficient(rows: list[PlayerSeason]) -> float:
-    numerator = sum(
-        float(np.sum((row.points - row.mean) ** 2)) for row in rows
-    )
+    numerator = sum(float(np.sum((row.points - row.mean) ** 2)) for row in rows)
     denominator = sum(len(row.points) * row.mean**2 for row in rows)
     return math.sqrt(numerator / denominator)
 
 
 def standard_deviation_ols(rows: list[PlayerSeason]) -> float:
-    numerator = sum(
-        row.mean * row.standard_deviation for row in rows
-    )
+    numerator = sum(row.mean * row.standard_deviation for row in rows)
     denominator = sum(row.mean**2 for row in rows)
     return numerator / denominator
 
@@ -207,11 +197,7 @@ def log_standard_deviation_regression(
     rows: list[PlayerSeason],
     seasons: list[int],
 ) -> dict[str, Any]:
-    usable = [
-        row
-        for row in rows
-        if row.mean > 0 and row.standard_deviation > 0
-    ]
+    usable = [row for row in rows if row.mean > 0 and row.standard_deviation > 0]
     baseline = seasons[0]
     columns = [
         np.ones(len(usable)),
@@ -219,9 +205,7 @@ def log_standard_deviation_regression(
     ]
     for season in seasons[1:]:
         columns.append(
-            np.asarray(
-                [1.0 if row.season == season else 0.0 for row in usable]
-            )
+            np.asarray([1.0 if row.season == season else 0.0 for row in usable])
         )
     features = np.column_stack(columns)
     target = np.log([row.standard_deviation for row in usable])
@@ -229,9 +213,7 @@ def log_standard_deviation_regression(
     fitted = features @ coefficients
     denominator = float(np.sum((target - np.mean(target)) ** 2))
     r_squared = (
-        1 - float(np.sum((target - fitted) ** 2)) / denominator
-        if denominator
-        else 0.0
+        1 - float(np.sum((target - fitted) ** 2)) / denominator if denominator else 0.0
     )
     return {
         "baseline_season": baseline,
@@ -255,15 +237,9 @@ def bootstrap_interval(
     rng = np.random.default_rng(seed)
     estimates = []
     for _ in range(draws):
-        sample = [
-            rows[index]
-            for index in rng.integers(0, len(rows), len(rows))
-        ]
+        sample = [rows[index] for index in rng.integers(0, len(rows), len(rows))]
         estimates.append(variance_coefficient(sample))
-    return [
-        float(value)
-        for value in np.quantile(estimates, [0.025, 0.975])
-    ]
+    return [float(value) for value in np.quantile(estimates, [0.025, 0.975])]
 
 
 def normal_log_score(rows: list[PlayerSeason], coefficient: float) -> float:
@@ -271,9 +247,7 @@ def normal_log_score(rows: list[PlayerSeason], coefficient: float) -> float:
     for row in rows:
         deviation = max(1.0, coefficient * row.mean)
         residual = row.points - row.mean
-        terms.extend(
-            np.log(deviation) + 0.5 * (residual / deviation) ** 2
-        )
+        terms.extend(np.log(deviation) + 0.5 * (residual / deviation) ** 2)
     return float(np.mean(terms))
 
 
@@ -285,9 +259,7 @@ def one_standard_deviation_coverage(
     total = 0
     for row in rows:
         deviation = max(1.0, coefficient * row.mean)
-        covered += int(
-            np.sum(np.abs(row.points - row.mean) <= deviation)
-        )
+        covered += int(np.sum(np.abs(row.points - row.mean) <= deviation))
         total += len(row.points)
     return covered / total
 
@@ -312,9 +284,7 @@ def calibrate(
         current = current_coefficient(position)
         by_season = {}
         for season in seasons:
-            season_rows = [
-                row for row in position_rows if row.season == season
-            ]
+            season_rows = [row for row in position_rows if row.season == season]
             by_season[str(season)] = (
                 variance_coefficient(season_rows) if season_rows else None
             )
@@ -322,12 +292,8 @@ def calibrate(
         holdout = None
         if len(seasons) >= 2:
             latest = seasons[-1]
-            training = [
-                row for row in position_rows if row.season < latest
-            ]
-            testing = [
-                row for row in position_rows if row.season == latest
-            ]
+            training = [row for row in position_rows if row.season < latest]
+            testing = [row for row in position_rows if row.season == latest]
             if training and testing:
                 training_fit = variance_coefficient(training)
                 current_score = normal_log_score(testing, current)
@@ -378,7 +344,7 @@ def calibrate(
 
 def default_output(seasons: list[int]) -> Path:
     suffix = "_".join(str(season) for season in seasons)
-    return Path("analysis/results") / f"positional_cv_{suffix}.json"
+    return REPO_ROOT / "analysis/results" / f"positional_cv_{suffix}.json"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -391,12 +357,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--database",
         type=Path,
-        default=Path("data/fantasy_dashboard.sqlite3"),
+        default=REPO_ROOT / "data/fantasy_dashboard.sqlite3",
     )
     parser.add_argument(
         "--players",
         type=Path,
-        default=Path("data/nfl_players.json"),
+        default=REPO_ROOT / "data/nfl_players.json",
     )
     parser.add_argument("--min-games", type=int, default=8)
     parser.add_argument(
@@ -446,8 +412,7 @@ def main() -> None:
             "minimum_participating_games": args.min_games,
             "starter_pool_size_per_season": args.starter_pool,
             "participation": (
-                "position-specific recorded opportunity; DEF requires a "
-                "played game"
+                "position-specific recorded opportunity; DEF requires a played game"
             ),
             "bootstrap_draws": args.bootstrap_draws,
             "seed": args.seed,
