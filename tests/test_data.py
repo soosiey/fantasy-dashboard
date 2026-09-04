@@ -236,6 +236,117 @@ def test_projected_stats_reuse_normalized_week_cache(monkeypatch, tmp_path) -> N
     assert mapping_calls == 1
 
 
+def test_empty_normalized_projection_cache_is_rebuilt_from_saved_raw_data(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    raw_path = tmp_path / "raw" / "2026.json"
+    normalized_path = tmp_path / "weekly" / "espn" / "2026" / "regular" / "week_4.json"
+    raw_path.parent.mkdir(parents=True)
+    normalized_path.parent.mkdir(parents=True)
+    raw_path.write_text('{"players": [{"player": {"id": 1}}]}')
+    normalized_path.write_text("{}")
+    requested_max_ages: list[timedelta] = []
+
+    class FakeEspnClient:
+        def get_nfl_projections(
+            self,
+            season: str,
+            cache_path,
+            *,
+            max_age: timedelta,
+        ) -> dict:
+            requested_max_ages.append(max_age)
+            return {"players": [{"player": {"id": 1}}]}
+
+    monkeypatch.setattr(data, "WEEKLY_STATS_CACHE_DIR", tmp_path / "weekly")
+    monkeypatch.setattr(data, "ESPN_PROJECTIONS_CACHE_DIR", tmp_path / "raw")
+    monkeypatch.setattr(data, "EspnClient", FakeEspnClient)
+    monkeypatch.setattr(
+        data,
+        "map_projections_to_sleeper",
+        lambda *args: {"player-1": {"pass_yd": 275.0}},
+    )
+    monkeypatch.setattr(data, "get_nfl_players", dict)
+    data._read_json_cache.clear()
+
+    stats = data.get_projected_player_stats("2026", 4)
+
+    assert stats == {"player-1": {"pass_yd": 275.0}}
+    assert requested_max_ages == [data.CURRENT_PROJECTION_CACHE_MAX_AGE]
+    assert json.loads(normalized_path.read_text()) == stats
+
+
+def test_empty_projection_caches_force_an_immediate_espn_request(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    raw_path = tmp_path / "raw" / "2026.json"
+    normalized_path = tmp_path / "weekly" / "espn" / "2026" / "regular" / "week_4.json"
+    raw_path.parent.mkdir(parents=True)
+    normalized_path.parent.mkdir(parents=True)
+    raw_path.write_text('{"players": []}')
+    normalized_path.write_text("{}")
+    requested_max_ages: list[timedelta] = []
+
+    class FakeEspnClient:
+        def get_nfl_projections(
+            self,
+            season: str,
+            cache_path,
+            *,
+            max_age: timedelta,
+        ) -> dict:
+            requested_max_ages.append(max_age)
+            return {"players": [{"player": {"id": 1}}]}
+
+    monkeypatch.setattr(data, "WEEKLY_STATS_CACHE_DIR", tmp_path / "weekly")
+    monkeypatch.setattr(data, "ESPN_PROJECTIONS_CACHE_DIR", tmp_path / "raw")
+    monkeypatch.setattr(data, "EspnClient", FakeEspnClient)
+    monkeypatch.setattr(
+        data,
+        "map_projections_to_sleeper",
+        lambda *args: {"player-1": {"pass_yd": 275.0}},
+    )
+    monkeypatch.setattr(data, "get_nfl_players", dict)
+    data._read_json_cache.clear()
+
+    assert data.get_projected_player_stats("2026", 4) == {
+        "player-1": {"pass_yd": 275.0}
+    }
+    assert requested_max_ages == [timedelta(0)]
+
+
+def test_empty_projection_refresh_preserves_last_usable_normalized_cache(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    normalized_path = tmp_path / "weekly" / "espn" / "2026" / "regular" / "week_4.json"
+    normalized_path.parent.mkdir(parents=True)
+    saved_stats = {"player-1": {"pass_yd": 250.0}}
+    normalized_path.write_text(json.dumps(saved_stats))
+
+    class FakeEspnClient:
+        def get_nfl_projections(self, *args, **kwargs) -> dict:
+            return {"players": []}
+
+    monkeypatch.setattr(data, "WEEKLY_STATS_CACHE_DIR", tmp_path / "weekly")
+    monkeypatch.setattr(data, "ESPN_PROJECTIONS_CACHE_DIR", tmp_path / "raw")
+    monkeypatch.setattr(data, "EspnClient", FakeEspnClient)
+    monkeypatch.setattr(data, "map_projections_to_sleeper", lambda *args: {})
+    monkeypatch.setattr(data, "get_nfl_players", dict)
+    data._read_json_cache.clear()
+
+    stats = data.refresh_projected_player_stats_cache(
+        "2026",
+        4,
+        force_provider=True,
+    )
+
+    assert stats == saved_stats
+    assert json.loads(normalized_path.read_text()) == saved_stats
+
+
 def test_projected_stats_report_raw_espn_refresh_and_rebuild_stale_normalized_cache(
     monkeypatch,
     tmp_path,

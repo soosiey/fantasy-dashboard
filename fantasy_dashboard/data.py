@@ -141,6 +141,20 @@ def _load_json_cache(path: Path) -> dict[str, Any]:
     return _read_json_cache(str(path), path.stat().st_mtime_ns)
 
 
+def _has_projection_records(path: Path, *, raw: bool = False) -> bool:
+    """Reject empty projection files so they cannot suppress a provider refresh."""
+    if not path.exists():
+        return False
+    try:
+        value = _load_json_cache(path)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+    if raw:
+        players = value.get("players")
+        return isinstance(players, list) and bool(players)
+    return bool(value)
+
+
 def _cache_updated_at(path: Path) -> datetime:
     return datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
 
@@ -556,21 +570,31 @@ def get_projected_player_stats(
     _clear_data_update("projected_player_stats", season, week)
     normalized_path = _stats_cache_path("espn", season, "regular", week)
     raw_cache_path = ESPN_PROJECTIONS_CACHE_DIR / f"{season}.json"
+    has_normalized_projections = _has_projection_records(normalized_path)
     normalized_is_older_than_raw = (
-        normalized_path.exists()
+        has_normalized_projections
         and raw_cache_path.exists()
         and normalized_path.stat().st_mtime_ns < raw_cache_path.stat().st_mtime_ns
     )
-    if not normalized_path.exists() or normalized_is_older_than_raw:
-        refresh_projected_player_stats_cache(season, week)
-    stats = _load_json_cache(normalized_path)
+    if not has_normalized_projections or normalized_is_older_than_raw:
+        stats = refresh_projected_player_stats_cache(
+            season,
+            week,
+            force_provider=not _has_projection_records(raw_cache_path, raw=True),
+        )
+    else:
+        stats = _load_json_cache(normalized_path)
     provider_cache_path = raw_cache_path if raw_cache_path.exists() else normalized_path
     _record_data_update(
         "ESPN",
         "projected_player_stats",
         season,
         week,
-        updated_at=_cache_updated_at(provider_cache_path),
+        updated_at=(
+            _cache_updated_at(provider_cache_path)
+            if provider_cache_path.exists()
+            else None
+        ),
     )
     return {
         str(player_id): {
@@ -603,9 +627,16 @@ def refresh_projected_player_stats_cache(
         week,
     )
     normalized_path = _stats_cache_path("espn", season, "regular", week)
-    _write_json_cache(normalized_path, stats)
-    _read_json_cache.clear()
-    return stats
+    if stats:
+        _write_json_cache(normalized_path, stats)
+        _read_json_cache.clear()
+        return stats
+
+    # A transient empty provider response or an unavailable player catalog must
+    # not replace the last usable projection set with a six-hour zero cache.
+    if _has_projection_records(normalized_path):
+        return _load_json_cache(normalized_path)
+    return {}
 
 
 def refresh_current_week_input_data(*, force: bool = False) -> tuple[str, str, int]:
