@@ -26,15 +26,17 @@ other changes to provider accounts.
 
 ## Production documentation
 
+Production documentation is published from the
+[Productions reference in Notion](https://iodized-spectacles-a8e.notion.site/Productions-3d6c7de02bd2814bb22ed15345a69f60).
 The detailed production baseline is maintained in the
-[1.0 Release reference in Notion](https://app.notion.com/p/3d6c7de02bd281cd8e52d45d957642ab).
+[1.0 Release reference](https://iodized-spectacles-a8e.notion.site/1-0-Release-3d6c7de02bd281cd8e52d45d957642ab).
 It contains:
 
-- [Application State Diagram](https://app.notion.com/p/3d6c7de02bd2815f992adb34240be7d7)
-- [Python File Inventory](https://app.notion.com/p/3d6c7de02bd2817b923df03729287f9d)
-- [Mathematical & Inference Reference](https://app.notion.com/p/3d6c7de02bd281e1959ecf5dc74d16c2)
-- [Caching & Refresh Reference](https://app.notion.com/p/3d6c7de02bd281e9997ae8b0c34d8fdd)
-- [Data Sources & Endpoints](https://app.notion.com/p/3d6c7de02bd281a5b8d3d78d81161194)
+- [Application State Diagram](https://iodized-spectacles-a8e.notion.site/Application-State-Diagram-3d6c7de02bd2815f992adb34240be7d7)
+- [Python File Inventory](https://iodized-spectacles-a8e.notion.site/Python-File-Inventory-3d6c7de02bd2817b923df03729287f9d)
+- [Mathematical & Inference Reference](https://iodized-spectacles-a8e.notion.site/Mathematical-Inference-Reference-3d6c7de02bd281e1959ecf5dc74d16c2)
+- [Caching & Refresh Reference](https://iodized-spectacles-a8e.notion.site/Caching-Refresh-Reference-3d6c7de02bd281e9997ae8b0c34d8fdd)
+- [Data Sources & Endpoints](https://iodized-spectacles-a8e.notion.site/Data-Sources-Endpoints-3d6c7de02bd281a5b8d3d78d81161194)
 
 The Notion pages document the 1.0 production baseline. Version 1.1 additionally
 introduces the global live-game indicator and persistent completed-draft analysis
@@ -151,7 +153,7 @@ Completed-draft analysis is persistent:
   frozen.
 
 See the
-[Caching & Refresh Reference](https://app.notion.com/p/3d6c7de02bd281e9997ae8b0c34d8fdd)
+[Caching & Refresh Reference](https://iodized-spectacles-a8e.notion.site/Caching-Refresh-Reference-3d6c7de02bd281e9997ae8b0c34d8fdd)
 for the complete refresh policy.
 
 ## Historical snapshots
