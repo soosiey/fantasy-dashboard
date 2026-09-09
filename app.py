@@ -27,6 +27,7 @@ from fantasy_dashboard.routing import (
 # Streamlit hot reloads app.py but can retain imported modules from the previous
 # deployment. Reload the tiny version module so the release badge tracks GitHub.
 VERSION = reload(version_module).VERSION
+GITHUB_URL = "https://github.com/soosiey/fantasy-dashboard"
 
 # Refresh the shared player cache without preventing the app from starting on failure.
 try:
@@ -329,14 +330,28 @@ if refresh_disabled:
         f"{format_cooldown(refresh_cooldown.total_seconds())}"
     )
 
-if authenticated:
-    with st.bottom:
-        st.button(
-            "Refresh Current Week",
-            key="refresh-current-week-input-data",
-            help=refresh_help,
-            disabled=refresh_disabled,
-            on_click=request_current_week_refresh,
+with st.bottom:
+    if authenticated:
+        refresh_column, github_column = st.columns(2)
+        with refresh_column:
+            st.button(
+                "Refresh Current Week",
+                key="refresh-current-week-input-data",
+                help=refresh_help,
+                disabled=refresh_disabled,
+                on_click=request_current_week_refresh,
+                width="stretch",
+            )
+    else:
+        github_column = st.container()
+
+    with github_column:
+        st.link_button(
+            "Go to GitHub",
+            GITHUB_URL,
+            icon=":material/arrow_outward:",
+            icon_position="right",
+            width="stretch",
         )
 
 if st.session_state.pop("_refresh_current_week_input_data", False):

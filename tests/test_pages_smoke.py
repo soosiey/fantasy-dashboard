@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+import streamlit as st
 from streamlit.testing.v1 import AppTest
 
 from fantasy_dashboard.components.comparison_selection import COMPARISON_COLUMN
@@ -28,6 +29,33 @@ def test_login_page_renders_without_provider_requests(fake_page_backend) -> None
     assert any(
         'data-game-active="false"' in markdown.value for markdown in app.markdown
     )
+
+
+def test_global_github_button_links_to_project(
+    monkeypatch,
+    fake_page_backend,
+) -> None:
+    link_button_calls: list[tuple[str, str, dict[str, object]]] = []
+
+    def capture_link_button(label: str, url: str, **kwargs) -> None:
+        link_button_calls.append((label, url, kwargs))
+
+    monkeypatch.setattr(st, "link_button", capture_link_button)
+
+    app = AppTest.from_file(APP_PATH, default_timeout=10).run()
+
+    _assert_page(app, "Fantasy Football Dashboard")
+    assert link_button_calls == [
+        (
+            "Go to GitHub",
+            "https://github.com/soosiey/fantasy-dashboard",
+            {
+                "icon": ":material/arrow_outward:",
+                "icon_position": "right",
+                "width": "stretch",
+            },
+        )
+    ]
 
 
 def test_app_reloads_a_stale_cached_version_module(
