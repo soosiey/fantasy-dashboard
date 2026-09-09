@@ -2,4 +2,4 @@ from about.version import VERSION
 
 
 def test_current_version() -> None:
-    assert VERSION == "1.0"
+    assert VERSION == "1.1"

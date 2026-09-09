@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from fantasy_dashboard import data
+from fantasy_dashboard import data, draft_analysis_cache
 from fantasy_dashboard.clients.sleeper import SleeperClient
 from fantasy_dashboard.components import player_news
 from fantasy_dashboard.models.bracket import BracketContainer
@@ -31,6 +31,11 @@ def fake_page_backend(monkeypatch, tmp_path) -> SleeperUser:
         data,
         "MANUAL_REFRESH_STATE_PATH",
         tmp_path / "manual_refresh.json",
+    )
+    monkeypatch.setattr(
+        draft_analysis_cache,
+        "DRAFT_ANALYSIS_CACHE_DIR",
+        tmp_path / "draft_analysis",
     )
     league = LeagueModel.from_api(
         {

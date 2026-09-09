@@ -8,6 +8,8 @@ from fantasy_dashboard.clients.sleeper import SleeperClient
 from fantasy_dashboard.data import (
     PLAYER_CATALOG_MAX_AGE,
     get_manual_refresh_cooldown_remaining,
+    get_nfl_schedule,
+    has_live_nfl_game,
     record_manual_refresh,
     refresh_current_week_input_data,
 )
@@ -44,9 +46,16 @@ user_id = st.session_state.get("user_id")
 league_visibility = "visible" if authenticated and league_id else "hidden"
 
 # Refresh stale current-week inputs after login while retaining disk fallbacks.
+game_active = False
 if authenticated:
     try:
-        refresh_current_week_input_data()
+        current_season, current_season_type, current_week = (
+            refresh_current_week_input_data()
+        )
+        game_active = has_live_nfl_game(
+            get_nfl_schedule(current_season, current_season_type),
+            current_week,
+        )
     except (OSError, TypeError, ValueError, requests.RequestException) as error:
         st.warning(f"Unable to refresh current-week player data: {error}")
 
@@ -387,10 +396,45 @@ with st.sidebar:
             icon_position="right",
         )
 
-# Keep the release identifier visible independently of the active app state.
+# Keep live-game and release status visible independently of the active app state.
+game_status_class = "active" if game_active else "inactive"
+game_status_description = (
+    "An NFL game is live; dashboard data uses live refresh intervals."
+    if game_active
+    else "No NFL game is currently live; standard refresh intervals apply."
+)
 st.markdown(
     f"""
     <style>
+    .game-status-indicator {{
+        position: fixed;
+        right: 0.9rem;
+        top: 3.6rem;
+        z-index: 10000;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.42rem;
+        color: var(--text-color);
+        background: color-mix(in srgb, var(--background-color) 92%, transparent);
+        border: 1px solid color-mix(in srgb, var(--text-color) 18%, transparent);
+        border-radius: 999px;
+        padding: 0.3rem 0.62rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        line-height: 1rem;
+        pointer-events: none;
+    }}
+    .game-status-light {{
+        width: 0.58rem;
+        height: 0.58rem;
+        flex: 0 0 0.58rem;
+        border-radius: 50%;
+        background: #9ca3af;
+    }}
+    .game-status-indicator.active .game-status-light {{
+        background: #22c55e;
+        box-shadow: 0 0 0.38rem rgba(34, 197, 94, 0.8);
+    }}
     .app-version-indicator {{
         position: fixed;
         right: 0.9rem;
@@ -407,6 +451,15 @@ st.markdown(
         pointer-events: none;
     }}
     </style>
+    <div
+        class="game-status-indicator {game_status_class}"
+        aria-label="{game_status_description}"
+        title="{game_status_description}"
+        data-game-active="{str(game_active).lower()}"
+    >
+        <span class="game-status-light" aria-hidden="true"></span>
+        <span>Game Active</span>
+    </div>
     <div class="app-version-indicator" aria-label="Application version">
         v{VERSION}
     </div>

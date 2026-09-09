@@ -30,6 +30,10 @@ from fantasy_dashboard.data import (
     get_rosters,
     get_weekly_matchup_schedules,
 )
+from fantasy_dashboard.draft_analysis_cache import (
+    load_or_create_draft_pick_grades,
+    load_or_create_draft_team_projections,
+)
 from fantasy_dashboard.draft_grading import DraftGradeWeights, grade_draft_picks
 from fantasy_dashboard.league_predictions import (
     build_optimized_week_matchups,
@@ -48,34 +52,47 @@ from fantasy_dashboard.routing import (
     resolve_league_id,
 )
 
-DRAFT_ANALYSIS_CACHE_TTL_SECONDS = 6 * 60 * 60
+INCOMPLETE_DRAFT_LEAGUE_STATUSES = {"pre_draft", "drafting"}
 
 
-@st.cache_data(ttl=DRAFT_ANALYSIS_CACHE_TTL_SECONDS, show_spinner=False)
-def _cached_draft_pick_grades(
+def _draft_pick_grades(
+    draft_id,
     league,
     picks,
     players,
     projections,
     weights,
 ):
-    return grade_draft_picks(league, picks, players, projections, weights)
+    calculate = lambda: grade_draft_picks(league, picks, players, projections, weights)
+    if league.status.casefold() in INCOMPLETE_DRAFT_LEAGUE_STATUSES:
+        return calculate()
+    return load_or_create_draft_pick_grades(
+        draft_id,
+        weights,
+        calculate,
+    )
 
 
-@st.cache_data(ttl=DRAFT_ANALYSIS_CACHE_TTL_SECONDS, show_spinner=False)
-def _cached_draft_team_projections(
+def _draft_team_projections(
+    draft_id,
     league,
     picks,
     teams,
     players,
     projections,
 ):
-    return project_draft_championship_odds(
+    calculate = lambda: project_draft_championship_odds(
         league,
         picks,
         teams,
         players,
         projections,
+    )
+    if league.status.casefold() in INCOMPLETE_DRAFT_LEAGUE_STATUSES:
+        return calculate()
+    return load_or_create_draft_team_projections(
+        draft_id,
+        calculate,
     )
 
 
@@ -134,17 +151,10 @@ with draft_grades_tab:
             is_auction_draft = any(
                 pick.amount is not None for pick in draft_grade_picks.picks
             )
-            if st.button(
-                "Refresh Draft Grading & Simulation",
-                key=f"refresh-draft-analysis-{league_id}",
-                help=(
-                    "Recalculate the per-pick grades and 5,000-season simulation "
-                    "using the currently loaded draft and projection data."
-                ),
-            ):
-                _cached_draft_pick_grades.clear()
-                _cached_draft_team_projections.clear()
-                st.toast("Draft grading and simulation refreshed.")
+            st.caption(
+                "Completed-draft grades and simulation results are calculated once "
+                "and then loaded from persistent storage."
+            )
 
             with st.expander("Pick score weights"):
                 score_columns = st.columns(3 if is_auction_draft else 2)
@@ -225,14 +235,16 @@ with draft_grades_tab:
                 bench_depth=float(bench_depth_weight),
                 wait_cost=float(wait_cost_weight),
             )
-            draft_pick_grades = _cached_draft_pick_grades(
+            draft_pick_grades = _draft_pick_grades(
+                draft_id,
                 draft_grade_league,
                 draft_grade_picks.picks,
                 draft_grade_players,
                 draft_grade_projections,
                 draft_grade_weights,
             )
-            draft_team_projections = _cached_draft_team_projections(
+            draft_team_projections = _draft_team_projections(
+                draft_id,
                 draft_grade_league,
                 draft_grade_picks.picks,
                 draft_grade_team_list,

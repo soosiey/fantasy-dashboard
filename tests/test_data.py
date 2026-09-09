@@ -551,6 +551,18 @@ def test_projection_cache_is_six_hourly_except_when_a_game_is_live() -> None:
     )
 
 
+def test_live_game_detection_can_be_limited_to_the_current_week() -> None:
+    games = [
+        {"week": 1, "status": "complete"},
+        {"week": 2, "status": "in_progress"},
+        {"week": 3, "status": "pre_game"},
+    ]
+
+    assert data.has_live_nfl_game(games)
+    assert data.has_live_nfl_game(games, 2)
+    assert not data.has_live_nfl_game(games, 1)
+
+
 def test_manual_refresh_cooldown_persists_for_six_hours(
     monkeypatch,
     tmp_path,

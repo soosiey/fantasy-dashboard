@@ -24,7 +24,10 @@ def test_login_page_renders_without_provider_requests(fake_page_backend) -> None
     app = AppTest.from_file(APP_PATH, default_timeout=10).run()
 
     _assert_page(app, "Fantasy Football Dashboard")
-    assert any("v1.0" in markdown.value for markdown in app.markdown)
+    assert any("v1.1" in markdown.value for markdown in app.markdown)
+    assert any(
+        'data-game-active="false"' in markdown.value for markdown in app.markdown
+    )
 
 
 def test_app_reloads_a_stale_cached_version_module(
@@ -38,7 +41,25 @@ def test_app_reloads_a_stale_cached_version_module(
     app = AppTest.from_file(APP_PATH, default_timeout=10).run()
 
     _assert_page(app, "Fantasy Football Dashboard")
-    assert any("v1.0" in markdown.value for markdown in app.markdown)
+    assert any("v1.1" in markdown.value for markdown in app.markdown)
+
+
+def test_global_game_status_indicator_shows_live_game(
+    monkeypatch,
+    authenticated_app,
+) -> None:
+    from fantasy_dashboard import data
+
+    monkeypatch.setattr(
+        data,
+        "get_nfl_schedule",
+        lambda *args: [{"week": 1, "status": "in_progress"}],
+    )
+
+    app = authenticated_app()
+
+    _assert_page(app, "Overview")
+    assert any('data-game-active="true"' in markdown.value for markdown in app.markdown)
 
 
 def test_app_tolerates_stale_page_source_cache(
@@ -249,13 +270,13 @@ def test_league_predictions_projects_standings_and_tournament(
 
     _assert_page(app, "League Predictions")
     assert app.session_state["_analysis_mode"] is True
-    refresh_draft_analysis = next(
-        button
-        for button in app.button
-        if button.label == "Refresh Draft Grading & Simulation"
+    assert not any(
+        button.label == "Refresh Draft Grading & Simulation" for button in app.button
     )
-    refresh_draft_analysis.click().run()
-    _assert_page(app, "League Predictions")
+    assert any(
+        "loaded from persistent storage" in caption.value
+        for caption in app.caption
+    )
     assert any(
         "originally drafted" in info.value and "current roster" in info.value
         for info in app.info

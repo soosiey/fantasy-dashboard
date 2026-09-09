@@ -52,6 +52,23 @@ class DataUpdate:
 _DATA_UPDATES: dict[str, DataUpdate] = {}
 
 
+def has_live_nfl_game(games: list[dict[str, Any]], week: int | None = None) -> bool:
+    """Return whether the supplied schedule contains a live game for ``week``."""
+    for game in games:
+        if not isinstance(game, dict):
+            continue
+        if week is not None:
+            try:
+                if int(game.get("week") or 0) != week:
+                    continue
+            except (TypeError, ValueError):
+                continue
+        status = str(game.get("status") or "").casefold()
+        if status in LIVE_GAME_STATUSES:
+            return True
+    return False
+
+
 def _data_update_key(resource: str, *identifiers: object) -> str:
     return ":".join([resource, *(str(identifier) for identifier in identifiers)])
 

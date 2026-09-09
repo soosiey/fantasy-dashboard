@@ -173,7 +173,7 @@ class RotoworldClient:
         seen_items: set[tuple[str, str]] = set()
         headers = {
             "User-Agent": (
-                "Mozilla/5.0 (compatible; FantasyDashboard/1.0; "
+                "Mozilla/5.0 (compatible; FantasyDashboard/1.1; "
                 "+https://www.nbcsports.com/fantasy/football/player-news)"
             )
         }
