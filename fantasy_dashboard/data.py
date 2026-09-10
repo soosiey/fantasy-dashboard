@@ -14,6 +14,10 @@ from fantasy_dashboard.clients.espn import (
     map_projections_to_sleeper,
 )
 from fantasy_dashboard.clients.sleeper import SleeperClient
+from fantasy_dashboard.live_projections import (
+    build_live_projections,
+    parse_espn_live_games,
+)
 from fantasy_dashboard.models.bracket import BracketContainer
 from fantasy_dashboard.models.draft import DraftPickContainer
 from fantasy_dashboard.models.league import (
@@ -454,6 +458,11 @@ def get_nfl_schedule(
     return schedule
 
 
+@st.cache_data(ttl=15, max_entries=8, show_spinner=False)
+def get_espn_nfl_scoreboard(season: str, week: int) -> dict[str, Any]:
+    return EspnClient().get_nfl_schedule(season, week)
+
+
 def get_player_weekly_stats(
     player_id: str,
     season: str,
@@ -716,6 +725,7 @@ def refresh_current_week_input_data(*, force: bool = False) -> tuple[str, str, i
         _stats_cache_path("espn", season, "regular", week),
         _stats_cache_path("espn", season, "regular", None),
     ]
+    raw_cache_path = ESPN_PROJECTIONS_CACHE_DIR / f"{season}.json"
     projection_max_age = _projection_cache_max_age(current_games)
     # A forced refresh belongs only to actual stats. Projection refreshes follow
     # their own daily/live schedule and are never forced by a UI control.
@@ -728,6 +738,35 @@ def refresh_current_week_input_data(*, force: bool = False) -> tuple[str, str, i
                 projection_week,
                 raw_cache_max_age=projection_max_age,
             )
+
+    # ESPN's published projection record is static after kickoff. During a live
+    # game, turn it into an estimated final stat line using current usage, pace,
+    # score, player availability, and ESPN's live clock/possession context.
+    if has_live_nfl_game(current_games, week) and raw_cache_path.exists():
+        try:
+            baseline = map_projections_to_sleeper(
+                EspnClient._read_cache(raw_cache_path) or {},
+                get_nfl_players(),
+                season,
+                week,
+            )
+            actual = _load_json_cache(actual_paths[0])
+            live_games = parse_espn_live_games(
+                get_espn_nfl_scoreboard(season, week)
+            )
+            adjusted = build_live_projections(
+                baseline,
+                actual,
+                get_nfl_players(),
+                live_games,
+            )
+            if adjusted:
+                _write_json_cache(projection_paths[0], adjusted)
+                _read_json_cache.clear()
+        except (OSError, TypeError, ValueError, requests.RequestException):
+            # Retain the last usable ESPN projection when live context is briefly
+            # unavailable; the next app rerun will try again.
+            pass
 
     return season, season_type, week
 

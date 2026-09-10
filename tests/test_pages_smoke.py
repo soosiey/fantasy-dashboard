@@ -25,7 +25,7 @@ def test_login_page_renders_without_provider_requests(fake_page_backend) -> None
     app = AppTest.from_file(APP_PATH, default_timeout=10).run()
 
     _assert_page(app, "Fantasy Football Dashboard")
-    assert any("v1.1" in markdown.value for markdown in app.markdown)
+    assert any("v1.2" in markdown.value for markdown in app.markdown)
     assert any(
         'data-game-active="false"' in markdown.value for markdown in app.markdown
     )
@@ -69,7 +69,7 @@ def test_app_reloads_a_stale_cached_version_module(
     app = AppTest.from_file(APP_PATH, default_timeout=10).run()
 
     _assert_page(app, "Fantasy Football Dashboard")
-    assert any("v1.1" in markdown.value for markdown in app.markdown)
+    assert any("v1.2" in markdown.value for markdown in app.markdown)
 
 
 def test_global_game_status_indicator_shows_live_game(
