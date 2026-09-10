@@ -76,3 +76,41 @@ def test_unavailable_player_gets_no_remaining_projection() -> None:
     )
 
     assert result["player"] == {"rec_tgt": 1, "rec": 1, "rec_yd": 9}
+
+
+def test_defense_allowed_tiers_are_probabilities_not_additive_stats() -> None:
+    result = build_live_projections(
+        {
+            "SEA": {
+                "pts_allow": 20,
+                "pts_allow_0": 0.1,
+                "pts_allow_7_13": 0.4,
+                "pts_allow_21_27": 0.5,
+                "yds_allow": 320,
+                "yds_allow_200_299": 0.4,
+                "yds_allow_300_349": 0.6,
+                "sack": 3,
+            }
+        },
+        {
+            "SEA": {
+                "pts_allow": 7,
+                "pts_allow_7_13": 1,
+                "yds_allow": 149,
+                "yds_allow_100_199": 1,
+                "sack": 2,
+            }
+        },
+        {"SEA": {"team": "SEA", "position": "DEF", "active": True}},
+        [LiveGameContext("SEA", "NE", 0, 7, 0.5)],
+    )["SEA"]
+
+    point_tiers = [value for key, value in result.items() if key.startswith("pts_allow_")]
+    yard_tiers = [value for key, value in result.items() if key.startswith("yds_allow_")]
+    assert abs(sum(point_tiers) - 1) < 1e-9
+    assert abs(sum(yard_tiers) - 1) < 1e-9
+    assert result["pts_allow_0"] == 0
+    assert result["pts_allow_1_6"] == 0
+    assert result["pts_allow"] >= 7
+    assert result["yds_allow"] >= 149
+    assert result["sack"] > 2

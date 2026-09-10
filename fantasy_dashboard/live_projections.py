@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from math import erf, exp, sqrt
 from numbers import Real
 from typing import Any
 
@@ -145,6 +146,145 @@ def _is_unavailable(player: dict[str, Any]) -> bool:
     } or injury in {"out", "ir", "pup", "suspended"}
 
 
+POINTS_ALLOWED_BUCKETS = {
+    "pts_allow_0": (0, 0),
+    "pts_allow_1_6": (1, 6),
+    "pts_allow_7_13": (7, 13),
+    "pts_allow_14_20": (14, 20),
+    "pts_allow_21_27": (21, 27),
+    "pts_allow_28_34": (28, 34),
+    "pts_allow_35p": (35, None),
+}
+YARDS_ALLOWED_BUCKETS = {
+    "yds_allow_0_100": (0, 100),
+    "yds_allow_100_199": (101, 199),
+    "yds_allow_200_299": (200, 299),
+    "yds_allow_300_349": (300, 349),
+    "yds_allow_350_399": (350, 399),
+    "yds_allow_400_449": (400, 449),
+    "yds_allow_450_499": (450, 499),
+    "yds_allow_500_549": (500, 549),
+    "yds_allow_550p": (550, None),
+}
+
+
+def _expected_remaining_total(
+    baseline_total: float, observed_total: float, elapsed_fraction: float
+) -> float:
+    if elapsed_fraction <= 0:
+        return max(baseline_total, 0)
+    observed_full_game_rate = observed_total / elapsed_fraction
+    observed_weight = elapsed_fraction / (elapsed_fraction + 0.5)
+    blended_full_game_rate = (
+        (1 - observed_weight) * baseline_total
+        + observed_weight * observed_full_game_rate
+    )
+    return max(blended_full_game_rate * (1 - elapsed_fraction), 0)
+
+
+def _poisson_bucket_probabilities(
+    current: int,
+    expected_remaining: float,
+    buckets: dict[str, tuple[int, int | None]],
+) -> dict[str, float]:
+    probabilities = {key: 0.0 for key in buckets}
+    probability = exp(-expected_remaining)
+    covered = 0.0
+    # Seventy remaining points is already deep in the tail for an NFL team.
+    for remaining in range(71):
+        final_total = current + remaining
+        key = next(
+            key
+            for key, (low, high) in buckets.items()
+            if final_total >= low and (high is None or final_total <= high)
+        )
+        probabilities[key] += probability
+        covered += probability
+        probability *= expected_remaining / (remaining + 1)
+    probabilities[next(reversed(buckets))] += max(0.0, 1 - covered)
+    return probabilities
+
+
+def _normal_cdf(value: float) -> float:
+    return 0.5 * (1 + erf(value / sqrt(2)))
+
+
+def _yardage_bucket_probabilities(
+    current: float,
+    expected_remaining: float,
+) -> dict[str, float]:
+    deviation = max(35.0, 4 * sqrt(expected_remaining))
+    below_zero = _normal_cdf(-expected_remaining / deviation)
+    normalizer = max(1 - below_zero, 1e-12)
+
+    def remaining_cdf(value: float) -> float:
+        if value < 0:
+            return 0.0
+        raw = _normal_cdf((value - expected_remaining) / deviation)
+        return _clamp((raw - below_zero) / normalizer, 0.0, 1.0)
+
+    probabilities: dict[str, float] = {}
+    for key, (low, high) in YARDS_ALLOWED_BUCKETS.items():
+        lower_probability = remaining_cdf(low - current - 1)
+        upper_probability = 1.0 if high is None else remaining_cdf(high - current)
+        probabilities[key] = max(0.0, upper_probability - lower_probability)
+    total = sum(probabilities.values())
+    if total:
+        probabilities = {key: value / total for key, value in probabilities.items()}
+    return probabilities
+
+
+def _build_defense_projection(
+    baseline: dict[str, Any],
+    actual: dict[str, Any],
+    game: LiveGameContext,
+    team: str,
+) -> dict[str, float]:
+    remaining_fraction = 1 - game.elapsed_fraction
+    final = {
+        key: _number(actual.get(key)) + _number(value) * remaining_fraction
+        for key, value in baseline.items()
+        if isinstance(value, Real)
+        and key not in POINTS_ALLOWED_BUCKETS
+        and key not in YARDS_ALLOWED_BUCKETS
+    }
+    for key, value in actual.items():
+        if (
+            isinstance(value, Real)
+            and key not in final
+            and key not in POINTS_ALLOWED_BUCKETS
+            and key not in YARDS_ALLOWED_BUCKETS
+        ):
+            final[key] = _number(value)
+
+    opponent_score = game.away_score if team == game.home else game.home_score
+    remaining_points = _expected_remaining_total(
+        _number(baseline.get("pts_allow")),
+        float(opponent_score),
+        game.elapsed_fraction,
+    )
+    final["pts_allow"] = opponent_score + remaining_points
+    final.update(
+        _poisson_bucket_probabilities(
+            opponent_score,
+            remaining_points,
+            POINTS_ALLOWED_BUCKETS,
+        )
+    )
+
+    current_yards = _number(actual.get("yds_allow"))
+    remaining_yards = _expected_remaining_total(
+        _number(baseline.get("yds_allow")),
+        current_yards,
+        game.elapsed_fraction,
+    )
+    final["yds_allow"] = current_yards + remaining_yards
+    final.update(_yardage_bucket_probabilities(current_yards, remaining_yards))
+    if "gp" in baseline or "gp" in actual:
+        final["gp"] = 1.0
+    return final
+
+
 def build_live_projections(
     baseline: dict[str, dict[str, float]],
     actual: dict[str, dict[str, Any]],
@@ -205,6 +345,14 @@ def build_live_projections(
                     for key, value in observed.items()
                     if isinstance(value, Real)
                 }
+                continue
+            if str(players.get(player_id, {}).get("position") or "").upper() == "DEF":
+                projected[player_id] = _build_defense_projection(
+                    base,
+                    observed,
+                    game,
+                    team,
+                )
                 continue
 
             final = {
