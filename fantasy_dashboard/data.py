@@ -422,15 +422,10 @@ def get_player_stats(
         refresh_player_stats_cache(season, season_type, week)
     stats = _load_json_cache(cache_path)
     if week is None:
-        # Sleeper's season endpoint omits team-defense IDs even though its weekly
-        # endpoint publishes them. Reconstruct only those missing season lines
-        # from the weekly caches refreshed by ``refresh_current_week_input_data``.
-        defense_ids = {
-            str(player_id)
-            for player_id, player in get_nfl_players().items()
-            if str(player.get("position") or "") == "DEF"
-        }
-        defense_totals: dict[str, dict[str, float]] = {}
+        # Sleeper's season endpoint can lag behind its weekly endpoint, returning
+        # empty player records and omitting team defenses after games complete.
+        # Reconstruct only missing season lines from the weekly actual caches.
+        weekly_totals: dict[str, dict[str, float]] = {}
         weekly_cache_folder = _stats_cache_path(
             "sleeper",
             season,
@@ -439,17 +434,17 @@ def get_player_stats(
         ).parent
         for week_path in weekly_cache_folder.glob("week_*.json"):
             weekly_stats = _load_json_cache(week_path)
-            for defense_id in defense_ids:
-                defense_stats = weekly_stats.get(defense_id)
-                if not isinstance(defense_stats, dict):
+            for player_id, player_stats in weekly_stats.items():
+                player_id = str(player_id)
+                if stats.get(player_id) or not isinstance(player_stats, dict):
                     continue
-                total = defense_totals.setdefault(defense_id, {})
-                for stat_name, value in defense_stats.items():
+                total = weekly_totals.setdefault(player_id, {})
+                for stat_name, value in player_stats.items():
                     if isinstance(value, Real) and not isinstance(value, bool):
                         total[stat_name] = total.get(stat_name, 0.0) + float(value)
-        for defense_id, defense_stats in defense_totals.items():
-            if not stats.get(defense_id):
-                stats[defense_id] = defense_stats
+        for player_id, player_stats in weekly_totals.items():
+            if not stats.get(player_id):
+                stats[player_id] = player_stats
     _record_data_update(
         "Sleeper",
         "player_stats",
