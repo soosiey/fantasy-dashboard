@@ -165,6 +165,44 @@ def test_player_stats_reuse_persistent_week_cache(monkeypatch, tmp_path) -> None
     assert calls == [("2026", "regular", 4), ("2026", "regular", 4)]
 
 
+def test_season_stats_fill_missing_defenses_from_weekly_caches(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(data, "WEEKLY_STATS_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(
+        data,
+        "get_nfl_players",
+        lambda: {
+            "SEA": {"position": "DEF"},
+            "NE": {"position": "DEF"},
+            "qb-1": {"position": "QB"},
+        },
+    )
+    data._write_json_cache(
+        data._stats_cache_path("sleeper", "2026", "regular", None),
+        {"qb-1": {"pass_yd": 250}},
+    )
+    data._write_json_cache(
+        data._stats_cache_path("sleeper", "2026", "regular", 1),
+        {
+            "SEA": {"gp": 1, "sack": 3, "pts_allow": 10},
+            "NE": {"gp": 1, "sack": 2, "pts_allow": 13},
+            "qb-1": {"pass_yd": 250},
+        },
+    )
+    data._write_json_cache(
+        data._stats_cache_path("sleeper", "2026", "regular", 2),
+        {"SEA": {"gp": 1, "sack": 4, "pts_allow": 7}},
+    )
+    data._read_json_cache.clear()
+
+    stats = data.get_player_stats("2026", "regular")
+
+    assert stats["SEA"] == {"gp": 2.0, "sack": 7.0, "pts_allow": 17.0}
+    assert stats["NE"] == {"gp": 1.0, "sack": 2.0, "pts_allow": 13.0}
+    assert stats["qb-1"] == {"pass_yd": 250}
+
+
 def test_player_game_log_uses_refreshed_bulk_week(monkeypatch, tmp_path) -> None:
     calls = 0
 
