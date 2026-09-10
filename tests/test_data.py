@@ -563,6 +563,13 @@ def test_live_game_detection_can_be_limited_to_the_current_week() -> None:
     assert not data.has_live_nfl_game(games, 1)
 
 
+def test_live_game_detection_recognizes_sleeper_in_game_status() -> None:
+    games = [{"week": 1, "status": " IN_GAME "}]
+
+    assert data.has_live_nfl_game(games, 1)
+    assert data._projection_cache_max_age(games) == data.LIVE_PROJECTION_CACHE_MAX_AGE
+
+
 def test_manual_refresh_cooldown_persists_for_six_hours(
     monkeypatch,
     tmp_path,

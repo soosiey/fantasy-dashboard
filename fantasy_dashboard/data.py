@@ -38,7 +38,7 @@ PREGAME_ACTUAL_CACHE_MAX_AGE = timedelta(days=1)
 LIVE_ACTUAL_CACHE_MAX_AGE = timedelta(minutes=1)
 CORRECTION_WINDOW = timedelta(days=3)
 MANUAL_REFRESH_COOLDOWN = timedelta(hours=6)
-LIVE_GAME_STATUSES = {"in_progress", "in-progress", "live"}
+LIVE_GAME_STATUSES = {"in_game", "in_progress", "in-progress", "live"}
 COMPLETE_GAME_STATUSES = {"complete", "completed", "final", "post_game"}
 
 
@@ -63,7 +63,7 @@ def has_live_nfl_game(games: list[dict[str, Any]], week: int | None = None) -> b
                     continue
             except (TypeError, ValueError):
                 continue
-        status = str(game.get("status") or "").casefold()
+        status = str(game.get("status") or "").strip().casefold()
         if status in LIVE_GAME_STATUSES:
             return True
     return False
@@ -206,7 +206,7 @@ def record_manual_refresh(*, refreshed_at: datetime | None = None) -> None:
 
 def _correction_deadline(games: list[dict[str, Any]]) -> datetime | None:
     statuses = {
-        str(game.get("status") or "").casefold()
+        str(game.get("status") or "").strip().casefold()
         for game in games
         if isinstance(game, dict)
     }
@@ -244,7 +244,7 @@ def _actual_cache_needs_refresh(
         return False
 
     statuses = {
-        str(game.get("status") or "").casefold()
+        str(game.get("status") or "").strip().casefold()
         for game in games
         if isinstance(game, dict)
     }
@@ -258,7 +258,7 @@ def _actual_cache_needs_refresh(
 
 def _projection_cache_max_age(games: list[dict[str, Any]]) -> timedelta:
     statuses = {
-        str(game.get("status") or "").casefold()
+        str(game.get("status") or "").strip().casefold()
         for game in games
         if isinstance(game, dict)
     }
