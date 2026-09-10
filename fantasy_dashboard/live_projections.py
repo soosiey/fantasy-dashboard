@@ -12,6 +12,7 @@ class LiveGameContext:
     away_score: int
     elapsed_fraction: float
     possession: str = ""
+    completed: bool = False
 
 
 def _number(value: Any) -> float:
@@ -30,7 +31,7 @@ def parse_espn_live_games(payload: dict[str, Any]) -> list[LiveGameContext]:
             continue
         status = event.get("status") or {}
         status_type = status.get("type") or {}
-        if status_type.get("state") != "in":
+        if status_type.get("state") not in {"in", "post"}:
             continue
         competitions = event.get("competitions") or []
         competition = competitions[0] if competitions else {}
@@ -73,7 +74,11 @@ def parse_espn_live_games(payload: dict[str, Any]) -> list[LiveGameContext]:
                 away=teams["away"][0],
                 home_score=teams["home"][1],
                 away_score=teams["away"][1],
-                elapsed_fraction=_clamp(elapsed_seconds / 3600, 0.0, 1.0),
+                elapsed_fraction=(
+                    1.0 if status_type.get("state") == "post"
+                    else _clamp(elapsed_seconds / 3600, 0.0, 1.0)
+                ),
+                completed=status_type.get("state") == "post",
                 possession=possession,
             )
         )
@@ -291,7 +296,7 @@ def build_live_projections(
     players: dict[str, dict[str, Any]],
     games: list[LiveGameContext],
 ) -> dict[str, dict[str, float]]:
-    """Return estimated final stat lines for players whose NFL game is live."""
+    """Return live estimates and actual stat lines for completed NFL games."""
     projected = {player_id: dict(stats) for player_id, stats in baseline.items()}
     player_ids_by_team: dict[str, list[str]] = {}
     for player_id in set(baseline) | set(actual):
@@ -303,6 +308,14 @@ def build_live_projections(
     for team, game in game_by_team.items():
         team_ids = player_ids_by_team.get(team, [])
         if not team_ids:
+            continue
+        if game.completed:
+            for player_id in team_ids:
+                projected[player_id] = {
+                    key: _number(value)
+                    for key, value in actual.get(player_id, {}).items()
+                    if isinstance(value, Real)
+                }
             continue
         remaining_fraction = 1 - game.elapsed_fraction
         baseline_passes = _team_total(team_ids, baseline, "pass_att")

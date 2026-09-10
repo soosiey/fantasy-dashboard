@@ -114,3 +114,38 @@ def test_defense_allowed_tiers_are_probabilities_not_additive_stats() -> None:
     assert result["pts_allow"] >= 7
     assert result["yds_allow"] >= 149
     assert result["sack"] > 2
+
+
+def test_finished_games_use_exact_actuals_including_defense_and_zero_scorers() -> None:
+    payload = {"events": [{
+        "status": {"type": {"state": "post"}},
+        "competitions": [{"competitors": [
+            {"homeAway": "home", "team": {"abbreviation": "SEA"}},
+            {"homeAway": "away", "team": {"abbreviation": "NE"}},
+        ]}],
+    }]}
+    games = parse_espn_live_games(payload)
+    assert games[0].completed
+    assert games[0].elapsed_fraction == 1
+    baseline = {
+        "wr": {"rec": 6, "rec_td": 1},
+        "SEA": {"yds_allow_300_349": 0.5, "sack": 3},
+        "inactive": {"rec": 5},
+        "pregame": {"rec": 4},
+    }
+    actual = {
+        "wr": {"rec": 2, "rec_yd": 19},
+        "SEA": {"yds_allow_100_199": 1, "sack": 1},
+        "unexpected": {"rush_yd": 10},
+    }
+    players = {
+        key: {"team": "SEA", "position": "DEF" if key == "SEA" else "WR"}
+        for key in set(baseline) | set(actual)
+    }
+    players["pregame"]["team"] = "KC"
+    result = build_live_projections(baseline, actual, players, games)
+    for key, stats in actual.items():
+        assert result[key] == stats
+    assert result["inactive"] == {}
+    assert result["pregame"] == baseline["pregame"]
+    assert baseline["wr"] == {"rec": 6, "rec_td": 1}

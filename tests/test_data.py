@@ -512,7 +512,7 @@ def test_actual_cache_uses_live_and_finalized_refresh_windows(tmp_path) -> None:
     completed_games = [{"date": "2026-09-07", "status": "complete"}]
     before_deadline = datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc).timestamp()
     os.utime(cache_path, (before_deadline, before_deadline))
-    assert not data._actual_cache_needs_refresh(
+    assert data._actual_cache_needs_refresh(
         cache_path,
         completed_games,
         now=datetime(2026, 9, 9, 13, 0, tzinfo=timezone.utc),
@@ -588,3 +588,40 @@ def test_manual_refresh_cooldown_persists_for_six_hours(
     assert data.get_manual_refresh_cooldown_remaining(
         now=refreshed_at + timedelta(hours=6)
     ) == timedelta(0)
+
+
+def test_finished_week_finalizes_projections_and_preserves_baseline(monkeypatch, tmp_path):
+    monkeypatch.setattr(data, "WEEKLY_STATS_CACHE_DIR", tmp_path / "weekly")
+    monkeypatch.setattr(data, "ESPN_PROJECTIONS_CACHE_DIR", tmp_path / "raw")
+    monkeypatch.setattr(data, "get_nfl_state", lambda: {
+        "season": "2026", "season_type": "regular", "week": 1,
+    })
+    monkeypatch.setattr(data, "get_nfl_schedule", lambda *args: [
+        {"week": 1, "status": "complete", "date": "2026-09-09"},
+    ])
+    players = {"wr": {"team": "SEA", "position": "WR"}}
+    baseline = {"wr": {"rec": 6, "rec_yd": 80}}
+    actual = {"wr": {"rec": 2, "rec_yd": 19}}
+    monkeypatch.setattr(data, "get_nfl_players", lambda: players)
+    monkeypatch.setattr(data, "map_projections_to_sleeper", lambda *args: baseline)
+    raw_path = tmp_path / "raw" / "2026.json"
+    data._write_json_cache(raw_path, {"players": [{"id": 1}]})
+    for week in (1, None):
+        data._write_json_cache(data._stats_cache_path("espn", "2026", "regular", week), baseline)
+
+    def refresh_actual(season, season_type, week):
+        data._write_json_cache(data._stats_cache_path("sleeper", season, season_type, week), actual)
+        return actual
+
+    monkeypatch.setattr(data, "refresh_player_stats_cache", refresh_actual)
+    monkeypatch.setattr(data, "get_espn_nfl_scoreboard", lambda *args: {"events": [{
+        "status": {"type": {"state": "post"}},
+        "competitions": [{"competitors": [
+            {"homeAway": "home", "team": {"abbreviation": "SEA"}},
+            {"homeAway": "away", "team": {"abbreviation": "NE"}},
+        ]}],
+    }]})
+    data.refresh_current_week_input_data()
+    assert data.get_projected_player_stats("2026", 1) == actual
+    assert data.get_projected_player_stats("2026", 1, baseline_only=True) == baseline
+    assert data._load_json_cache(data._stats_cache_path("espn", "2026", "regular", 1)) == baseline

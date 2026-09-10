@@ -251,7 +251,7 @@ def fake_page_backend(monkeypatch, tmp_path) -> SleeperUser:
     )
     monkeypatch.setattr(data, "get_nfl_players", lambda: players)
     monkeypatch.setattr(data, "get_player_stats", lambda *args: stats)
-    monkeypatch.setattr(data, "get_projected_player_stats", lambda *args: stats)
+    monkeypatch.setattr(data, "get_projected_player_stats", lambda *args, **kwargs: stats)
     monkeypatch.setattr(
         data,
         "get_player_weekly_stats",
@@ -449,7 +449,7 @@ def realistic_page_backend(
     monkeypatch.setattr(
         data,
         "get_projected_player_stats",
-        lambda season, week=None: (
+        lambda season, week=None, **kwargs: (
             week_two_projections if week in {None, 2} else week_one_stats
         ),
     )

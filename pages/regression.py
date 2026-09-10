@@ -102,7 +102,7 @@ for season in (TRAINING_SEASON, EVALUATION_SEASON):
                 str(season), "regular", week
             )
             projections_by_season_week[season][week] = get_projected_player_stats(
-                str(season), week
+                str(season), week, baseline_only=True
             )
         except (OSError, requests.RequestException, TypeError, ValueError):
             unavailable_inputs.append((season, week))

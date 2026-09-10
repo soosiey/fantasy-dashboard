@@ -244,8 +244,8 @@ def _actual_cache_needs_refresh(
         if checked_at >= correction_deadline:
             # Refresh exactly once after the correction window, then freeze.
             return _cache_updated_at(path) < correction_deadline
-        # Keep the final in-game result untouched while corrections accumulate.
-        return False
+        # Fetch final stats and subsequent corrections during the correction window.
+        return checked_at - _cache_updated_at(path) >= LIVE_ACTUAL_CACHE_MAX_AGE
 
     statuses = {
         str(game.get("status") or "").strip().casefold()
@@ -254,7 +254,7 @@ def _actual_cache_needs_refresh(
     }
     max_age = (
         LIVE_ACTUAL_CACHE_MAX_AGE
-        if statuses.intersection(LIVE_GAME_STATUSES)
+        if statuses.intersection(LIVE_GAME_STATUSES | COMPLETE_GAME_STATUSES)
         else PREGAME_ACTUAL_CACHE_MAX_AGE
     )
     return checked_at - _cache_updated_at(path) >= max_age
@@ -592,6 +592,8 @@ def get_nfl_players() -> dict[str, dict[str, Any]]:
 def get_projected_player_stats(
     season: str,
     week: int | None,
+    *,
+    baseline_only: bool = False,
 ) -> dict[str, dict[str, float]]:
     _clear_data_update("projected_player_stats", season, week)
     normalized_path = _stats_cache_path("espn", season, "regular", week)
@@ -610,6 +612,16 @@ def get_projected_player_stats(
         )
     else:
         stats = _load_json_cache(normalized_path)
+    if baseline_only and raw_cache_path.exists():
+        # Read the provider record directly, including for caches written before
+        # live estimates were separated from provider projections.
+        stats = map_projections_to_sleeper(
+            EspnClient._read_cache(raw_cache_path) or {}, get_nfl_players(), season, week
+        )
+    elif week is not None and not baseline_only:
+        live_path = _stats_cache_path("espn_live", season, "regular", week)
+        if live_path.exists():
+            stats = {**stats, **_load_json_cache(live_path)}
     provider_cache_path = raw_cache_path if raw_cache_path.exists() else normalized_path
     _record_data_update(
         "ESPN",
@@ -742,7 +754,12 @@ def refresh_current_week_input_data(*, force: bool = False) -> tuple[str, str, i
     # ESPN's published projection record is static after kickoff. During a live
     # game, turn it into an estimated final stat line using current usage, pace,
     # score, player availability, and ESPN's live clock/possession context.
-    if has_live_nfl_game(current_games, week) and raw_cache_path.exists():
+    has_started_games = any(
+        str(game.get("status") or "").strip().casefold()
+        in LIVE_GAME_STATUSES | COMPLETE_GAME_STATUSES
+        for game in current_games
+    )
+    if has_started_games and raw_cache_path.exists():
         try:
             baseline = map_projections_to_sleeper(
                 EspnClient._read_cache(raw_cache_path) or {},
@@ -761,7 +778,18 @@ def refresh_current_week_input_data(*, force: bool = False) -> tuple[str, str, i
                 live_games,
             )
             if adjusted:
-                _write_json_cache(projection_paths[0], adjusted)
+                started_teams = {
+                    team for game in live_games for team in (game.home, game.away)
+                }
+                players = get_nfl_players()
+                live_stats = {
+                    player_id: stats for player_id, stats in adjusted.items()
+                    if str(players.get(player_id, {}).get("team") or "").upper()
+                    in started_teams
+                }
+                _write_json_cache(
+                    _stats_cache_path("espn_live", season, "regular", week), live_stats
+                )
                 _read_json_cache.clear()
         except (OSError, TypeError, ValueError, requests.RequestException):
             # Retain the last usable ESPN projection when live context is briefly

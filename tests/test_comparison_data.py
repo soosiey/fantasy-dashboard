@@ -21,6 +21,8 @@ def test_comparison_data_provider_reuses_full_season_data(
     def get_projected_stats(
         season: str,
         week: int,
+        *,
+        baseline_only: bool = False,
     ) -> dict[str, dict[str, float]]:
         assert season == "2026"
         calls["projected"] += 1

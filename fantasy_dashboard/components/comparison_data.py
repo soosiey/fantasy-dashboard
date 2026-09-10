@@ -188,7 +188,7 @@ class ComparisonDataProvider:
         try:
             for week in normalized_weeks:
                 actual_stats = data.get_player_stats(str(season), "regular", week)
-                projected_stats = data.get_projected_player_stats(str(season), week)
+                projected_stats = data.get_projected_player_stats(str(season), week, baseline_only=True)
                 for player_id in league_player_ids:
                     player_actual_stats = actual_stats.get(player_id, {})
                     if is_eligible_game({"stats": player_actual_stats}):

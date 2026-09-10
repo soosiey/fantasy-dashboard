@@ -54,6 +54,7 @@ def render_projection_accuracy_tab(
             projected_stats_by_player_id = get_projected_player_stats(
                 selected_season,
                 week,
+                baseline_only=True,
             )
             projection_updates.append(
                 get_data_update(
