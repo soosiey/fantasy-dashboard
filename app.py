@@ -1,7 +1,90 @@
+import os
+import tempfile
 from importlib import reload
+from pathlib import Path
 
 import requests
 import streamlit as st
+from streamlit.errors import StreamlitSecretNotFoundError
+
+from fantasy_dashboard.s3_data import (
+    S3DataSyncError,
+    has_cached_s3_data,
+    synchronize_s3_data,
+)
+
+
+def _setting(secret_values, secret_name: str, environment_name: str) -> str:
+    value = secret_values.get(secret_name) or os.environ.get(environment_name, "")
+    return str(value).strip()
+
+
+@st.cache_data(ttl=3600, show_spinner="Checking for updated dashboard data...")
+def _synchronize_runtime_data(
+    bucket: str,
+    prefix: str,
+    region_name: str,
+    cache_dir: str,
+    _access_key_id: str,
+    _secret_access_key: str,
+):
+    return synchronize_s3_data(
+        bucket,
+        Path(cache_dir),
+        prefix=prefix,
+        region_name=region_name or None,
+        access_key_id=_access_key_id or None,
+        secret_access_key=_secret_access_key or None,
+    )
+
+
+try:
+    s3_secrets = st.secrets.get("s3", {})
+except StreamlitSecretNotFoundError:
+    s3_secrets = {}
+s3_bucket = _setting(
+    s3_secrets,
+    "bucket",
+    "FANTASY_DASHBOARD_S3_BUCKET",
+)
+if s3_bucket:
+    s3_prefix = (
+        _setting(
+            s3_secrets,
+            "prefix",
+            "FANTASY_DASHBOARD_S3_PREFIX",
+        )
+        or "data/"
+    )
+    s3_region = _setting(s3_secrets, "region", "AWS_DEFAULT_REGION")
+    s3_access_key = _setting(s3_secrets, "access_key_id", "AWS_ACCESS_KEY_ID")
+    s3_secret_key = _setting(
+        s3_secrets,
+        "secret_access_key",
+        "AWS_SECRET_ACCESS_KEY",
+    )
+    s3_cache_dir = Path(
+        os.environ.get(
+            "FANTASY_DASHBOARD_S3_CACHE_DIR",
+            Path(tempfile.gettempdir()) / "fantasy-dashboard-s3-data",
+        )
+    ).expanduser()
+    try:
+        _synchronize_runtime_data(
+            s3_bucket,
+            s3_prefix,
+            s3_region,
+            str(s3_cache_dir),
+            s3_access_key,
+            s3_secret_key,
+        )
+        os.environ["FANTASY_DASHBOARD_DATA_DIR"] = str(s3_cache_dir)
+    except (OSError, S3DataSyncError, ValueError) as error:
+        if has_cached_s3_data(s3_cache_dir):
+            os.environ["FANTASY_DASHBOARD_DATA_DIR"] = str(s3_cache_dir)
+            st.warning(f"Unable to refresh S3 data; using the cached copy: {error}")
+        else:
+            st.warning(f"Unable to load S3 data; using the local data folder: {error}")
 
 import about.version as version_module
 from fantasy_dashboard.clients.sleeper import SleeperClient
@@ -135,6 +218,12 @@ regression_page = st.Page(
     url_path="regression",
     visibility=league_visibility,
 )
+backtesting_page = st.Page(
+    PAGE_SOURCES.get("backtesting", "pages/backtesting.py"),
+    title="Backtesting",
+    url_path="backtesting",
+    visibility=league_visibility,
+)
 comparison_page = st.Page(
     PAGE_SOURCES["comparison"],
     title="Comparison",
@@ -201,6 +290,7 @@ pages_by_route = {
     "analysis": analysis_page,
     "league-predictions": league_predictions_page,
     "regression": regression_page,
+    "backtesting": backtesting_page,
     "comparison": comparison_page,
     "graphs": graphs_page,
     "graph": graph_page,
@@ -225,6 +315,7 @@ page_route = st.navigation(
         analysis_page,
         league_predictions_page,
         regression_page,
+        backtesting_page,
         comparison_page,
         graphs_page,
         graph_page,
@@ -257,6 +348,7 @@ if (
         "trade-analysis",
         "league-predictions",
         "regression",
+        "backtesting",
         "comparison",
         "graphs",
     }
@@ -288,6 +380,7 @@ if analysis_mode and page_route.url_path not in {
     "analysis",
     "league-predictions",
     "regression",
+    "backtesting",
     "players",
     "matchups",
     "trade-analysis",
@@ -389,6 +482,7 @@ with st.sidebar:
         st.page_link(graphs_page, label="Single Player Selection")
         st.page_link(league_predictions_page, label="League Predictions")
         st.page_link(regression_page, label="Regression")
+        st.page_link(backtesting_page, label="Backtesting")
         st.page_link(trade_analysis_page, label="Trade Analysis")
     elif not authenticated:
         st.page_link(start_page, label="User Login")

@@ -25,7 +25,7 @@ def test_login_page_renders_without_provider_requests(fake_page_backend) -> None
     app = AppTest.from_file(APP_PATH, default_timeout=10).run()
 
     _assert_page(app, "Fantasy Football Dashboard")
-    assert any("v1.2" in markdown.value for markdown in app.markdown)
+    assert any("v2.0" in markdown.value for markdown in app.markdown)
     assert any(
         'data-game-active="false"' in markdown.value for markdown in app.markdown
     )
@@ -69,7 +69,7 @@ def test_app_reloads_a_stale_cached_version_module(
     app = AppTest.from_file(APP_PATH, default_timeout=10).run()
 
     _assert_page(app, "Fantasy Football Dashboard")
-    assert any("v1.2" in markdown.value for markdown in app.markdown)
+    assert any("v2.0" in markdown.value for markdown in app.markdown)
 
 
 def test_global_game_status_indicator_shows_live_game(
@@ -212,6 +212,7 @@ def test_legacy_url_redirects(
         ("pages/analysis.py", "Statistics"),
         ("pages/league_predictions.py", "League Predictions"),
         ("pages/regression.py", "Regression"),
+        ("pages/backtesting.py", "Backtesting"),
         ("pages/comparison.py", "Comparison"),
         ("pages/graphs.py", "Single Player Selection"),
         ("pages/team.py", "Team Page"),
@@ -227,6 +228,21 @@ def test_authenticated_page_renders(
     app.switch_page(page_path).run()
 
     _assert_page(app, expected_title)
+
+
+def test_regression_page_separates_historical_and_current_results(
+    authenticated_app,
+) -> None:
+    app = authenticated_app()
+
+    app.switch_page("pages/regression.py").run()
+
+    _assert_page(app, "Regression")
+    tab_labels = [tab.label for tab in app.tabs]
+    assert "Historical Validation (2025)" in tab_labels
+    assert "Current-Season Backtest (2026)" in tab_labels
+    assert "Players" in tab_labels
+    assert "Coefficients" in tab_labels
 
 
 def test_trade_analysis_simulates_both_sides_without_submitting_transaction(
@@ -253,6 +269,26 @@ def test_trade_analysis_simulates_both_sides_without_submitting_transaction(
     grade_explanation = " ".join(markdown.value for markdown in app.markdown)
     assert "Value over replacement (VOR)" in grade_explanation
     assert "readily replaceable option at the same position" in grade_explanation
+
+
+def test_backtesting_filters_by_team_without_a_stat_type_toggle(
+    authenticated_app,
+) -> None:
+    app = authenticated_app()
+
+    app.switch_page("pages/backtesting.py").run()
+
+    assert not any(control.label == "Stat type" for control in app.segmented_control)
+    team_filter = next(box for box in app.selectbox if box.label == "NFL team")
+    assert team_filter.value == "All available teams"
+    assert {"BUF", "NYJ"}.issubset(set(team_filter.options))
+    adjustment_slider = next(
+        slider
+        for slider in app.slider
+        if slider.label == "Regression adjustment weight"
+    )
+    assert 0 <= adjustment_slider.value <= 100
+    assert app.dataframe
 
 
 def test_auction_draft_results_omit_pick_round(authenticated_app) -> None:
@@ -302,8 +338,7 @@ def test_league_predictions_projects_standings_and_tournament(
         button.label == "Refresh Draft Grading & Simulation" for button in app.button
     )
     assert any(
-        "loaded from persistent storage" in caption.value
-        for caption in app.caption
+        "loaded from persistent storage" in caption.value for caption in app.caption
     )
     assert any(
         "originally drafted" in info.value and "current roster" in info.value
@@ -344,9 +379,7 @@ def test_league_predictions_projects_standings_and_tournament(
     )
     assert (
         next(
-            slider
-            for slider in app.slider
-            if slider.label == "Bench depth importance"
+            slider for slider in app.slider if slider.label == "Bench depth importance"
         ).value
         == 0.10
     )
@@ -431,6 +464,7 @@ def test_statistics_filters_update_the_selected_view(authenticated_app) -> None:
     assert _query_value(app, "period") == "week"
     assert _query_value(app, "week") == "3"
     assert _query_value(app, "stats") == "predicted"
+    assert "Projected FP Updated" in app.dataframe[0].value.columns
 
 
 def test_players_page_is_available_inside_analysis_mode(authenticated_app) -> None:

@@ -3,7 +3,7 @@
 A Streamlit dashboard for exploring Sleeper fantasy-football leagues, player
 performance, matchups, draft quality, trades, and season projections.
 
-Current application version: **1.1**
+Current application version: **2.0**
 
 ## Features
 
@@ -18,6 +18,8 @@ Current application version: **1.1**
 - Simulate the strength of the originally drafted teams and project the current
   regular season and playoff tournament.
 - Evaluate player-only trades without submitting changes to Sleeper.
+- Backtest saved pre-kickoff projections against weekly results and chronological
+  regression adjustments.
 - Display a global **Game Active** indicator. Its light is green while a current-week
   NFL game is live and gray otherwise.
 
@@ -122,6 +124,7 @@ The application uses stable routes, including:
 - `/comparison?league_id=LEAGUE_ID`
 - `/league-predictions?league_id=LEAGUE_ID`
 - `/regression?league_id=LEAGUE_ID`
+- `/backtesting?league_id=LEAGUE_ID`
 - `/trade-analysis?league_id=LEAGUE_ID`
 - `/team?league_id=LEAGUE_ID&user_id=USER_ID`
 
@@ -152,6 +155,10 @@ Completed-draft analysis is persistent:
 - In-progress drafts bypass this persistent cache so incomplete results are not
   frozen.
 
+Regression backtests, fitted residual models, and current-season histories are
+stored under `data/cache/regression/`. The cache is rebuilt when league scoring,
+player positions, or the paired snapshot runs change.
+
 See the
 [Caching & Refresh Reference](https://iodized-spectacles-a8e.notion.site/Caching-Refresh-Reference-3d6c7de02bd281e9997ae8b0c34d8fdd)
 for the complete refresh policy.
@@ -161,6 +168,14 @@ for the complete refresh policy.
 The snapshot collector preserves original provider responses as JSON and writes
 normalized league, roster, matchup, schedule, scoring, projection, and actual-stat
 records to `data/fantasy_dashboard.sqlite3`.
+
+Set `FANTASY_DASHBOARD_DATA_DIR` to read caches and snapshots from another local
+folder. For example, PowerShell can run a copied Raspberry Pi dataset with:
+
+```powershell
+$env:FANTASY_DASHBOARD_DATA_DIR = "data_pi"
+python -m streamlit run app.py
+```
 
 Capture projections and league context before games begin:
 
@@ -173,6 +188,44 @@ Capture actual statistics and final league context after the week:
 ```bash
 python take_snapshot.py post-week --league-id LEAGUE_ID --week 1
 ```
+
+Warm the persistent regression artifact after adding a completed week:
+
+```bash
+python warm_regression_cache.py --league-id LEAGUE_ID
+```
+
+`run_snapshots.sh` performs this warm-up automatically for every configured league
+after advancing `snapshot_week.txt`.
+
+### Optional S3 runtime data
+
+Set `FANTASY_DASHBOARD_S3_BUCKET` to make the application use an ephemeral local
+mirror of the bucket's `data/` prefix instead of the repository's local `data/`
+folder. The application checks S3 at most once per hour and downloads only missing
+or changed objects. A fresh Streamlit runtime automatically downloads the complete
+prefix again. If S3 is unavailable, an existing runtime mirror is retained; without
+one, the application falls back to the unchanged local `data/` directory.
+
+For Streamlit Community Cloud, add these secrets:
+
+```toml
+[s3]
+bucket = "YOUR_BUCKET_NAME"
+prefix = "data/"
+region = "us-east-2"
+access_key_id = "YOUR_ACCESS_KEY_ID"
+secret_access_key = "YOUR_SECRET_ACCESS_KEY"
+```
+
+The equivalent environment variables are
+`FANTASY_DASHBOARD_S3_BUCKET`, `FANTASY_DASHBOARD_S3_PREFIX`,
+`AWS_DEFAULT_REGION`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY`.
+
+On the snapshot host, `run_snapshots.sh` uploads `data/` after all snapshots and
+regression caches succeed whenever `FANTASY_DASHBOARD_S3_BUCKET` is set. Set
+`FANTASY_DASHBOARD_AWS_PROFILE` when the AWS CLI should use a named profile, and
+optionally set `FANTASY_DASHBOARD_AWS_CLI` to its absolute path for cron.
 
 The season and season type default to the selected league. Use `--season`,
 `--season-type`, or `--storage-dir` to override them. Run the following command for

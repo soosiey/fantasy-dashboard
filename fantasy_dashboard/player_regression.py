@@ -47,9 +47,8 @@ class RidgeResidualModel:
 
     def predict(self, features: tuple[float, ...]) -> float:
         standardized = (
-            (np.asarray(features, dtype=float) - np.asarray(self.feature_means))
-            / np.asarray(self.feature_scales)
-        )
+            np.asarray(features, dtype=float) - np.asarray(self.feature_means)
+        ) / np.asarray(self.feature_scales)
         return float(self.intercept + standardized @ np.asarray(self.coefficients))
 
 
@@ -123,15 +122,117 @@ class RegressionReport:
     final_models: dict[str, RidgeResidualModel]
 
 
+def run_sequential_season_predictions(
+    observations: list[RegressionObservation],
+    evaluation_season: int,
+    *,
+    alpha_training_season: int = 2024,
+) -> tuple[RegressionPrediction, ...]:
+    """Backtest one season without allowing future results into any forecast."""
+    alphas = {
+        position: select_ridge_alpha(
+            [row for row in observations if row.position == position],
+            alpha_training_season,
+        )
+        for position in SUPPORTED_POSITIONS
+    }
+    predictions: list[RegressionPrediction] = []
+    evaluation_weeks = sorted(
+        {row.week for row in observations if row.season == evaluation_season}
+    )
+    for week in evaluation_weeks:
+        for position in SUPPORTED_POSITIONS:
+            training = [
+                row
+                for row in observations
+                if row.position == position
+                and (
+                    row.season < evaluation_season
+                    or (row.season == evaluation_season and row.week < week)
+                )
+            ]
+            evaluation = [
+                row
+                for row in observations
+                if row.position == position
+                and row.season == evaluation_season
+                and row.week == week
+            ]
+            model = fit_ridge_residual_model(training, alphas[position])
+            if model is None:
+                continue
+            for row in evaluation:
+                adjustment = model.predict(row.features)
+                predictions.append(
+                    RegressionPrediction(
+                        season=row.season,
+                        week=row.week,
+                        player_id=row.player_id,
+                        position=row.position,
+                        actual_points=row.actual_points,
+                        provider_projection=row.provider_projection,
+                        predicted_adjustment=adjustment,
+                        adjusted_projection=max(
+                            0.0, row.provider_projection + adjustment
+                        ),
+                    )
+                )
+    return tuple(predictions)
+
+
+def select_adjustment_weight(
+    predictions: tuple[RegressionPrediction, ...] | list[RegressionPrediction],
+) -> float:
+    """Select a 0–1 residual blend that minimizes chronological backtest MAE."""
+    if not predictions:
+        return 1.0
+    candidate_weights = (percent / 100 for percent in range(101))
+    return min(
+        candidate_weights,
+        key=lambda weight: fmean(
+            abs(
+                prediction.actual_points
+                - max(
+                    0.0,
+                    prediction.provider_projection
+                    + weight * prediction.predicted_adjustment,
+                )
+            )
+            for prediction in predictions
+        ),
+    )
+
+
 def _average(values: list[float], count: int) -> float:
     return fmean(values[-count:]) if values else 0.0
+
+
+def build_regression_features(
+    provider_projection: float,
+    prior_actuals: list[float],
+    prior_residuals: list[float],
+    week: int,
+) -> tuple[float, ...]:
+    return (
+        provider_projection,
+        prior_actuals[-1] if prior_actuals else 0.0,
+        _average(prior_actuals, 3),
+        _average(prior_actuals, 5),
+        _average(prior_residuals, 3),
+        _average(prior_residuals, 5),
+        pstdev(prior_actuals[-5:]) if len(prior_actuals) >= 2 else 0.0,
+        float(min(len(prior_actuals), 17)),
+        week / 18,
+    )
 
 
 def _played(stats: dict[str, Any]) -> bool:
     games = stats.get("gp")
     if isinstance(games, Real):
         return float(games) > 0
-    return any(isinstance(value, Real) and float(value) != 0 for value in stats.values())
+    return any(
+        isinstance(value, Real) and float(value) != 0 for value in stats.values()
+    )
 
 
 def build_regression_observations(
@@ -164,16 +265,11 @@ def build_regression_observations(
                 actual_points = calculate_fantasy_points(actual_stats, scoring_settings)
                 prior_actuals = actual_history[player_id]
                 prior_residuals = residual_history[player_id]
-                features = (
+                features = build_regression_features(
                     provider_projection,
-                    prior_actuals[-1] if prior_actuals else 0.0,
-                    _average(prior_actuals, 3),
-                    _average(prior_actuals, 5),
-                    _average(prior_residuals, 3),
-                    _average(prior_residuals, 5),
-                    pstdev(prior_actuals[-5:]) if len(prior_actuals) >= 2 else 0.0,
-                    float(min(len(prior_actuals), 17)),
-                    week / 18,
+                    prior_actuals,
+                    prior_residuals,
+                    week,
                 )
                 observations.append(
                     RegressionObservation(
@@ -263,6 +359,21 @@ def select_ridge_alpha(
     )
 
 
+def fit_final_residual_models(
+    observations: list[RegressionObservation],
+    *,
+    alpha_training_season: int = 2024,
+) -> dict[str, RidgeResidualModel]:
+    models: dict[str, RidgeResidualModel] = {}
+    for position in SUPPORTED_POSITIONS:
+        position_rows = [row for row in observations if row.position == position]
+        alpha = select_ridge_alpha(position_rows, alpha_training_season)
+        model = fit_ridge_residual_model(position_rows, alpha)
+        if model is not None:
+            models[position] = model
+    return models
+
+
 def _evaluation(
     position: str,
     predictions: list[RegressionPrediction],
@@ -285,9 +396,7 @@ def _evaluation(
         provider_bias=fmean(provider_errors),
         model_bias=fmean(model_errors),
         model_r_squared=(
-            1 - squared_model_error / total_variation
-            if total_variation > 0
-            else 0.0
+            1 - squared_model_error / total_variation if total_variation > 0 else 0.0
         ),
     )
 
@@ -318,6 +427,46 @@ def _player_summary(
     )
 
 
+def summarize_regression_predictions(
+    predictions: tuple[RegressionPrediction, ...] | list[RegressionPrediction],
+    final_models: dict[str, RidgeResidualModel],
+) -> RegressionReport:
+    """Build display metrics from already-computed chronological predictions."""
+    predictions_by_position: dict[str, list[RegressionPrediction]] = defaultdict(list)
+    predictions_by_player: dict[str, list[RegressionPrediction]] = defaultdict(list)
+    for prediction in predictions:
+        predictions_by_position[prediction.position].append(prediction)
+        predictions_by_player[prediction.player_id].append(prediction)
+
+    evaluations = [
+        _evaluation(
+            position,
+            rows,
+            final_models[position].alpha if position in final_models else 0.0,
+        )
+        for position, rows in predictions_by_position.items()
+        if rows
+    ]
+    if predictions:
+        evaluations.insert(0, _evaluation("Overall", list(predictions), 0.0))
+
+    return RegressionReport(
+        observations=(),
+        predictions=tuple(predictions),
+        evaluations=tuple(evaluations),
+        player_summaries=tuple(
+            sorted(
+                (
+                    _player_summary(player_id, rows)
+                    for player_id, rows in predictions_by_player.items()
+                ),
+                key=lambda summary: (-summary.observations, summary.player_id),
+            )
+        ),
+        final_models=final_models,
+    )
+
+
 def run_ridge_regression_evaluation(
     observations: list[RegressionObservation],
     *,
@@ -332,11 +481,7 @@ def run_ridge_regression_evaluation(
     }
     predictions: list[RegressionPrediction] = []
     for week in sorted(
-        {
-            row.week
-            for row in observations
-            if row.season == evaluation_season
-        }
+        {row.week for row in observations if row.season == evaluation_season}
     ):
         for position in SUPPORTED_POSITIONS:
             training = [

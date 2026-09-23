@@ -1,57 +1,27 @@
 import pandas as pd
-import requests
 import streamlit as st
 
 from fantasy_dashboard.data import (
     get_league,
     get_league_users,
     get_nfl_players,
-    get_player_stats,
-    get_projected_player_stats,
     get_rosters,
 )
 from fantasy_dashboard.player_regression import (
     FEATURE_NAMES,
     RegressionReport,
-    build_regression_observations,
-    run_ridge_regression_evaluation,
+    summarize_regression_predictions,
 )
 from fantasy_dashboard.player_stats import (
     build_player_identity_image,
     build_player_roster_labels,
 )
+from fantasy_dashboard.regression_cache import load_or_create_regression_artifact
 from fantasy_dashboard.routing import (
     ANALYSIS_MODE_KEY,
     require_authentication,
     resolve_league_id,
 )
-
-TRAINING_SEASON = 2024
-EVALUATION_SEASON = 2025
-HISTORICAL_WEEKS = range(1, 19)
-
-
-@st.cache_data(
-    max_entries=8,
-    show_spinner="Training and evaluating residual models...",
-)
-def _build_regression_report(
-    actuals_by_season_week: dict,
-    projections_by_season_week: dict,
-    player_positions: dict,
-    scoring_settings: dict,
-) -> RegressionReport:
-    observations = build_regression_observations(
-        actuals_by_season_week,
-        projections_by_season_week,
-        player_positions,
-        scoring_settings,
-    )
-    return run_ridge_regression_evaluation(
-        observations,
-        training_season=TRAINING_SEASON,
-        evaluation_season=EVALUATION_SEASON,
-    )
 
 
 def _player_name(player: dict) -> str:
@@ -64,6 +34,84 @@ def _player_name(player: dict) -> str:
         if part
     )
     return name or str(player.get("full_name") or "Unknown Player")
+
+
+def _overall_evaluation(report: RegressionReport):
+    return next(
+        (
+            evaluation
+            for evaluation in report.evaluations
+            if evaluation.position == "Overall"
+        ),
+        None,
+    )
+
+
+def _render_metric_section(
+    title: str,
+    report: RegressionReport,
+    empty_message: str,
+) -> None:
+    st.subheader(title)
+    overall = _overall_evaluation(report)
+    if overall is None:
+        st.info(empty_message)
+        return
+    metric_columns = st.columns(4)
+    metric_columns[0].metric("Evaluation player-weeks", f"{overall.observations:,}")
+    metric_columns[1].metric("ESPN MAE", f"{overall.provider_mae:.2f}")
+    metric_columns[2].metric(
+        "Ridge MAE",
+        f"{overall.model_mae:.2f}",
+        delta=f"{overall.provider_mae - overall.model_mae:+.2f} points",
+    )
+    metric_columns[3].metric(
+        "MAE improvement",
+        f"{overall.mae_improvement:.1%}",
+    )
+
+
+def _render_evaluation_table(report: RegressionReport) -> None:
+    if not report.evaluations:
+        return
+    evaluation_frame = pd.DataFrame(
+        [
+            {
+                "Position": evaluation.position,
+                "Player-Weeks": evaluation.observations,
+                "Ridge Alpha": (
+                    evaluation.alpha if evaluation.position != "Overall" else None
+                ),
+                "ESPN MAE": evaluation.provider_mae,
+                "Ridge MAE": evaluation.model_mae,
+                "MAE Improvement": evaluation.mae_improvement,
+                "ESPN RMSE": evaluation.provider_rmse,
+                "Ridge RMSE": evaluation.model_rmse,
+                "ESPN Bias": evaluation.provider_bias,
+                "Ridge Bias": evaluation.model_bias,
+                "Ridge R²": evaluation.model_r_squared,
+            }
+            for evaluation in report.evaluations
+        ]
+    )
+    st.dataframe(
+        evaluation_frame,
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "Position": st.column_config.TextColumn(width="small"),
+            "Player-Weeks": st.column_config.NumberColumn(format="%d"),
+            "Ridge Alpha": st.column_config.NumberColumn(format="%.1f"),
+            "ESPN MAE": st.column_config.NumberColumn(format="%.2f"),
+            "Ridge MAE": st.column_config.NumberColumn(format="%.2f"),
+            "MAE Improvement": st.column_config.NumberColumn(format="percent"),
+            "ESPN RMSE": st.column_config.NumberColumn(format="%.2f"),
+            "Ridge RMSE": st.column_config.NumberColumn(format="%.2f"),
+            "ESPN Bias": st.column_config.NumberColumn(format="%+.2f"),
+            "Ridge Bias": st.column_config.NumberColumn(format="%+.2f"),
+            "Ridge R²": st.column_config.NumberColumn(format="%.3f"),
+        },
+    )
 
 
 require_authentication("regression")
@@ -80,126 +128,111 @@ st.markdown(
     unsafe_allow_html=True,
 )
 st.title("Regression")
-st.caption(
-    "Ridge regression adjusts ESPN's projected fantasy points by predicting each "
-    "player-week residual. Models are tuned chronologically on 2024 and evaluated "
-    "sequentially on 2025."
-)
 
 league = get_league(league_id)
 players = get_nfl_players()
 rosters = get_rosters(league_id)
 teams = get_league_users(league_id)
-actuals_by_season_week = {}
-projections_by_season_week = {}
-unavailable_inputs = []
-for season in (TRAINING_SEASON, EVALUATION_SEASON):
-    actuals_by_season_week[season] = {}
-    projections_by_season_week[season] = {}
-    for week in HISTORICAL_WEEKS:
-        try:
-            actuals_by_season_week[season][week] = get_player_stats(
-                str(season), "regular", week
-            )
-            projections_by_season_week[season][week] = get_projected_player_stats(
-                str(season), week, baseline_only=True
-            )
-        except (OSError, requests.RequestException, TypeError, ValueError):
-            unavailable_inputs.append((season, week))
+current_season = int(league.season)
+training_season = current_season - 2
+evaluation_season = current_season - 1
+st.caption(
+    "Ridge regression adjusts ESPN's projected fantasy points by predicting each "
+    f"player-week residual. Models are tuned chronologically on {training_season} "
+    f"and evaluated sequentially on {evaluation_season}; final models also learn "
+    "from completed current-season snapshot weeks."
+)
 
-if unavailable_inputs:
-    unavailable_label = ", ".join(
-        f"{season} Week {week}" for season, week in unavailable_inputs
+with st.spinner("Loading cached regression results..."):
+    regression_artifact = load_or_create_regression_artifact(
+        league_id,
+        current_season,
+        players,
+        league.scoring_settings,
     )
-    st.warning(f"Historical inputs were unavailable for: {unavailable_label}.")
+if regression_artifact is None:
+    st.info(
+        "Regression results will be available after the first completed week has "
+        "both a pre-kickoff projection snapshot and a post-week actual snapshot."
+    )
+    st.stop()
 
-player_positions = {
-    player_id: {"position": player.get("position")}
-    for player_id, player in players.items()
-}
-report = _build_regression_report(
-    actuals_by_season_week,
-    projections_by_season_week,
-    player_positions,
-    league.scoring_settings,
+if regression_artifact.unavailable_historical_inputs:
+    st.warning(
+        f"{regression_artifact.unavailable_historical_inputs} historical weekly "
+        "input pair(s) were unavailable when this cache was built."
+    )
+
+historical_report = summarize_regression_predictions(
+    regression_artifact.validation_predictions,
+    regression_artifact.final_models,
+)
+current_report = summarize_regression_predictions(
+    regression_artifact.backtest_predictions,
+    regression_artifact.final_models,
 )
 st.caption(
-    "Regression results are cached and retrained only when the historical inputs, "
-    "player positions, league scoring settings, or model implementation change."
+    "Loaded from the shared persistent regression cache. It is rebuilt when the "
+    "completed snapshot weeks, player positions, league scoring settings, or model "
+    "implementation change."
 )
 
-overall = next(
-    (evaluation for evaluation in report.evaluations if evaluation.position == "Overall"),
-    None,
+completed_week_label = ", ".join(
+    str(week) for week in regression_artifact.completed_weeks
 )
-if overall is None:
-    st.info("There are not enough matched historical player-weeks to evaluate the model.")
-else:
-    metric_columns = st.columns(4)
-    metric_columns[0].metric("Evaluation player-weeks", f"{overall.observations:,}")
-    metric_columns[1].metric("ESPN MAE", f"{overall.provider_mae:.2f}")
-    metric_columns[2].metric(
-        "Ridge MAE",
-        f"{overall.model_mae:.2f}",
-        delta=f"{overall.provider_mae - overall.model_mae:+.2f} points",
+historical_tab, current_tab = st.tabs(
+    [
+        f"Historical Validation ({evaluation_season})",
+        f"Current-Season Backtest ({current_season})",
+    ]
+)
+with historical_tab:
+    _render_metric_section(
+        "Summary",
+        historical_report,
+        "There are not enough matched historical player-weeks to evaluate the model.",
     )
-    metric_columns[3].metric(
-        "MAE improvement",
-        f"{overall.mae_improvement:.1%}",
+    _render_evaluation_table(historical_report)
+    st.caption(
+        "This stable benchmark evaluates each week chronologically against the "
+        "original ESPN projection."
+    )
+with current_tab:
+    _render_metric_section(
+        "Summary",
+        current_report,
+        "There are not enough completed current-season player-weeks to evaluate "
+        "the model.",
+    )
+    _render_evaluation_table(current_report)
+    st.caption(
+        f"Completed snapshot weeks included: {completed_week_label or 'None'}. "
+        "This section updates when the shared regression cache is rebuilt."
     )
 
-evaluation_tab, players_tab, coefficients_tab = st.tabs(
-    ["Evaluation", "Players", "Coefficients"]
+st.caption(
+    "Positive bias means players scored more than projected. Improvement is "
+    "measured against the original ESPN projection on the same player-weeks."
 )
-with evaluation_tab:
-    if report.evaluations:
-        evaluation_frame = pd.DataFrame(
-            [
-                {
-                    "Position": evaluation.position,
-                    "Player-Weeks": evaluation.observations,
-                    "Ridge Alpha": evaluation.alpha if evaluation.position != "Overall" else None,
-                    "ESPN MAE": evaluation.provider_mae,
-                    "Ridge MAE": evaluation.model_mae,
-                    "MAE Improvement": evaluation.mae_improvement,
-                    "ESPN RMSE": evaluation.provider_rmse,
-                    "Ridge RMSE": evaluation.model_rmse,
-                    "ESPN Bias": evaluation.provider_bias,
-                    "Ridge Bias": evaluation.model_bias,
-                    "Ridge R²": evaluation.model_r_squared,
-                }
-                for evaluation in report.evaluations
-            ]
-        )
-        st.dataframe(
-            evaluation_frame,
-            hide_index=True,
-            width="stretch",
-            column_config={
-                "Position": st.column_config.TextColumn(width="small"),
-                "Player-Weeks": st.column_config.NumberColumn(format="%d"),
-                "Ridge Alpha": st.column_config.NumberColumn(format="%.1f"),
-                "ESPN MAE": st.column_config.NumberColumn(format="%.2f"),
-                "Ridge MAE": st.column_config.NumberColumn(format="%.2f"),
-                "MAE Improvement": st.column_config.NumberColumn(format="percent"),
-                "ESPN RMSE": st.column_config.NumberColumn(format="%.2f"),
-                "Ridge RMSE": st.column_config.NumberColumn(format="%.2f"),
-                "ESPN Bias": st.column_config.NumberColumn(format="%+.2f"),
-                "Ridge Bias": st.column_config.NumberColumn(format="%+.2f"),
-                "Ridge R²": st.column_config.NumberColumn(format="%.3f"),
-            },
-        )
-    st.markdown(
-        "Positive bias means players scored more than projected. Improvement is "
-        "measured against the original ESPN projection on the same 2025 player-weeks."
-    )
 
+players_tab, coefficients_tab = st.tabs(["Players", "Coefficients"])
 with players_tab:
+    historical_period = f"Historical validation ({evaluation_season})"
+    current_period = f"Current-season backtest ({current_season})"
+    selected_period = st.segmented_control(
+        "Performance period",
+        [historical_period, current_period],
+        default=historical_period,
+        key=f"regression-performance-period-{league_id}",
+    )
+    selected_report = (
+        current_report if selected_period == current_period else historical_report
+    )
     filter_columns = st.columns(3)
     with filter_columns[0]:
         position_filter = st.selectbox(
             "Position",
-            ["All Positions", *sorted(report.final_models)],
+            ["All Positions", *sorted(regression_artifact.final_models)],
             key=f"regression-position-{league_id}",
         )
     with filter_columns[1]:
@@ -220,7 +253,7 @@ with players_tab:
     roster_labels = build_player_roster_labels(rosters.rosters, teams.users)
     player_rows = []
     search_query = player_search.strip().casefold()
-    for summary in report.player_summaries:
+    for summary in selected_report.player_summaries:
         player = players.get(summary.player_id, {})
         name = _player_name(player)
         if position_filter != "All Positions" and summary.position != position_filter:
@@ -279,7 +312,7 @@ with players_tab:
 
 with coefficients_tab:
     coefficient_rows = []
-    for position, model in report.final_models.items():
+    for position, model in regression_artifact.final_models.items():
         for feature, coefficient in zip(FEATURE_NAMES, model.coefficients):
             coefficient_rows.append(
                 {
@@ -325,7 +358,9 @@ with st.expander("Method and interpretation"):
         Separate models are fitted for QB, RB, WR, TE, K, and DEF. Features use
         only the current ESPN projection and actual or residual history from prior
         weeks in the same season. Ridge penalties are selected through rolling
-        2024 validation. For 2025 evaluation, each week is predicted before its
+        """
+        + f"{training_season} validation. For {evaluation_season} evaluation, each "
+        + r"""week is predicted before its
         results are added to the next week's training set.
 
         The evaluation is conditional on recording a game and receiving a positive

@@ -31,6 +31,7 @@ from fantasy_dashboard.matchups import (
     build_week_opponents,
 )
 from fantasy_dashboard.models.player import PlayerModel
+from fantasy_dashboard.regression_cache import get_updated_projected_points
 from fantasy_dashboard.routing import (
     ANALYSIS_MODE_KEY,
     require_authentication,
@@ -180,6 +181,19 @@ except (requests.RequestException, TypeError, ValueError):
     )
     st.warning(f"{source_name} could not be loaded; scores are shown as dashes.")
 
+updated_projection_points = (
+    get_updated_projected_points(
+        league_id,
+        int(stats_season),
+        stats_by_player_id,
+        players,
+        league.scoring_settings,
+        selected_week,
+    )
+    if stats_source == "Predicted" and stats_season == league.season
+    else {}
+)
+
 try:
     nfl_schedule = get_nfl_schedule(stats_season, league.season_type)
 except (requests.RequestException, TypeError, ValueError):
@@ -239,6 +253,9 @@ elif selected_player_id:
             stats_source=stats_source,
             show_news_button=True,
             show_stat_filter=True,
+            updated_projected_points=updated_projection_points.get(
+                str(selected_player_id)
+            ),
         )
 
 stats_update = (

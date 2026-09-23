@@ -20,7 +20,14 @@ from fantasy_dashboard.graph_stats import (
     build_actual_weekly_stat_rows,
     build_week_opponents,
 )
-from fantasy_dashboard.player_stats import build_player_stat_row
+from fantasy_dashboard.player_stats import (
+    UPDATED_PROJECTED_STATS_LABEL,
+    build_player_stat_row,
+)
+from fantasy_dashboard.regression_cache import (
+    load_or_create_regression_artifact,
+    updated_projected_points,
+)
 from fantasy_dashboard.routing import (
     ANALYSIS_MODE_KEY,
     PLAYER_STATS_MODE_KEY,
@@ -138,6 +145,16 @@ else:
     weekly_rows: list[dict] = []
     data_updates = []
     if stats_source == "Predicted":
+        regression_artifact = (
+            load_or_create_regression_artifact(
+                league_id,
+                int(selected_season),
+                players,
+                league.scoring_settings,
+            )
+            if selected_season == league.season
+            else None
+        )
         try:
             schedule = get_nfl_schedule(selected_season, "regular")
         except (requests.RequestException, TypeError, ValueError):
@@ -154,6 +171,15 @@ else:
                     league.scoring_settings,
                     week,
                 )
+                if regression_artifact is not None:
+                    updated = updated_projected_points(
+                        regression_artifact,
+                        {player_id: projected_stats},
+                        players,
+                        league.scoring_settings,
+                        week,
+                    )
+                    row[UPDATED_PROJECTED_STATS_LABEL] = updated.get(player_id)
                 row["Opponent"] = opponents_by_week.get(week, "—")
                 weekly_rows.append(row)
                 data_updates.append(

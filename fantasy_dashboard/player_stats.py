@@ -99,6 +99,7 @@ ALL_STATS = list(
         [*COMMON_STATS, *(stat for stats in POSITION_STATS.values() for stat in stats)]
     )
 )
+UPDATED_PROJECTED_STATS_LABEL = "Projected FP Updated"
 
 
 # Limit displayed statistics without rounding projected fractional values upward.
@@ -276,6 +277,7 @@ def build_player_stat_rows(
     selected_position: str | None = None,
     available_only: bool = False,
     roster_labels_by_player_id: dict[str, str] | None = None,
+    updated_projected_points_by_player_id: dict[str, float] | None = None,
 ) -> list[dict[str, Any]]:
     rostered_player_ids = {
         str(player_id)
@@ -330,6 +332,19 @@ def build_player_stat_rows(
                     if stats_available
                     else None
                 ),
+                **(
+                    {
+                        UPDATED_PROJECTED_STATS_LABEL: (
+                            truncate_decimal(
+                                updated_projected_points_by_player_id[player_key]
+                            )
+                            if player_key in updated_projected_points_by_player_id
+                            else None
+                        )
+                    }
+                    if updated_projected_points_by_player_id is not None
+                    else {}
+                ),
                 **{
                     label: (
                         truncate_decimal(player_stats.get(stat_name, 0) or 0)
@@ -354,7 +369,11 @@ def build_player_stat_rows(
 # Give unavailable stat cells an explicit display value without changing real zeroes.
 def format_stat_table_for_display(table: Any) -> Any:
     formatted = table.copy()
-    stat_columns = {"Fantasy Points", *(label for label, _ in ALL_STATS)}
+    stat_columns = {
+        "Fantasy Points",
+        UPDATED_PROJECTED_STATS_LABEL,
+        *(label for label, _ in ALL_STATS),
+    }
     for column in stat_columns.intersection(formatted.columns):
         formatted[column] = formatted[column].map(
             lambda value: (

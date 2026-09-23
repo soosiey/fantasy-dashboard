@@ -46,6 +46,7 @@ from fantasy_dashboard.matchups import (
     build_week_game_statuses,
     build_week_opponents,
 )
+from fantasy_dashboard.regression_cache import get_updated_projected_points
 from fantasy_dashboard.routing import (
     ANALYSIS_MODE_KEY,
     require_authentication,
@@ -442,6 +443,14 @@ if prediction_week_options:
         key=prediction_week_key,
     )
     selected_projections = projections_by_week.get(selected_prediction_week, {})
+    updated_selected_projections = get_updated_projected_points(
+        league_id,
+        int(league.season),
+        selected_projections,
+        players,
+        league.scoring_settings,
+        selected_prediction_week,
+    )
     optimized_week_matchups = build_optimized_week_matchups(
         league,
         rosters.rosters,
@@ -489,6 +498,9 @@ if prediction_week_options:
                 selected_week=selected_prediction_week,
                 stats_source="Predicted",
                 show_stat_filter=True,
+                updated_projected_points=updated_selected_projections.get(
+                    str(selected_player_id)
+                ),
             )
 else:
     st.info("There are no remaining regular-season matchups to project.")

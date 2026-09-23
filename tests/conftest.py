@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from fantasy_dashboard import data, draft_analysis_cache
+from fantasy_dashboard import backtesting, data, draft_analysis_cache, regression_cache
+from fantasy_dashboard.backtesting import SnapshotWeek
 from fantasy_dashboard.clients.sleeper import SleeperClient
 from fantasy_dashboard.components import player_news
 from fantasy_dashboard.models.bracket import BracketContainer
@@ -36,6 +37,11 @@ def fake_page_backend(monkeypatch, tmp_path) -> SleeperUser:
         draft_analysis_cache,
         "DRAFT_ANALYSIS_CACHE_DIR",
         tmp_path / "draft_analysis",
+    )
+    monkeypatch.setattr(
+        regression_cache,
+        "REGRESSION_CACHE_DIR",
+        tmp_path / "regression",
     )
     league = LeagueModel.from_api(
         {
@@ -251,7 +257,24 @@ def fake_page_backend(monkeypatch, tmp_path) -> SleeperUser:
     )
     monkeypatch.setattr(data, "get_nfl_players", lambda: players)
     monkeypatch.setattr(data, "get_player_stats", lambda *args: stats)
-    monkeypatch.setattr(data, "get_projected_player_stats", lambda *args, **kwargs: stats)
+    monkeypatch.setattr(
+        data, "get_projected_player_stats", lambda *args, **kwargs: stats
+    )
+    snapshot_week = SnapshotWeek(
+        season=2026,
+        week=1,
+        projection_run_id="pre-1",
+        actual_run_id="post-1",
+        projected_at="2026-09-01T00:00:00Z",
+        actual_captured_at="2026-09-09T00:00:00Z",
+        projections=stats,
+        actuals=stats,
+    )
+    monkeypatch.setattr(
+        backtesting,
+        "load_completed_snapshot_weeks",
+        lambda *args, **kwargs: {1: snapshot_week},
+    )
     monkeypatch.setattr(
         data,
         "get_player_weekly_stats",

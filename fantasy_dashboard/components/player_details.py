@@ -7,6 +7,7 @@ import streamlit as st
 from fantasy_dashboard.data import get_player_weekly_stats
 from fantasy_dashboard.player_stats import (
     ALL_STATS,
+    UPDATED_PROJECTED_STATS_LABEL,
     build_player_stat_row,
     build_player_weekly_stat_rows,
     format_stat_table_for_display,
@@ -39,7 +40,7 @@ def render_player_stats_table(
 
     relevant_columns = get_relevant_stat_labels(position)
     if stat_view == "Relevant Stats":
-        context_columns = {"Week", "Opponent"}
+        context_columns = {"Week", "Opponent", UPDATED_PROJECTED_STATS_LABEL}
         weekly_table = weekly_table[
             [
                 column
@@ -87,6 +88,9 @@ def render_player_stats_table(
             "Fantasy Points": st.column_config.TextColumn(
                 "Fantasy Points", width="small"
             ),
+            UPDATED_PROJECTED_STATS_LABEL: st.column_config.TextColumn(
+                UPDATED_PROJECTED_STATS_LABEL, width="medium"
+            ),
         },
         hide_index=True,
         height=table_height,
@@ -107,6 +111,7 @@ def render_player_details(
     stats_source: str | None = None,
     show_news_button: bool = False,
     show_stat_filter: bool = False,
+    updated_projected_points: float | None = None,
 ) -> None:
     player_name = (
         f"{player.get('first_name') or ''} {player.get('last_name') or ''}"
@@ -138,15 +143,14 @@ def render_player_details(
     # player browser retains its full actual-stat game log.
     if selected_stats is not None and selected_week is not None:
         st.caption(f"{stats_source or 'Statistics'} · Week {selected_week}")
-        weekly_table = pd.DataFrame(
-            [
-                build_player_stat_row(
-                    selected_stats,
-                    scoring_settings,
-                    selected_week,
-                )
-            ]
+        row = build_player_stat_row(
+            selected_stats,
+            scoring_settings,
+            selected_week,
         )
+        if updated_projected_points is not None:
+            row[UPDATED_PROJECTED_STATS_LABEL] = updated_projected_points
+        weekly_table = pd.DataFrame([row])
         table_height = 150
     else:
         try:
@@ -184,6 +188,7 @@ def show_player_details(
     stats_source: str | None = None,
     show_news_button: bool = False,
     show_stat_filter: bool = False,
+    updated_projected_points: float | None = None,
 ) -> None:
     render_player_details(
         player_id,
@@ -196,4 +201,5 @@ def show_player_details(
         stats_source=stats_source,
         show_news_button=show_news_button,
         show_stat_filter=show_stat_filter,
+        updated_projected_points=updated_projected_points,
     )

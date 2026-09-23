@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 from fantasy_dashboard.player_stats import (
+    UPDATED_PROJECTED_STATS_LABEL,
     build_player_identity_image,
     build_player_roster_labels,
     build_player_stat_row,
@@ -112,12 +113,14 @@ def test_available_players_exclude_currently_rostered_players() -> None:
         ["QB"],
         selected_position="QB",
         available_only=True,
+        updated_projected_points_by_player_id={"available": 17.456},
     )
 
     assert len(rows) == 1
     assert rows[0]["Player"] == "Available Player"
     assert rows[0]["Availability"] == "Available"
     assert rows[0]["Fantasy Points"] is None
+    assert rows[0][UPDATED_PROJECTED_STATS_LABEL] == 17.45
     assert rows[0]["Pass Yds"] is None
     assert rows[0]["Rush Yds"] is None
     assert rows[0]["FG Made"] is None

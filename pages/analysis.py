@@ -26,6 +26,7 @@ from fantasy_dashboard.data import (
 )
 from fantasy_dashboard.player_stats import (
     ALL_STATS,
+    UPDATED_PROJECTED_STATS_LABEL,
     build_player_identity_image,
     build_player_roster_labels,
     build_player_stat_rows,
@@ -33,6 +34,7 @@ from fantasy_dashboard.player_stats import (
     get_relevant_stat_labels,
     get_rosterable_positions,
 )
+from fantasy_dashboard.regression_cache import get_updated_projected_points
 from fantasy_dashboard.roster import get_player_by_id, get_roster_player_order
 from fantasy_dashboard.routing import (
     ANALYSIS_MODE_KEY,
@@ -227,6 +229,18 @@ else:
         st.warning(f"{source_name} could not be loaded; values are shown as dashes.")
 
     nfl_players = get_nfl_players()
+    updated_projected_points = (
+        get_updated_projected_points(
+            league_id,
+            int(league.season),
+            stats_by_player_id,
+            nfl_players,
+            league.scoring_settings,
+            selected_week,
+        )
+        if stats_source == "Predicted"
+        else None
+    )
     roster_labels = build_player_roster_labels(rosters.rosters, teams.users)
     selected_position = (
         None if selected_position_label == "All Positions" else selected_position_label
@@ -243,6 +257,7 @@ else:
             rosterable_positions,
             selected_position=selected_position,
             roster_labels_by_player_id=roster_labels,
+            updated_projected_points_by_player_id=updated_projected_points,
         )
         if row["Player ID"] in selected_player_ids
     ]
@@ -339,6 +354,10 @@ else:
                 "Fantasy Points": st.column_config.TextColumn(
                     "Fantasy Points",
                     width="small",
+                ),
+                UPDATED_PROJECTED_STATS_LABEL: st.column_config.TextColumn(
+                    UPDATED_PROJECTED_STATS_LABEL,
+                    width="medium",
                 ),
             },
             disabled=[
