@@ -2,6 +2,29 @@ from pathlib import Path
 
 import warm_regression_cache
 
+def test_warm_league_cache_skips_when_no_completed_pairs(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    monkeypatch.setattr(
+        warm_regression_cache,
+        "_load_context",
+        lambda database_path, league_id: (2026, {}),
+    )
+    monkeypatch.setattr(
+        warm_regression_cache,
+        "load_completed_snapshot_weeks",
+        lambda league_id, season, database_path: [],
+    )
+
+    rebuilt = warm_regression_cache.warm_league_cache(tmp_path, "league-1")
+
+    assert rebuilt is False
+    assert capsys.readouterr().out == (
+        "Skipped regression cache for league league-1, season 2026; "
+        "no completed projection/actual snapshot pairs yet.\n"
+    )
+
+
 
 def test_cli_warms_every_requested_league(monkeypatch, tmp_path: Path) -> None:
     warmed = []

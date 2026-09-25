@@ -57,9 +57,11 @@ def warm_league_cache(storage_dir: Path, league_id: str) -> bool:
         database_path,
     )
     if not snapshots:
-        raise ValueError(
-            f"League {league_id} has no completed projection/actual snapshot pairs."
+        print(
+            f"Skipped regression cache for league {league_id}, season {season}; "
+            "no completed projection/actual snapshot pairs yet."
         )
+        return False
     artifact = load_or_create_regression_artifact(
         league_id,
         season,
