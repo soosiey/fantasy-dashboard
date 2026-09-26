@@ -425,7 +425,10 @@ if refresh_disabled:
 
 with st.bottom:
     if authenticated:
-        refresh_column, github_column = st.columns(2)
+        refresh_column, github_column, version_column = st.columns(
+            [1, 1, 0.18],
+            vertical_alignment="center",
+        )
         with refresh_column:
             st.button(
                 "Refresh Current Week",
@@ -436,7 +439,10 @@ with st.bottom:
                 width="stretch",
             )
     else:
-        github_column = st.container()
+        github_column, version_column = st.columns(
+            [1, 0.18],
+            vertical_alignment="center",
+        )
 
     with github_column:
         st.link_button(
@@ -445,6 +451,12 @@ with st.bottom:
             icon=":material/arrow_outward:",
             icon_position="right",
             width="stretch",
+        )
+    with version_column:
+        st.markdown(
+            f'<div class="app-version-indicator" '
+            f'aria-label="Application version">v{VERSION}</div>',
+            unsafe_allow_html=True,
         )
 
 if st.session_state.pop("_refresh_current_week_input_data", False):
@@ -545,10 +557,8 @@ st.markdown(
         box-shadow: 0 0 0.38rem rgba(34, 197, 94, 0.8);
     }}
     .app-version-indicator {{
-        position: fixed;
-        right: 0.9rem;
-        bottom: 0.7rem;
-        z-index: 10000;
+        width: fit-content;
+        margin-left: auto;
         color: var(--text-color);
         background: color-mix(in srgb, var(--background-color) 88%, transparent);
         border: 1px solid color-mix(in srgb, var(--text-color) 18%, transparent);
@@ -558,6 +568,7 @@ st.markdown(
         line-height: 1rem;
         opacity: 0.65;
         pointer-events: none;
+        white-space: nowrap;
     }}
     </style>
     <div
@@ -568,9 +579,6 @@ st.markdown(
     >
         <span class="game-status-light" aria-hidden="true"></span>
         <span>Game Active</span>
-    </div>
-    <div class="app-version-indicator" aria-label="Application version">
-        v{VERSION}
     </div>
     """,
     unsafe_allow_html=True,
