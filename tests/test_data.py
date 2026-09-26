@@ -165,6 +165,30 @@ def test_player_stats_reuse_persistent_week_cache(monkeypatch, tmp_path) -> None
     assert calls == [("2026", "regular", 4), ("2026", "regular", 4)]
 
 
+def test_actual_stats_refresh_preserves_usable_cache_on_empty_response(
+    monkeypatch, tmp_path
+) -> None:
+    cached_stats = {"player-1": {"gp": 1, "pass_yd": 250}}
+
+    class FakeClient:
+        def get_player_stats(
+            self,
+            season: str,
+            season_type: str,
+            week: int | None,
+        ) -> dict[str, dict]:
+            return {}
+
+    monkeypatch.setattr(data, "WEEKLY_STATS_CACHE_DIR", tmp_path)
+    monkeypatch.setattr(data, "get_sleeper_client", FakeClient)
+    cache_path = data._stats_cache_path("sleeper", "2026", "regular", 1)
+    data._write_json_cache(cache_path, cached_stats)
+    data._read_json_cache.clear()
+
+    assert data.refresh_player_stats_cache("2026", "regular", 1) == cached_stats
+    assert data._load_json_cache(cache_path) == cached_stats
+
+
 def test_season_stats_fill_empty_players_and_missing_defenses_from_weekly_caches(
     monkeypatch, tmp_path
 ) -> None:
@@ -558,9 +582,19 @@ def test_actual_cache_uses_live_and_finalized_refresh_windows(tmp_path) -> None:
         now=after_deadline,
     )
 
+    data._write_json_cache(cache_path, {"player-1": {"gp": 1}})
     finalized_update = datetime(2026, 9, 11, 12, 0, tzinfo=timezone.utc).timestamp()
     os.utime(cache_path, (finalized_update, finalized_update))
     assert not data._actual_cache_needs_refresh(
+        cache_path,
+        completed_games,
+        now=checked_at,
+    )
+
+    data._write_json_cache(cache_path, {})
+    stale_empty_update = checked_at.timestamp() - 61
+    os.utime(cache_path, (stale_empty_update, stale_empty_update))
+    assert data._actual_cache_needs_refresh(
         cache_path,
         completed_games,
         now=checked_at,

@@ -240,6 +240,28 @@ def _actual_cache_needs_refresh(
         return True
 
     checked_at = now or datetime.now(timezone.utc)
+    try:
+        cache_is_empty = not _load_json_cache(path)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return True
+
+    # Sleeper occasionally returns an empty object for a week that already has
+    # statistics. Never freeze that response as a finalized completed-week cache.
+    # Retain the normal live/pregame retry windows so an outage does not cause a
+    # provider request on every Streamlit rerun.
+    if cache_is_empty:
+        statuses = {
+            str(game.get("status") or "").strip().casefold()
+            for game in games
+            if isinstance(game, dict)
+        }
+        max_age = (
+            LIVE_ACTUAL_CACHE_MAX_AGE
+            if statuses.intersection(LIVE_GAME_STATUSES | COMPLETE_GAME_STATUSES)
+            else PREGAME_ACTUAL_CACHE_MAX_AGE
+        )
+        return checked_at - _cache_updated_at(path) >= max_age
+
     correction_deadline = _correction_deadline(games)
     if correction_deadline is not None:
         if checked_at >= correction_deadline:
@@ -467,6 +489,17 @@ def refresh_player_stats_cache(
 ) -> dict[str, dict]:
     stats = get_sleeper_client().get_player_stats(season, season_type, week)
     cache_path = _stats_cache_path("sleeper", season, season_type, week)
+    if not stats and cache_path.exists():
+        try:
+            cached_stats = _load_json_cache(cache_path)
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            cached_stats = {}
+        if cached_stats:
+            # Keep the last usable response when Sleeper transiently returns {}.
+            # Rewriting it records this refresh attempt for the normal retry window.
+            _write_json_cache(cache_path, cached_stats)
+            _read_json_cache.clear()
+            return cached_stats
     _write_json_cache(cache_path, stats)
     _read_json_cache.clear()
     return stats
